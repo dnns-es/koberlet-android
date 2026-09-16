@@ -29,7 +29,7 @@ on:
 jobs:
   simulador:
     name: Compilar para el simulador
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +95,7 @@ jobs:
     name: Firmar y subir a TestFlight
     needs: simulador
     if: github.event_name != 'pull_request'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
