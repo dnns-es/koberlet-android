@@ -51,6 +51,17 @@ function ficherosKotlin() {
             // Una variante puede no tener fuentes Kotlin propios: no es un fallo.
         }
     }
+    // Y el port a Swift del mismo plugin: mismos mensajes, misma pantalla. Las
+    // cadenas con `\(…)` dentro llevan barra y ya las excluye el patrón.
+    for (const dir of [join(RAIZ, 'ios', 'App', 'App'), join(RAIZ, 'ios', 'KoberletCore', 'Sources', 'KoberletCore')]) {
+        try {
+            for (const n of readdirSync(dir)) {
+                if (n.endsWith('.swift')) textos.push(readFileSync(join(dir, n), 'utf8'));
+            }
+        } catch (_) {
+            // Sin carpeta ios no hay nada que mirar.
+        }
+    }
     return textos;
 }
 const IDIOMA = readFileSync(join(SRC, 'idioma.js'), 'utf8');

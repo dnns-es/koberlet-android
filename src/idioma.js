@@ -425,6 +425,41 @@ const EN = {
         'The Kadena account is missing.',
     'El nodo no devolvió un hash de transacción.':
         'The node did not return a transaction hash.',
+    // Mensajes que solo salen del plugin de iPhone (Huella.swift, KoberletVault.swift, KoberletCore).
+    'Este iPhone no tiene Face ID ni Touch ID.':
+        'This iPhone has no Face ID or Touch ID.',
+    'No hay ninguna cara ni huella configurada en este iPhone. Añádela en Ajustes.':
+        'No face or fingerprint is set up on this iPhone. Add one in Settings.',
+    'Face ID / Touch ID está bloqueado. Desbloquéalo con el código del iPhone.':
+        'Face ID / Touch ID is locked. Unlock it with the iPhone passcode.',
+    'Este iPhone no tiene código. Ponle uno para poder usar la identificación.':
+        'This iPhone has no passcode. Set one to be able to use biometric unlock.',
+    'Este iPhone no admite identificación segura.':
+        'This iPhone does not support secure biometric unlock.',
+    'No se pudo preparar la protección biométrica.':
+        'Could not set up biometric protection.',
+    'No se pudo leer la contraseña guardada.':
+        'Could not read the stored password.',
+    'La identificación ya no vale en este iPhone. Vuelve a activarla con tu contraseña.':
+        'Biometric unlock is no longer valid on this iPhone. Enable it again with your password.',
+    'No se puede abrir la hoja de compartir ahora mismo.':
+        'The share sheet cannot be opened right now.',
+    'No se pudo preparar la copia.':
+        'Could not prepare the backup.',
+    'El peaje no es un número.':
+        'The toll is not a number.',
+    'El contenido de la bóveda no es una cartera de Koberlet.':
+        'The vault contents are not a Koberlet wallet.',
+    'No se pudo derivar la clave de la bóveda.':
+        'Could not derive the vault key.',
+    'No se pudo cifrar la bóveda.':
+        'Could not encrypt the vault.',
+    'El fichero de la bóveda no tiene la forma esperada.':
+        'The vault file does not have the expected format.',
+    'La clave pública no tiene la forma esperada.':
+        'The public key does not have the expected format.',
+    'La firma no tiene 64 bytes.':
+        'The signature is not 64 bytes long.',
     'Historial':
         'History',
     'Solo {0} → {1}':
