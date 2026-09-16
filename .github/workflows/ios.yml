@@ -49,6 +49,13 @@ jobs:
       - name: Xcode disponible
         run: xcodebuild -version
 
+      # El nucleo de la boveda (scrypt, AES-GCM, BIP-39, SLIP-0010, firma KDA) es
+      # un paquete Swift sin UIKit, asi que sus tests corren directamente en el Mac
+      # del runner, con los mismos vectores que los tests de Kotlin. En release,
+      # porque scrypt en debug tarda una eternidad.
+      - name: Tests del nucleo (KoberletCore)
+        run: swift test --package-path ios/KoberletCore -c release
+
       - name: Compilar (simulador, sin firma)
         run: |
           set -o pipefail
