@@ -26,6 +26,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Para abrir la cartera y firmar envíos sin teclear la contraseña.</string>
+	<!-- Cifrado: solo algoritmos estandar (AES-GCM, scrypt, Ed25519, secp256k1),
+	     exentos segun Apple/EAR. Sin esto, cada build pide la declaracion a mano. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Para leer códigos QR con direcciones de cuentas.</string>
 	<key>UILaunchStoryboardName</key>
