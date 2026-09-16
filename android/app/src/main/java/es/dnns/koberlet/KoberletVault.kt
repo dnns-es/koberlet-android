@@ -537,6 +537,9 @@ class KoberletVault : Plugin() {
         val pool = call.getString("pool") ?: return call.reject("Falta la cuenta del pool.")
         val cantidad = call.getString("cantidad") ?: return call.reject("Falta la cantidad.")
         val minimo = call.getString("minimo") ?: return call.reject("Falta el mínimo que aceptas recibir.")
+        // La comisión de servicio: la pantalla dice cuánto, `FirmaKda` dice a dónde
+        // y comprueba que no pase del 0,5 %. Si no viene, no se cobra nada.
+        val comision = call.getString("comision") ?: "0.0"
         val caminoJs = call.getArray("camino") ?: return call.reject("Falta el camino del cambio.")
         val horaNodo = call.getString("creationTime")?.toLongOrNull()
         if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
@@ -565,6 +568,7 @@ class KoberletVault : Plugin() {
                     privada = privada,
                     publica = publica,
                     creationTime = creation,
+                    comision = comision,
                 ).let { JSObject.fromJSONObject(it) }
             } finally {
                 privada.fill(0)

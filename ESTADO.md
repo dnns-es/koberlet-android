@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-15 · Versión publicada: **0.53.0** (hash y firma cotejados por HTTPS) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-16 · Versión publicada: **0.53.0** (hash y firma cotejados por HTTPS) · En preparación: **0.54.0** · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -136,6 +136,38 @@ El navegador es para la primera instalación.
     versión aceptada. Y con la 1.1 se vio funcionar el mecanismo: el aparato tenía
     aceptada la 1.0 y **la puerta volvió a salir sola**.
 
+
+## 0.54.0 (16/09/2026) — el Mercado también sostiene la app
+
+«Mercado necesitamos también ese %, la app debe mantenerse de alguna manera.» Y era
+verdad: mirando la cadena se vio que el DCA y las órdenes límite **ya cobraban su
+0,5 %** dentro de sus contratos, pero el cambio del Mercado no cobraba **nada**. El
+pool se quedaba su 0,3 % y el proyecto, cero.
+
+Desde esta versión el cambio de Kadena cobra **el mismo 0,5 %** que el resto.
+
+- **Cómo está hecho** (`FirmaKda.cambioAmm`, en Kotlin y en Swift): la comisión se
+  aparta de lo que entra, **antes** del cambio, y la transferencia viaja en la
+  **misma transacción**, dentro de un `let`. Si el cambio revierte no se cobra nada;
+  si la comisión no se puede pagar, no hay cambio. No hay contrato nuevo ni custodia.
+- **La cuenta que cobra la pone el código nativo**, no la pantalla. La pantalla dice
+  cuánto; a dónde va no sale del WebView. Y el propio `FirmaKda` **rechaza firmar**
+  una comisión por encima del 0,5 %, aunque se la manden.
+- **El usuario lo ve dos veces** antes de firmar: en la cotización, con la cifra
+  exacta en el token que entrega, y en el aviso de debajo.
+- **El mínimo se calcula sobre el neto.** Calcularlo sobre el bruto dejaría un
+  mínimo por encima de lo que el pool puede dar y el cambio revertiría siempre.
+- **La simulación prueba el comando de verdad** (`src/lib/dex.js`): el mismo código,
+  los mismos datos y las mismas capabilities que luego se firman, cobro incluido.
+  Si simulara el comando viejo no estaría probando nada.
+- **Pruebas**: `test/comision-mercado.test.js` (el reparto cuadra, no se cobra de
+  más, decimales del token, y que JS, Kotlin y Swift cobran en la misma cuenta) y
+  `CambioAmmTest.kt` / `FirmaKdaTests.swift` (19 y 6 casos: el `let`, el TRANSFER
+  acotado, el tope del 0,5 %, y que sin comisión el comando es exactamente el de antes).
+- Las **políticas** suben a la **1.2** con el apartado «Lo que cuesta usar Koberlet».
+
+El gas del cambio sube 4.000 unidades: la transacción lleva una transferencia más.
+En el móvil, **sin probar todavía**.
 
 ## 0.53.0 (15/09/2026) — enviar desde Ethereum
 

@@ -172,11 +172,13 @@ final class FirmaKdaTests: XCTestCase {
 
     // --- Mercado ------------------------------------------------------------
 
-    private func cambio(camino: [String]? = nil, cantidad: String = "10", minimo: String = "1234.5", pool p: String? = nil) throws -> JSON {
+    private func cambio(camino: [String]? = nil, cantidad: String = "10", minimo: String = "1234.5", pool p: String? = nil,
+                        comision: String = "0.0") throws -> JSON {
         let cuenta = "k:\(publica)"
         return try FirmaKda.cambioAmm(networkId: "mainnet01", camino: camino ?? ["coin", pco], cuenta: cuenta,
                                       poolPrimerSalto: p ?? pool, cantidad: cantidad, minimo: minimo,
-                                      privada: privada, publica: publica, creationTime: 1_700_000_000)
+                                      privada: privada, publica: publica, creationTime: 1_700_000_000,
+                                      comision: comision)
     }
 
     func testElComandoEsUnSwapExactInConSuCamino() throws {
@@ -231,6 +233,51 @@ final class FirmaKdaTests: XCTestCase {
         let cmd = f["cmd"] as! String
         XCTAssertEqual(Base64Url.codificar(FirmaKda.hashComando(cmd)), f["hash"] as? String)
         XCTAssertNoThrow(try JSONSerialization.jsonObject(with: Data(cmd.utf8)))
+    }
+
+    // --- La comision de servicio de Koberlet ----------------------------------
+    //
+    // Las mismas comprobaciones que en Kotlin (`CambioAmmTest.kt`), porque los dos
+    // tienen que producir el MISMO texto: el hash es del texto.
+
+    func testSinComisionElComandoEsElDeSiempre() throws {
+        XCTAssertTrue(code(cmdDe(try cambio())).hasPrefix("(kaddex.exchange.swap-exact-in"))
+        XCTAssertEqual(2, clist(cmdDe(try cambio())).count)
+    }
+
+    func testConComisionElCambioYElCobroVanJuntos() throws {
+        let cuenta = "k:\(publica)"
+        let c = code(cmdDe(try cambio(comision: "0.05")))
+        // Un solo `let`: o pasan las dos cosas o no pasa ninguna.
+        XCTAssertTrue(c.hasPrefix("(let ((r (kaddex.exchange.swap-exact-in"))
+        XCTAssertTrue(c.contains("(coin.transfer-create \"\(cuenta)\" \"\(FirmaKda.comisionCuenta)\" (read-keyset \"ks-koberlet\") (read-decimal \"comision\"))"))
+        XCTAssertTrue(c.hasSuffix(" r)"))
+    }
+
+    func testAlPoolVaElNetoYLaComisionAparte() throws {
+        let d = data(cmdDe(try cambio(cantidad: "9.95", comision: "0.05")))
+        XCTAssertEqual("9.95", (d["amountIn"] as! JSON)["decimal"] as? String)
+        XCTAssertEqual("0.05", (d["comision"] as! JSON)["decimal"] as? String)
+        XCTAssertEqual(FirmaKda.comisionClave, ((d["ks-koberlet"] as! JSON)["keys"] as! [String])[0])
+    }
+
+    func testSeFirmaUnTransferAcotadoALaCuentaDeLaComision() throws {
+        let cl = clist(cmdDe(try cambio(cantidad: "9.95", comision: "0.05")))
+        XCTAssertEqual(3, cl.count)
+        let args = cl[2]["args"] as! [Any]
+        XCTAssertEqual(FirmaKda.comisionCuenta, args[1] as? String)
+        XCTAssertEqual("0.05", (args[2] as! JSON)["decimal"] as? String)
+    }
+
+    func testLaCuentaQueCobraNoLaPoneLaPantalla() {
+        // Es constante de FirmaKda: desde la pantalla no hay por donde desviarla.
+        XCTAssertEqual("k:" + FirmaKda.comisionClave, FirmaKda.comisionCuenta)
+    }
+
+    func testUnaComisionDeMasNoSeFirma() {
+        XCTAssertThrowsError(try cambio(cantidad: "10", comision: "1.0"))   // seria un 9 %
+        XCTAssertThrowsError(try cambio(comision: "0.05\" (coin.transfer \"a\" \"b\" 1.0) \""))
+        XCTAssertNoThrow(try cambio(cantidad: "99.5", comision: "0.5"))     // el 0,5 % justo
     }
 
     // --- Puente y DCA: lo que acota -------------------------------------------

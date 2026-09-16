@@ -273,12 +273,20 @@ public enum FirmaKda {
     private static let amm = "kaddex.exchange"
     public static let ammChain = "2"
 
+    /// La comision de servicio de Koberlet y la cuenta que la cobra, igual que en
+    /// Kotlin. Estan aqui y no en la pantalla: la pantalla dice cuanto, no a donde.
+    /// Aunque el WebView estuviera comprometido, la comision no se puede desviar.
+    public static let comisionCuenta = "k:e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df"
+    public static let comisionClave = "e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df"
+    /// 0,005 escrito sin pasar por un `Double`: en decimal exacto, como la cadena.
+    public static let comisionTope = Decimal(sign: .plus, exponent: -3, significand: 5)
+
     /// Cambio en el AMM (`swap-exact-in`). Solo se firma `coin.GAS` y el
     /// `TRANSFER` del token que SALE, por la cantidad exacta y hacia el pool.
     public static func cambioAmm(
         networkId: String, camino: [String], cuenta: String, poolPrimerSalto: String,
         cantidad: String, minimo: String, privada: [UInt8], publica: String, creationTime: Int64,
-        gasLimit: Int = 14000, gasPrice: String = "1e-8"
+        comision: String = "0.0", gasLimit: Int = 14000, gasPrice: String = "1e-8"
     ) throws -> JSON {
         if camino.count < 2 || camino.count > 3 { throw FalloBoveda.argumento("Ese camino de cambio no tiene sentido.") }
         for mod in camino where mod != "coin" && !moduloValido(mod) {
@@ -295,15 +303,44 @@ public enum FirmaKda {
             throw FalloBoveda.argumento("Para el mercado la cuenta Kadena tiene que ser k: y 64 caracteres.")
         }
 
-        let codigo = "(\(amm).swap-exact-in (read-decimal \\\"amountIn\\\") (read-decimal \\\"amountOutMin\\\") [" +
+        // `cantidad` es el NETO que entra en el pool; la comision se aparto antes y
+        // va aparte, en esta misma transaccion. Se comprueba que no pase del 0,5 %
+        // de lo que el usuario entrega en total.
+        let cuota = try decimalValido(comision)
+        let cuotaD = Decimal(string: cuota) ?? 0
+        if cuotaD < 0 { throw FalloBoveda.argumento("La comisión no puede ser negativa.") }
+        let hayComision = cuotaD > 0
+        if hayComision {
+            var tope = ((Decimal(string: entra) ?? 0) + cuotaD) * comisionTope
+            var topeRedondeado = Decimal()
+            NSDecimalRound(&topeRedondeado, &tope, -cuotaD.exponent, .up)
+            if cuotaD > topeRedondeado {
+                throw FalloBoveda.argumento("La comisión no puede ser mayor que la parte que le toca.")
+            }
+        }
+
+        let cambio = "(\(amm).swap-exact-in (read-decimal \\\"amountIn\\\") (read-decimal \\\"amountOutMin\\\") [" +
             camino.joined(separator: " ") + "] \\\"\(cuenta)\\\" \\\"\(cuenta)\\\" (read-keyset \\\"ks\\\"))"
-        let datos = "{\"amountIn\":{\"decimal\":\"\(entra)\"},\"amountOutMin\":{\"decimal\":\"\(sale)\"}," +
+        // El cambio y el cobro atados: si el cambio revierte no se cobra nada, y si
+        // la comision no se puede pagar no hay cambio.
+        let codigo = hayComision
+            ? "(let ((r \(cambio))) (\(camino[0]).transfer-create \\\"\(cuenta)\\\" \\\"\(comisionCuenta)\\\"" +
+              " (read-keyset \\\"ks-koberlet\\\") (read-decimal \\\"comision\\\")) r)"
+            : cambio
+        let extraDatos = hayComision
+            ? ",\"comision\":{\"decimal\":\"\(cuota)\"},\"ks-koberlet\":{\"keys\":[\"\(comisionClave)\"],\"pred\":\"keys-all\"}"
+            : ""
+        let datos = "{\"amountIn\":{\"decimal\":\"\(entra)\"},\"amountOutMin\":{\"decimal\":\"\(sale)\"}\(extraDatos)," +
             "\"ks\":{\"keys\":[\"\(pubKey)\"],\"pred\":\"keys-all\"}}"
+        let extraClist = hayComision
+            ? ",{\"name\":\"\(camino[0]).TRANSFER\",\"args\":[\"\(cuenta)\",\"\(comisionCuenta)\",{\"decimal\":\"\(cuota)\"}]}"
+            : ""
+        let gas = hayComision ? gasLimit + 4000 : gasLimit   // una transferencia mas = mas gas
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
             "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
-            "{\"name\":\"\(camino[0]).TRANSFER\",\"args\":[\"\(cuenta)\",\"\(poolPrimerSalto)\",{\"decimal\":\"\(entra)\"}]}]}]," +
-            "\"meta\":{\"chainId\":\"\(ammChain)\",\"sender\":\"\(cuenta)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "{\"name\":\"\(camino[0]).TRANSFER\",\"args\":[\"\(cuenta)\",\"\(poolPrimerSalto)\",{\"decimal\":\"\(entra)\"}]}\(extraClist)]}]," +
+            "\"meta\":{\"chainId\":\"\(ammChain)\",\"sender\":\"\(cuenta)\",\"gasLimit\":\(gas),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce("koberlet-android-swap"))\"}"
         return try resultado(cmd, privada)
     }

@@ -5,7 +5,7 @@
 // No editar a mano: se edita el .md y se vuelve a generar. El texto tiene que ser el
 // MISMO en las dos apps, porque es lo mismo que se acepta.
 
-export const POLITICAS_VERSION = "1.1";
+export const POLITICAS_VERSION = "1.2";
 
 export const POLITICAS = {
     es: [
@@ -15,7 +15,7 @@ export const POLITICAS = {
     },
     {
         "t": "p",
-        "x": "Versión 1.1 — 15/09/2026"
+        "x": "Versión 1.2 — 16/09/2026"
     },
     {
         "t": "p",
@@ -92,6 +92,34 @@ export const POLITICAS = {
     {
         "t": "p",
         "x": "Si alguno de ellos falla, cambia sus reglas, se queda a medias o resulta tener un fallo, el dinero puede perderse y no está en nuestra mano recuperarlo. El puente, en particular, es experimental: úsalo con importes que puedas permitirte perder."
+    },
+    {
+        "t": "h4",
+        "x": "4 bis. Lo que cuesta usar Koberlet"
+    },
+    {
+        "t": "p",
+        "x": "La app es gratis y no tiene suscripción. Lo que sí hay son comisiones, y conviene que las sepas antes y no después:"
+    },
+    {
+        "t": "li",
+        "x": "Comisión de servicio de Koberlet: 0,5% en el cambio del Mercado, en el DCA y en las órdenes límite. Se descuenta de lo que entra, antes de la operación, y se ve en la pantalla de confirmación antes de que firmes. Va en la misma transacción: si la operación falla, no se cobra nada."
+    },
+    {
+        "t": "li",
+        "x": "Comisión del pool, normalmente el 0,3%, que no es nuestra: se la queda el propio pool para quien pone la liquidez."
+    },
+    {
+        "t": "li",
+        "x": "Gas de la red, que pagas tú y varía según la red y el momento."
+    },
+    {
+        "t": "li",
+        "x": "Peaje del puente, que cobra quien opera el puente, no Koberlet."
+    },
+    {
+        "t": "p",
+        "x": "Esa comisión es lo que mantiene el proyecto: servidores, cuentas de desarrollo y el tiempo de mantenerlo. Enviar, recibir, consultar saldos y guardar tus claves no cuesta nada, y nunca lo va a costar."
     },
     {
         "t": "h4",
@@ -233,7 +261,7 @@ export const POLITICAS = {
     },
     {
         "t": "p",
-        "x": "Version 1.1 — 15/09/2026"
+        "x": "Version 1.2 — 16/09/2026"
     },
     {
         "t": "p",
@@ -306,6 +334,34 @@ export const POLITICAS = {
     {
         "t": "p",
         "x": "If any of them fails, changes its rules, stops halfway or turns out to have a bug, the money can be lost and it is not in our hands to recover it. The bridge in particular is experimental: use it with amounts you can afford to lose."
+    },
+    {
+        "t": "h4",
+        "x": "4 bis. What using Koberlet costs"
+    },
+    {
+        "t": "p",
+        "x": "The app is free and has no subscription. There are fees, though, and you should know them beforehand, not afterwards:"
+    },
+    {
+        "t": "li",
+        "x": "Koberlet service fee: 0.5% on the Market swap, on DCA and on limit orders. It is taken from what goes in, before the operation, and it is shown on the confirmation screen before you sign. It travels in the same transaction: if the operation fails, nothing is charged."
+    },
+    {
+        "t": "li",
+        "x": "Pool fee, usually 0.3%, which is not ours: the pool keeps it for whoever provides the liquidity."
+    },
+    {
+        "t": "li",
+        "x": "Network gas, which you pay and varies with the network and the moment."
+    },
+    {
+        "t": "li",
+        "x": "Bridge toll, charged by whoever operates the bridge, not by Koberlet."
+    },
+    {
+        "t": "p",
+        "x": "That fee is what keeps the project running: servers, developer accounts and the time to maintain it. Sending, receiving, checking balances and holding your keys costs nothing, and never will."
     },
     {
         "t": "h4",
