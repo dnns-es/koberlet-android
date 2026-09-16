@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- CSP estricta desde el primer dia, como en el Koberlet de escritorio.
+         'wasm-unsafe-eval' es necesario para @kadena/hd-wallet, que lleva WebAssembly. -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http://localhost:*">
+    <title>Koberlet Android — Fase 0</title>
+    <style>
+        :root {
+            --fondo: #f6f7f9;
+            --tarjeta: #fff;
+            --texto: #1a1c20;
+            --suave: #697280;
+            --linea: #e3e6ea;
+            --kda: #63e038;
+            --mal: #e0483a;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 16px;
+            background: var(--fondo);
+            color: var(--texto);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        header { margin-bottom: 16px; }
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        .sub { color: var(--suave); font-size: 13px; margin: 0; }
+        .caja {
+            background: var(--tarjeta);
+            border: 1px solid var(--linea);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        label { display: block; font-size: 12px; color: var(--suave); margin-bottom: 4px; }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--linea);
+            border-radius: 8px;
+            font: 13px ui-monospace, "Cascadia Code", Consolas, monospace;
+            background: var(--fondo);
+            color: var(--texto);
+        }
+        button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 12px;
+            border: 0;
+            border-radius: 8px;
+            background: var(--kda);
+            color: #10250a;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .prueba {
+            background: var(--tarjeta);
+            border: 1px solid var(--linea);
+            border-left: 4px solid var(--suave);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        .prueba.bien  { border-left-color: var(--kda); }
+        .prueba.mal   { border-left-color: var(--mal); }
+        .prueba.curso { border-left-color: #f0b429; }
+        .prueba h3 { font-size: 14px; margin: 0 0 6px; }
+        .prueba pre {
+            margin: 0;
+            font: 12px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+            color: var(--suave);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .resumen {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            background: var(--tarjeta);
+            border: 1px solid var(--linea);
+        }
+        .resumen.bien { color: #2f6b16; border-color: var(--kda); }
+        .resumen.mal  { color: var(--mal); border-color: var(--mal); }
+        #entorno {
+            margin-top: 16px;
+            font: 11px/1.4 ui-monospace, Consolas, monospace;
+            color: var(--suave);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Koberlet Android — Fase 0</h1>
+        <p class="sub">Verificación previa del portado. Todo en solo lectura: no hay claves ni envíos.</p>
+    </header>
+
+    <div class="caja">
+        <label for="cuenta">Cuenta Kadena a consultar (nodo comunidad, mainnet, chain 2)</label>
+        <input id="cuenta" spellcheck="false"
+               value="k:e86c9a76020b1270822fc3ec6e6e5e560b3195ad2af69ce24a3928cb2a9e1ad3">
+        <button id="lanzar">Repetir pruebas</button>
+    </div>
+
+    <div id="salida"></div>
+    <div id="entorno"></div>
+
+    <script type="module" src="/src/fase0.js"></script>
+</body>
+</html>

@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- CSP estricta desde el primer dia, como en el Koberlet de escritorio.
+         'wasm-unsafe-eval' hace falta para @kadena/hd-wallet, que lleva WebAssembly.
+         connect-src queda abierto a https: porque el nodo es configurable; en el
+         movil las consultas ni siquiera pasan por aqui (van por CapacitorHttp). -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http://localhost:*">
+    <title>Koberlet</title>
+    <style>
+        /* Tema claro: el de siempre y el de por defecto.
+           Todos los colores viven aquí, sin excepciones sueltas por el CSS: así
+           el tema oscuro es otra lista de valores y no una caza de colores
+           olvidados que se quedan blancos sobre negro. */
+        :root {
+            color-scheme: light;
+            --fondo: #f6f7f9;
+            --tarjeta: #fff;
+            --texto: #1a1c20;
+            --suave: #697280;
+            --linea: #e3e6ea;
+            --kda: #63e038;
+            --sobre-kda: #10250a;      /* texto encima del verde */
+            --eth: #627eea;            /* el azul de Ethereum, para distinguir la red */
+            --sobre-eth: #fff;
+            --mal: #e0483a;
+            --sobre-mal: #fff;          /* texto encima del rojo */
+            --aviso: #f0b429;
+            --peligro-fondo: #fdecea;
+            --peligro-texto: #8a2318;
+            --avisa-fondo: #fffaf0;
+            --activo: #2f6b16;         /* sección elegida, dinero que entra */
+            --marca-fondo: #e7f8de;    /* el cuadro del emblema en la portada */
+            --sombra: rgba(0, 0, 0, .35);
+        }
+
+        /* Tema oscuro. El verde del KDA se mantiene: es la marca de Kadena y
+           cambiarlo según el tema sería otra app. */
+        :root[data-tema="oscuro"] {
+            color-scheme: dark;
+            --fondo: #12151a;
+            --tarjeta: #1b1f26;
+            --texto: #e8eaed;
+            --suave: #98a1af;
+            --linea: #2b313a;
+            --kda: #63e038;
+            --sobre-kda: #10250a;
+            --eth: #7d95ee;
+            --sobre-eth: #0d1330;
+            --mal: #ff7368;
+            --sobre-mal: #2b0f0b;
+            --aviso: #f0b429;
+            --peligro-fondo: #2b1512;
+            --peligro-texto: #ffa79c;
+            --avisa-fondo: #2a2214;
+            --activo: #8fe66c;
+            --marca-fondo: #1d3315;
+            --sombra: rgba(0, 0, 0, .6);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 16px;
+            background: var(--fondo);
+            color: var(--texto);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        header { margin-bottom: 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+        /* El display:flex de arriba gana al hidden del navegador; sin esta línea
+           la portada saldría con dos títulos, el suyo y el de la app. */
+        header[hidden] { display: none; }
+        /* Y lo mismo para cualquier fila en flex que se esconda: si no, `hidden`
+           no esconde nada y se ven cosas que deberían estar guardadas. */
+        [hidden] { display: none !important; }
+        h1 { font-size: 20px; margin: 0; }
+        .sub { color: var(--suave); font-size: 13px; margin: 2px 0 0; }
+        .caja {
+            background: var(--tarjeta);
+            border: 1px solid var(--linea);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        h2 { font-size: 15px; margin: 0 0 6px; }
+        h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--suave); margin: 0 0 8px; }
+
+        label { display: block; font-size: 12px; color: var(--suave); margin-bottom: 4px; }
+        input, select, textarea {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid var(--linea);
+            border-radius: 8px;
+            font: 14px ui-monospace, "Cascadia Code", Consolas, monospace;
+            background: var(--fondo);
+            color: var(--texto);
+        }
+        /* Misma altura para todos, y no la que le salga a cada uno: un `select` y
+           un `input` con el mismo padding NO miden igual -cada uno calcula su
+           linea a su manera-, y al ponerlos en la misma fila se nota enseguida. */
+        input, select { height: 42px; }
+        select { font-family: inherit; }
+        textarea { resize: vertical; line-height: 1.5; }
+        .campo { margin-bottom: 10px; }
+        .pwd { position: relative; display: flex; }
+        .pwd input { padding-right: 44px; }
+        .ojo {
+            position: absolute; right: 0; top: 0; bottom: 0; width: 42px;
+            margin: 0; padding: 0; border: 0; background: none; font-size: 17px;
+            /* Sin esto hereda el color de los botones verdes (texto casi negro) y
+               en el tema oscuro se queda invisible sobre el fondo. */
+            color: var(--suave);
+        }
+        button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 13px;
+            border: 0;
+            border-radius: 8px;
+            background: var(--kda);
+            color: var(--sobre-kda);
+            font-size: 15px;
+            font-weight: 600;
+        }
+        button.secundario { background: none; color: var(--suave); border: 1px solid var(--linea); font-weight: 500; }
+        /* Lo que borra o cierra algo no puede tener el mismo aspecto que el botón
+           principal: se pulsa por inercia. Va con el color de los errores. */
+        button.peligro { background: none; color: var(--mal); border: 1px solid var(--mal); font-weight: 600; }
+        button[disabled] { opacity: .55; }
+
+        .banda-peligro {
+            background: var(--peligro-fondo); border: 1px solid var(--mal); color: var(--peligro-texto);
+            border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
+            font-size: 12px; font-weight: 600; line-height: 1.45;
+        }
+        .avisa { border-left: 4px solid var(--aviso); background: var(--avisa-fondo); font-size: 13px; }
+        /* Más fuerte que .avisa, para lo que puede costar dinero (el Puente). */
+        .grave {
+            border-left: 4px solid var(--mal); background: var(--peligro-fondo);
+            color: var(--peligro-texto); font-size: 13px;
+        }
+        .grave h2 { color: var(--peligro-texto); }
+
+        .semilla {
+            margin: 4px 0 0; padding: 0 0 0 4px;
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px;
+            list-style-position: inside;
+        }
+        .semilla li {
+            font: 14px ui-monospace, Consolas, monospace;
+            background: var(--fondo); border: 1px solid var(--linea);
+            border-radius: 6px; padding: 7px 9px;
+        }
+        .semilla li::marker { color: var(--suave); font-size: 11px; }
+
+        .total { text-align: center; padding: 4px 0 8px; }
+        .total .cifra { font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
+        /* El número grande cambia de dinero a moneda al tocarlo. El subrayado de
+           puntos es la única pista de que ahí se puede tocar: un botón al lado
+           robaría la atención de la cifra, que es lo que se viene a mirar. */
+        .total .cifra.tocable {
+            cursor: pointer; display: inline-block;
+            border-bottom: 1px dotted var(--linea); padding-bottom: 2px;
+        }
+        .total .cifra.tocable:active { opacity: .6; }
+        .total .cifra small { font-size: 14px; font-weight: 600; color: var(--suave); margin-left: 4px; }
+        .total .pie { font-size: 12px; color: var(--suave); }
+        /* La dirección TIENE que poder seleccionarse con el dedo. El WebView de
+           Android no deja seleccionar texto normal salvo que se diga aquí, y una
+           cuenta de 66 caracteres no se copia a mano sin equivocarse. */
+        .dir {
+            font: 11px/1.5 ui-monospace, Consolas, monospace;
+            color: var(--suave); word-break: break-all;
+            user-select: text; -webkit-user-select: text;
+        }
+        .dir.tocable { cursor: pointer; }
+        .copiar {
+            width: auto; margin: 8px 0 0; padding: 7px 12px;
+            background: none; border: 1px solid var(--linea); color: var(--suave);
+            font-size: 12px; font-weight: 500; border-radius: 7px;
+        }
+
+        /* --- Cabecera del Panel: cartera, total y acciones ------------------
+           Mismo esqueleto que cualquier monedero de móvil (nombre arriba, cifra
+           grande, tres círculos), pero con NUESTROS colores: el verde de Kadena
+           y los tonos del tema, sin el morado de nadie. */
+        .chip { display: flex; justify-content: center; gap: 0; margin: 2px 0 6px; }
+        .chip button {
+            width: auto; margin: 0; padding: 8px 14px;
+            background: var(--tarjeta); color: var(--texto);
+            border: 1px solid var(--linea); font-size: 14px; font-weight: 600;
+        }
+        .chip .ojo-chip {
+            border-radius: 999px 0 0 999px; border-right: 0;
+            color: var(--suave); font-size: 15px; padding: 8px 12px;
+        }
+        .chip .nombre-cartera {
+            border-radius: 0; display: inline-flex; align-items: center; gap: 7px; max-width: 56vw;
+        }
+        /* El historial, al otro extremo de la misma pastilla: se mira mucho y
+           estaba tres pliegues adentro, dentro del detalle de la cartera. */
+        .chip .reloj-chip {
+            border-radius: 0 999px 999px 0; border-left: 0;
+            color: var(--suave); font-size: 15px; padding: 8px 12px;
+        }
+        .chip .nombre-cartera .flecha { color: var(--suave); font-size: 11px; }
+
+        /* Con cuatro acciones el hueco entre círculos se estrecha solo en las
+           pantallas pequeñas, en vez de sacar el último fuera de la tarjeta. */
+        .acciones { display: flex; justify-content: center; gap: clamp(14px, 5vw, 26px); margin: 14px 0 4px; }
+        .acciones .accion {
+            width: auto; margin: 0; padding: 0; background: none;
+            color: var(--texto); font-size: 12px; font-weight: 600;
+            display: flex; flex-direction: column; align-items: center; gap: 7px;
+        }
+        .acciones .circulo {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: var(--kda); color: var(--sobre-kda);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .acciones .circulo svg { width: 22px; height: 22px; }
+
+        /* --- Cambiador del Mercado: doy / ⇅ / recibo -----------------------
+           La forma es la de cualquier cambiador (y la de la referencia que pasó
+           Antonio); los colores y la tipografía, los de la casa. */
+        .lado {
+            background: var(--fondo); border: 1px solid var(--linea);
+            border-radius: 10px; padding: 10px 12px;
+        }
+        .lado-cab { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--suave); }
+        .lado-que { text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+        .lado-linea { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+        .lado-linea .cantidad {
+            flex: 1; min-width: 0; margin: 0; padding: 4px 0;
+            border: 0; background: none; color: var(--texto);
+            font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums;
+        }
+        .lado-linea .cantidad:read-only { color: var(--suave); }
+        .lado-linea .max {
+            width: auto; margin: 0; padding: 5px 8px; background: none;
+            border: 1px solid var(--linea); border-radius: 7px;
+            color: var(--suave); font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+        }
+        .lado-linea .pastilla {
+            width: auto; min-width: 96px; margin: 0; padding: 8px 10px;
+            border-radius: 999px; background: var(--tarjeta);
+            border: 1px solid var(--linea); color: var(--texto);
+            font-size: 13.5px; font-weight: 700;
+        }
+        /* En el Puente el lado de destino no lleva cantidad: la pastilla se queda
+           sola, con la cadena y el token, y ahí se lee «hacia Ethereum · USDC». */
+        .pastilla-fija {
+            margin-left: auto; padding: 8px 12px; border-radius: 999px;
+            background: var(--tarjeta); border: 1px solid var(--linea);
+            display: inline-flex; align-items: baseline; gap: 7px;
+        }
+        .pastilla-fija .orilla-red { font-size: 13.5px; }
+        .pastilla-fija .orilla-token { font-size: 11.5px; color: var(--suave); }
+        .a-quien { margin-top: 10px; }
+        .a-quien .diag { margin-top: 4px; }
+
+        /* --- Cabecera de sección y pestañas de red --------------------------
+           En Carteras: el título con «Añadir wallet» a la derecha, y debajo las
+           dos redes. Se separa por red porque una cartera de Kadena y una de
+           Ethereum no se parecen en nada salvo en el nombre. */
+        .cab-seccion {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; margin: 2px 0 10px;
+        }
+        .cab-titulo { font-size: 17px; font-weight: 700; }
+        .nombre-wallet { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+
+        /* Una wallet por fila: punto de su red, nombre + dirección corta, y Ver. */
+        .wallet-fila {
+            display: flex; align-items: center; gap: 11px;
+            background: var(--tarjeta); border: 1px solid var(--linea);
+            border-left: 3px solid var(--kda);
+            border-radius: 12px; padding: 10px 12px; margin-bottom: 10px;
+        }
+        .wallet-fila.eth { border-left-color: var(--eth); }
+        .wallet-punto {
+            width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--kda); color: var(--sobre-kda);
+            font-size: 13px; font-weight: 700;
+        }
+        .wallet-fila.eth .wallet-punto { background: var(--eth); color: var(--sobre-eth); }
+        .wallet-medio { flex: 1; min-width: 0; }
+        .wallet-medio .nombre-wallet { margin-bottom: 1px; font-size: 14.5px; }
+        button.ver-wallet {
+            width: auto; margin: 0; padding: 8px 16px; border-radius: 999px;
+            background: var(--fondo); border: 1px solid var(--linea);
+            color: var(--texto); font-size: 13px; font-weight: 600;
+        }
+        button.anadir {
+            width: auto; margin: 0; padding: 8px 14px; border-radius: 999px;
+            font-size: 13px; font-weight: 700;
+        }
+        .pestanas {
+            display: flex; gap: 6px; margin-bottom: 12px;
+            background: var(--tarjeta); border: 1px solid var(--linea);
+            border-radius: 999px; padding: 4px;
+        }
+        button.pestana {
+            flex: 1; width: auto; margin: 0; padding: 8px 10px;
+            border: 0; border-radius: 999px; background: none;
+            color: var(--suave); font-size: 13.5px; font-weight: 600;
+        }
+        button.pestana.on { background: var(--kda); color: var(--sobre-kda); }
+
+        /* --- Con qué cartera se opera --------------------------------------
+           Va encima de cada lado que mueve dinero. Con una sola cartera es una
+           línea de texto; con varias, el desplegable. La dirección debajo, en
+           pequeño: es lo único que confirma con qué cuenta estás operando. */
+        .elige-cartera {
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 10px;
+        }
+        .elige-que {
+            font-size: 11.5px; color: var(--suave);
+            text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+        }
+        .elige-sola { font-size: 13.5px; font-weight: 600; }
+        .elige-cartera .pastilla {
+            width: auto; flex: 1; min-width: 0; margin: 0; padding: 7px 10px;
+            border-radius: 999px; background: var(--tarjeta);
+            border: 1px solid var(--linea); color: var(--texto);
+            font-size: 13px; font-weight: 600;
+        }
+
+        .da-la-vuelta { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+        .da-la-vuelta::before, .da-la-vuelta::after {
+            content: ''; flex: 1; height: 1px; background: var(--linea);
+        }
+        /* En el Puente, el botón de girar lleva escrito el sentido: es la forma
+           de que se vea que el puente va en los dos, sin tener que probarlo.
+           Y va CRECIDO a propósito (lo pidió Antonio): es el control que decide en
+           qué dirección se mueve el dinero, así que tiene que verse antes que nada
+           y ser difícil de fallar con el dedo. El borde verde lo destaca sin usar
+           el verde relleno, que en esta app es el botón de la acción de verdad. */
+        .pastilla-vuelta {
+            width: auto; margin: 0; padding: 13px 24px; border-radius: 999px;
+            background: var(--tarjeta); border: 2px solid var(--kda);
+            color: var(--texto); font-size: 15.5px; font-weight: 700;
+            white-space: nowrap;
+        }
+        .circulo-vuelta {
+            width: 38px; height: 38px; flex: 0 0 38px; margin: 0; padding: 0;
+            border-radius: 50%; background: var(--tarjeta); border: 1px solid var(--linea);
+            color: var(--texto); font-size: 17px; line-height: 1;
+        }
+
+        /* La escalera de pasos de un envío por el puente. El de ahora va en negrita
+           y con el reloj a la derecha; los que aún no han llegado, en gris, para
+           que se vea de un vistazo cuánto queda. */
+        /* La cabecera del Puente: el par a la izquierda, el historial a la derecha.
+           El historial va arriba y no al fondo porque se busca cuando algo no
+           aparece, y entonces no se tiene paciencia para bajar buscándolo. */
+        .cab-puente { display: flex; align-items: baseline; gap: 10px; }
+        .cab-puente .nota { flex: 1; min-width: 0; margin: 0; }
+        .cab-puente .enlace { flex: 0 0 auto; }
+
+        /* Cada envío del historial, separado del siguiente por una línea. */
+        .envio { padding: 12px 0; border-top: 1px solid var(--linea); }
+        .envio .fila { font-size: 13px; }
+        .envio .fila .izq { font-weight: 700; }
+
+        .pasos { margin: 12px 0; }
+        .pasos-pie { margin-top: 4px; }
+        /* Un dato largo con su botón de copiar: referencias e identificadores, que
+           nadie debería teclear a mano. */
+        /* --- Politicas de uso -------------------------------------------
+           La caja tiene scroll propio y alto limitado a proposito: el texto es
+           largo y no puede empujar el boton de aceptar fuera de la pantalla. */
+        .politicas-caja {
+            max-height: 45vh;
+            overflow-y: auto;
+            background: var(--fondo);
+            border: 1px solid var(--linea);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: 10px 0;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+        .politicas h2 { font-size: 17px; margin: 0 0 6px; }
+        .politicas h3 { font-size: 15px; margin: 16px 0 4px; color: var(--kda); }
+        .politicas p { margin: 8px 0; }
+        .politicas ul { padding-left: 20px; margin: 6px 0; }
+        .politicas li { margin: 3px 0; }
+        .pol-check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 12px 0;
+            font-size: 14.5px;
+        }
+        .pol-check input { width: auto; margin: 0; }
+
+        .copiable { margin-top: 12px; }
+        .copiable-que {
+            font-size: 11.5px; color: var(--suave);
+            text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+        }
+        .copiable .dir { margin-top: 2px; font-size: 12px; color: var(--texto); }
+        .copiable button { margin-top: 7px; padding: 9px; font-size: 13.5px; }
+        .paso {
+            display: flex; align-items: center; gap: 9px;
+            padding: 7px 0; font-size: 13.5px; color: var(--suave);
+        }
+        .paso-marca { width: 18px; text-align: center; flex: 0 0 18px; }
+        .paso-que { flex: 1; min-width: 0; }
+        .paso-det { font-size: 12px; font-variant-numeric: tabular-nums; }
+        .paso.ahora { color: var(--texto); font-weight: 700; }
+        /* El circulito que gira mientras se espera. Es un aro con un solo lado
+           pintado: al girar, ese trozo de color da la vuelta. */
+        .girando {
+            display: inline-block; width: 13px; height: 13px; vertical-align: -2px;
+            border: 2px solid var(--linea); border-top-color: var(--activo);
+            border-radius: 50%; animation: gira .8s linear infinite;
+        }
+        @keyframes gira { to { transform: rotate(360deg); } }
+        /* A quien le molesta el movimiento no se le quita -sin girar no diría nada-,
+           se le baja a un giro lento que se sigue viendo y no marea. */
+        @media (prefers-reduced-motion: reduce) {
+            .girando { animation-duration: 2.4s; }
+        }
+        .paso.hecho { color: var(--activo); }
+        .paso.mal { color: var(--mal); }
+
+        .activos { margin-top: 14px; }
+        /* Con muchos tokens la lista empujaba el resto de la tarjeta fuera de la
+           pantalla. Se enseñan cinco y las demás se ven subiendo DENTRO de la
+           lista; la altura exacta la mide el JS, porque una fila no siempre ocupa
+           lo mismo (el nombre puede partirse en dos líneas). */
+        .activos.recortada { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        /* Que una fila se abra al tocarla tiene que notarse ANTES de tocarla. */
+        .activo.tocable { cursor: pointer; }
+        .activo.tocable:active { background: var(--linea); }
+        .activo { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--linea); }
+        .activo .ficha {
+            width: 34px; height: 34px; border-radius: 50%; flex: 0 0 34px;
+            background: var(--fondo); border: 1px solid var(--linea);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700; color: var(--suave);
+        }
+        .activo .nom { flex: 1; min-width: 0; }
+        .activo .nom b { display: block; font-size: 14.5px; }
+        .activo .nom span { display: block; font-size: 11.5px; color: var(--suave); }
+        .activo .val { text-align: right; }
+        .activo .val b { display: block; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+        .activo .val span { display: block; font-size: 11.5px; color: var(--suave); }
+        .detalle { margin-top: 14px; }
+
+        /* Filas de la hoja "Mis carteras". */
+        .cartera-fila { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--linea); }
+        .cartera-fila:first-of-type { border-top: 0; }
+        .cartera-elegir {
+            flex: 1; width: auto; margin: 0; padding: 12px 0; background: none;
+            color: var(--texto); text-align: left; font-weight: 500;
+        }
+        .cartera-elegir b { display: block; font-size: 15px; }
+        .cartera-fila .lapiz {
+            width: auto; margin: 0; padding: 10px 12px; background: none;
+            color: var(--suave); border: 1px solid var(--linea); border-radius: 8px; font-size: 14px;
+        }
+        .cartera-fila .marca { color: var(--activo); font-weight: 700; width: 14px; }
+
+        .fila {
+            display: flex; justify-content: space-between; gap: 10px;
+            padding: 8px 0; border-top: 1px solid var(--linea); font-size: 14px;
+        }
+        .fila:first-child { border-top: 0; }
+        .fila .izq { color: var(--suave); }
+        /* El valor puede ser largo («AES-256 en este aparato»): sin esto se sale
+           de la tarjeta en vez de partirse en dos líneas. */
+        .fila .der { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+        /* El valor de una fila cuando dice cómo está algo: verde si está puesto,
+           gris fuerte si falta. No se usa rojo: que no tengas la huella activada
+           no es un error, es una decisión tuya. */
+        .fila .der.bueno { color: var(--activo); }
+        .fila .der.flojo { color: var(--suave); font-weight: 500; }
+        .bueno { color: var(--activo); font-size: 13px; margin: 10px 0 0; }
+
+        /* Una fila que se puede tocar tiene que parecerlo, y hundirse al tocarla:
+           sin eso nadie descubre que el movimiento se abre. */
+        .fila.pulsable { cursor: pointer; margin: 0 -4px; padding: 8px 4px; border-radius: 6px; }
+        .fila.pulsable:active { background: var(--linea); }
+        .fila.pulsable:focus-visible { outline: 2px solid var(--activo); outline-offset: 1px; }
+
+        /* Dentro de una hoja, los botones van del ancho de la hoja: mezclar uno
+           pequeño con otro que ocupa todo queda descuadrado. */
+        .hoja .copiar { display: block; width: 100%; }
+
+        /* La cantidad, arriba de la ficha del movimiento. */
+        .cifra-mov { font-size: 26px; font-weight: 700; margin: 2px 0 12px; font-variant-numeric: tabular-nums; }
+        .cifra-mov.bueno-fuerte { color: var(--activo); }
+
+        /* Un enlace que sale de la app se ve como un botón secundario, pero es un
+           <a> de verdad: así lo abre el navegador del móvil y no el WebView. */
+        .boton-enlace {
+            display: block; text-align: center; text-decoration: none; margin-top: 10px;
+            padding: 12px; border: 1px solid var(--linea); border-radius: 10px;
+            color: var(--suave); font-size: 15px; font-weight: 600;
+        }
+
+        /* Botones en fila, del mismo ancho, y que bajen solos cuando no caben. */
+        .botonera { display: flex; flex-wrap: wrap; gap: 8px; }
+        .botonera button { flex: 1 1 140px; margin-top: 10px; }
+
+        .nota { font-size: 13px; color: var(--suave); margin: 0 0 10px; }
+        .malo { color: var(--mal); font-size: 13px; margin: 10px 0 0; }
+        details summary { font-size: 13px; color: var(--suave); cursor: pointer; }
+        details[open] summary { margin-bottom: 10px; }
+
+        /* Barra de secciones, abajo: es donde llega el pulgar en un móvil. */
+        #barra {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+            display: flex; background: var(--tarjeta);
+            border-top: 1px solid var(--linea);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        #barra button {
+            flex: 1; margin: 0; padding: 9px 2px 7px; border: 0; border-radius: 0;
+            background: none; color: var(--suave); font-size: 10.5px; font-weight: 500;
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+        }
+        #barra button svg { width: 21px; height: 21px; }
+        #barra button.activa { color: var(--activo); }
+        /* Hueco para que la barra no tape el último botón de cada pantalla. */
+        body.con-barra { padding-bottom: 78px; }
+
+        /* Hoja con las secciones que no caben en la barra. */
+        .hoja-fondo {
+            position: fixed; inset: 0; z-index: 60;
+            background: var(--sombra); display: flex; align-items: flex-end;
+        }
+        .hoja {
+            width: 100%; background: var(--tarjeta); border-radius: 16px 16px 0 0;
+            padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+            max-height: 70vh; overflow-y: auto;
+        }
+        /* --- La portada: lo único que se ve con la cartera cerrada ---------
+           Es la cara de la app. Se parece a la del escritorio a propósito: hay
+           que reconocerla de un vistazo, porque si un día apareciera otra
+           distinta eso ya sería una señal. */
+        .caja.portada { padding: 22px 16px 16px; position: relative; }
+        .idioma-portada {
+            position: absolute; top: 10px; right: 10px;
+            width: auto; margin: 0; padding: 5px 11px; border-radius: 8px;
+            background: var(--fondo); border: 1px solid var(--linea);
+            color: var(--suave); font-size: 12px; font-weight: 700; letter-spacing: .04em;
+        }
+        .marca { text-align: center; margin-bottom: 18px; }
+        .marca-caja {
+            width: 74px; height: 74px; margin: 0 auto 12px;
+            border-radius: 20px; background: var(--marca-fondo);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .logo-marca { width: 46px; height: 46px; color: var(--activo); }
+        .marca-nombre { font-size: 27px; font-weight: 800; letter-spacing: -.02em; }
+        .marca-verde { color: var(--activo); }
+        .marca-lema { margin: 2px 0 0; color: var(--suave); font-size: 13px; }
+        .portada-pies { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+        button.enlace {
+            width: auto; margin: 0; padding: 7px 0; background: none; border: 0;
+            color: var(--activo); font-size: 13px; font-weight: 600; text-align: left;
+        }
+        .portada-pie {
+            margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--linea);
+            text-align: center; color: var(--suave); font-size: 11.5px;
+        }
+
+        /* Enviar: el titulo con la cartera a la derecha, y la etiqueta de la
+           chain con la cuenta acortada tambien a la derecha. */
+        .cab-envio { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+        .cab-envio h2 { margin: 0 0 6px; }
+        .cab-envio-quien { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        label.con-cuenta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        label.con-cuenta .dir { font-size: 10.5px; }
+
+        /* Botón pequeño dentro de la etiqueta de un campo (el «Máx.» de la
+           cantidad). Pequeño a propósito: hace algo gordo -poner todo el saldo- y
+           no tiene que estar en el camino del pulgar que va a «Continuar». */
+        label.con-cuenta button.mini {
+            width: auto; margin: 0; padding: 5px 12px; background: none;
+            border: 1px solid var(--linea); border-radius: 999px;
+            color: var(--suave); font-size: 11.5px; font-weight: 700;
+        }
+        label.con-cuenta button.mini:active { background: var(--linea); }
+
+        /* Una direccion y su chain en la misma fila (pantalla de enviar). */
+        .fila-campo { display: flex; gap: 8px; align-items: flex-start; }
+        .fila-campo .campo.crece { flex: 1; min-width: 0; }
+        .fila-campo .campo.chain { flex: 0 0 84px; }
+        .fila-campo .campo.chain select { padding-left: 8px; padding-right: 4px; }
+        .fila-campo .campo.unidad { flex: 0 0 96px; }
+        .fila-campo .campo.unidad select { padding-left: 8px; padding-right: 4px; }
+
+        /* El par del plan de DCA: entregas / girar / compras, en una sola fila. */
+        .par-fila {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--fondo); border: 1px solid var(--linea);
+            border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+        }
+        .par-lado { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+        .par-lado.der { align-items: flex-end; }
+        .par-fila .pastilla {
+            width: auto; margin: 0; padding: 7px 12px; border-radius: 999px;
+            background: var(--tarjeta); border: 1px solid var(--linea);
+            color: var(--texto); font-size: 13.5px; font-weight: 700;
+        }
+        .par-fila .circulo-vuelta { flex: none; }
+
+        /* Titulillo que separa las carteras de Kadena de las de Ethereum. */
+        .grupo-hoja {
+            margin: 14px 0 2px; font-size: 12px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .5px; color: var(--suave);
+        }
+
+        /* Saldos tapados: el modo privacidad del escritorio. */
+        body.sinsaldos .cifra, body.sinsaldos .der, body.sinsaldos .pie { font-size: 0; }
+        body.sinsaldos .cifra::after { content: '•••••'; font-size: 28px; letter-spacing: 2px; }
+        body.sinsaldos .der::after { content: '•••'; font-size: 14px; }
+        body.sinsaldos .pie::after { content: ' '; }
+
+        /* Cámara a pantalla completa para leer códigos QR. */
+        .camara {
+            position: fixed; inset: 0; z-index: 100;
+            background: #000; display: flex; align-items: center; justify-content: center;
+        }
+        .camara video { width: 100%; height: 100%; object-fit: cover; }
+        .camara-marco {
+            position: absolute; width: 62vw; height: 62vw; max-width: 300px; max-height: 300px;
+            border: 3px solid var(--kda); border-radius: 16px;
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45);
+        }
+        .camara-pie {
+            position: absolute; bottom: 96px; left: 16px; right: 16px;
+            text-align: center; color: #fff; font-size: 14px; text-shadow: 0 1px 3px #000;
+        }
+        .camara-cerrar {
+            position: absolute; bottom: 28px; left: 16px; right: 16px; width: auto;
+            background: var(--tarjeta); color: var(--texto);
+        }
+        .qr { text-align: center; padding: 6px 0 2px; }
+
+        .diag {
+            margin-top: 16px;
+            font: 11px/1.5 ui-monospace, Consolas, monospace;
+            color: var(--suave); white-space: pre-wrap; word-break: break-all;
+        }
+        .diag a { color: var(--suave); }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Koberlet</h1>
+            <p class="sub" id="sub"></p>
+        </div>
+    </header>
+
+    <div id="app"></div>
+
+    <!-- El diagnóstico (versión, camino de red, nodo, user agent) vive en la
+         sección Info, no aquí. En la portada de un monedero lo que tiene que
+         verse es el dinero; la letra pequeña técnica, a un toque de distancia. -->
+    <div class="diag" id="diag" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

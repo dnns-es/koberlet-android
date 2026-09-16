@@ -1,0 +1,169 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+// --- Version unica: la del package.json -------------------------------------
+// Una sola fuente de verdad para la version. El versionName es el que se ve;
+// el versionCode es el numero que mira Android para decidir si un APK es mas
+// nuevo que el instalado, y TIENE que crecer siempre o el sistema se niega a
+// actualizar. Formula: mayor*10000 + menor*100 + parche (0.1.0 -> 100).
+def paqueteJson = new groovy.json.JsonSlurper().parseText(file('../../package.json').text)
+def (vMayor, vMenor, vParche) = paqueteJson.version.tokenize('.').collect { it.toInteger() }
+def versionApp = paqueteJson.version
+def codigoVersion = vMayor * 10000 + vMenor * 100 + vParche
+
+// --- Clave de firma ---------------------------------------------------------
+// Android solo deja instalar un APK encima de otro si van firmados con la MISMA
+// clave. Por eso la de release vive fuera del repo (.keys/, gitignored) y su
+// contrasena se lee de android/firma.properties, que tampoco se versiona.
+// Si el fichero no esta, el build de release sale SIN firmar a proposito, en vez
+// de caer en la clave de depuracion y repartir un APK que luego no se puede
+// actualizar.
+def ficheroFirma = rootProject.file('firma.properties')
+def hayFirma = ficheroFirma.exists()
+def propsFirma = new Properties()
+if (hayFirma) {
+    ficheroFirma.withInputStream { propsFirma.load(it) }
+} else {
+    logger.lifecycle("AVISO: no existe android/firma.properties -> el APK de release saldra SIN firmar.")
+}
+
+android {
+    namespace "es.dnns.koberlet"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "es.dnns.koberlet"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode codigoVersion
+        versionName versionApp
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // --- Los dos canales de reparto ---------------------------------------------
+    // Misma app, mismo codigo, mismo applicationId. Lo unico que cambia es por
+    // donde llegan las versiones nuevas, y eso obliga a que el contenido del
+    // paquete no sea identico:
+    //
+    //   directa -> descargas.dnns.es. Trae KoberletUpdate y el permiso
+    //              REQUEST_INSTALL_PACKAGES. Es el canal de pruebas: aqui se
+    //              estrena cada version en el movil antes de mandarla a Play.
+    //   play    -> Google Play. Sin ese codigo y sin ese permiso, porque Play
+    //              prohibe que una app descargue e instale codigo (politica de
+    //              Codigo Ejecutable). Alli actualiza la tienda.
+    //
+    // No se usa applicationIdSuffix a proposito: tiene que poder instalarse una
+    // encima de la otra, no convivir como dos apps distintas con dos bovedas.
+    flavorDimensions += "canal"
+    productFlavors {
+        directa {
+            dimension "canal"
+            isDefault true
+        }
+        play {
+            dimension "canal"
+        }
+    }
+
+    signingConfigs {
+        if (hayFirma) {
+            release {
+                storeFile rootProject.file(propsFirma['storeFile'])
+                storePassword propsFirma['storePassword']
+                keyAlias propsFirma['keyAlias']
+                keyPassword propsFirma['keyPassword'] ?: propsFirma['storePassword']
+                // v3 no es adorno: es el esquema que permite ROTAR la clave de
+                // firma si algun dia se compromete, sin obligar a los usuarios a
+                // desinstalar (y perder la boveda). Gradle solo pone v1+v2 por
+                // defecto, asi que se pide a mano.
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hayFirma) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    // Bouncy Castle: scrypt, Ed25519, secp256k1 y Keccak. Android no trae scrypt
+    // ni Ed25519 por debajo de API 30, y aqui el minimo es 23. Una sola libreria
+    // auditada y conocida para toda la criptografia del plugin.
+    implementation "org.bouncycastle:bcprov-jdk18on:1.78.1"
+    // org.json viene en Android, pero en los tests del ordenador no: esta copia
+    // solo se usa al ejecutar los tests.
+    testImplementation "org.json:json:20240303"
+    // BiometricPrompt: el dialogo de huella/cara del sistema, y el que ata la
+    // autenticacion a una clave del Keystore (ver Huella.kt). La libreria de
+    // compatibilidad se encarga de las diferencias entre versiones de Android.
+    implementation "androidx.biometric:biometric:1.1.0"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+// --- La web empaquetada tiene que ser la del canal que se esta compilando ------
+// Capacitor copia `dist/` a assets/public, y `dist/` es lo ultimo que compilo
+// Vite: si se olvida `KOBERLET_CANAL=play` antes de `npm run build`, el bundle de
+// Play se llevaria el JavaScript del canal directo, con su modulo de descarga de
+// APK dentro. No reventaria -el plugin nativo ya no esta- pero es exactamente el
+// codigo que Google rechaza, y ahi solo se ve leyendo el bundle.
+//
+// Asi que no se avisa: se para el build.
+afterEvaluate {
+    android.applicationVariants.all { variante ->
+        def canalEsperado = variante.flavorName            // 'directa' o 'play'
+        def comprobar = tasks.register("comprobarCanal${variante.name.capitalize()}") {
+            doLast {
+                def marca = file("src/main/assets/public/canal.txt")
+                if (!marca.exists()) {
+                    throw new GradleException(
+                        "No hay assets/public/canal.txt. Compila la web antes:\n" +
+                        "  npm run build:${canalEsperado}")
+                }
+                def puesto = marca.text.trim()
+                if (puesto != canalEsperado) {
+                    throw new GradleException(
+                        "Los assets web son del canal '${puesto}' y estas compilando '${canalEsperado}'.\n" +
+                        "Compila la web del canal correcto antes:\n" +
+                        "  npm run build:${canalEsperado}")
+                }
+            }
+        }
+        variante.preBuildProvider.configure { dependsOn comprobar }
+    }
+}
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

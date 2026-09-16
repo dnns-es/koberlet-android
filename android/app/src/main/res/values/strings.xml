@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Koberlet</string>
+    <string name="title_activity_main">Koberlet</string>
+    <string name="package_name">es.dnns.koberlet</string>
+    <string name="custom_url_scheme">es.dnns.koberlet</string>
+</resources>

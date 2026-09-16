@@ -1,0 +1,10 @@
+# Fin de linea: en el repo siempre LF. Windows convierte al sacar y al meter;
+# lo que no puede pasar es que un script de shell o gradlew llegue al runner
+# de macOS con CRLF y reviente con "bad interpreter".
+* text=auto eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jar binary
+*.jks binary

@@ -1,0 +1,6 @@
+# Plantilla. Copiar a android/firma.properties y poner la contrasena real.
+# El fichero de verdad NO se versiona (esta en .gitignore) y la contrasena
+# no se escribe en ningun otro sitio del proyecto.
+storeFile=../.keys/koberlet-release.jks
+storePassword=LA_QUE_PUSISTE_AL_CREAR_LA_KEYSTORE
+keyAlias=koberlet
