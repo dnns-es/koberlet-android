@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Para abrir la cartera y firmar envíos sin teclear la contraseña.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Para leer códigos QR con direcciones de cuentas.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
