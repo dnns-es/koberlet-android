@@ -25,7 +25,6 @@ play/bundle/
 *.log
 
 # Sesiones de Claude y copias automaticas: trabajo local, no fuente
-.claude/
 # Paquetes ya sellados y registros de pruebas en el movil
 *.zip
 pruebas/
