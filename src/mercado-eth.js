@@ -199,11 +199,17 @@ export function bloqueMercadoEth(raiz, ctx, repintar) {
             const entra = aUnidades(doy.entrada.value, r.decIn);
             q = cot; est = e;
 
-            recibo.entrada.value = corto(cot.salidaTexto);
+            // Lo que se enseña es lo que le llega a él: la comisión de Koberlet ya
+            // está descontada y se dice aparte, con su cifra.
+            recibo.entrada.value = corto(cot.netoTexto);
             datos.innerHTML = '';
-            datos.append(fila(t('Como mínimo recibes'), `${corto(cot.minimoTexto)} ${r.a}`));
+            datos.append(fila(t('Como mínimo recibes'), `${corto(cot.netoMinimoTexto)} ${r.a}`));
+            datos.append(fila(t('Comisión de Koberlet ({0} %)', String(cot.comisionKobPct)),
+                `${corto(cot.comisionKobTexto)} ${r.a}`));
             datos.append(fila(t('Comisión del pool'), (cot.comision / 10000) + ' %'));
             datos.append(elemento('p', t('El mínimo es lo que se firma: si en el momento del cambio fuera a dar menos, la transacción se cae y solo se pierde el gas. Se tolera un {0} % de diferencia.', String(DESLIZAMIENTO * 100)), 'nota'));
+            datos.append(elemento('p', t('Koberlet se queda el {0} % de lo que recibes: {1} {2}. Lo aparta el propio Uniswap en la misma transacción, así que si el cambio falla no se cobra nada.',
+                String(cot.comisionKobPct), corto(cot.comisionKobTexto), r.a), 'nota'));
 
             if (e.saldo < entra) {
                 datos.append(elemento('p', t('No tienes tanto {0}.', r.de), 'malo'));

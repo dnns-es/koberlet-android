@@ -32,6 +32,10 @@ class SwapEvmTest {
         assertEquals("49404b7c", sel("unwrapWETH9(uint256,address)"))
         assertEquals("12210e8a", sel("refundETH()"))
         assertEquals("ac9650d8", sel("multicall(bytes[])"))
+        // Las dos que reparten. Se calculan igual que las demás: un selector copiado
+        // de cualquier sitio y mal, y el router no reconocería la llamada.
+        assertEquals("9b2c0a37", sel("unwrapWETH9WithFee(uint256,address,uint256,address)"))
+        assertEquals("e0e189a0", sel("sweepTokenWithFee(address,uint256,address,uint256,address)"))
     }
 
     @Test
@@ -75,25 +79,29 @@ class SwapEvmTest {
             salidaMinima = BigInteger("1200000000000000"),
         )
         assertEquals(BigInteger.ZERO, c.valorWei)
+        // El segundo paso es `unwrapWETH9WithFee`: desenvuelve y reparte en la misma
+        // llamada. Cotejado con ethers v6, incluidos los 50 bips y la cuenta que cobra.
         assertEquals(
-            "ac9650d8" +
-                "0000000000000000000000000000000000000000000000000000000000000020" +
-                "0000000000000000000000000000000000000000000000000000000000000002" +
-                "0000000000000000000000000000000000000000000000000000000000000040" +
-                "0000000000000000000000000000000000000000000000000000000000000160" +
-                "00000000000000000000000000000000000000000000000000000000000000e4" +
-                "04e45aaf000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" +
-                "000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2" +
-                "00000000000000000000000000000000000000000000000000000000000001f4" +
-                "0000000000000000000000000000000000000000000000000000000000000002" +
-                "00000000000000000000000000000000000000000000000000000000004c4b40" +
-                "0000000000000000000000000000000000000000000000000000000000000000" +
-                "0000000000000000000000000000000000000000000000000000000000000000" +
-                "00000000000000000000000000000000000000000000000000000000" +
-                "0000000000000000000000000000000000000000000000000000000000000044" +
-                "49404b7c00000000000000000000000000000000000000000000000000044364c5bb0000" +
-                "000000000000000000000000dc1972770cf114525e938f39ce4959d26e9c7234" +
-                "00000000000000000000000000000000000000000000000000000000",
+                "ac9650d8" +
+                    "0000000000000000000000000000000000000000000000000000000000000020" +
+                    "0000000000000000000000000000000000000000000000000000000000000002" +
+                    "0000000000000000000000000000000000000000000000000000000000000040" +
+                    "0000000000000000000000000000000000000000000000000000000000000160" +
+                    "00000000000000000000000000000000000000000000000000000000000000e4" +
+                    "04e45aaf000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce" +
+                    "3606eb48000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead908" +
+                    "3c756cc200000000000000000000000000000000000000000000000000000000" +
+                    "000001f400000000000000000000000000000000000000000000000000000000" +
+                    "0000000200000000000000000000000000000000000000000000000000000000" +
+                    "004c4b4000000000000000000000000000000000000000000000000000000000" +
+                    "0000000000000000000000000000000000000000000000000000000000000000" +
+                    "0000000000000000000000000000000000000000000000000000000000000000" +
+                    "0000000000000000000000000000000000000000000000000000000000000084" +
+                    "9b2c0a3700000000000000000000000000000000000000000000000000044364" +
+                    "c5bb0000000000000000000000000000dc1972770cf114525e938f39ce4959d2" +
+                    "6e9c723400000000000000000000000000000000000000000000000000000000" +
+                    "000000320000000000000000000000004a31148ad2bf0355c93bf7c9218bb723" +
+                    "f15c901c00000000000000000000000000000000000000000000000000000000",
             FirmaEvm.aHex(c.datos),
         )
     }
@@ -115,17 +123,39 @@ class SwapEvmTest {
     }
 
     @Test
-    fun `token por token es una sola llamada, sin envolver nada`() {
+    fun `token por token tambien reparte, cotejado con ethers`() {
         val c = SwapEvm.cambio(
             claveRuta = "usdt2usdc", comision = 100, cuenta = cuenta,
             cantidadEntra = BigInteger.valueOf(10_000_000),
             salidaMinima = BigInteger.valueOf(9_950_000),
         )
-        val hex = FirmaEvm.aHex(c.datos)
         assertEquals(BigInteger.ZERO, c.valorWei)
-        assertTrue("no hace falta multicall", hex.startsWith("04e45aaf"))
-        // Y el destinatario es el dueño, no el router.
-        assertTrue(hex.contains(cuenta.removePrefix("0x").lowercase()))
+        // Antes esto era una sola llamada. Ahora son dos: el cambio deja el token en el
+        // router y `sweepTokenWithFee` lo saca entero, repartido. No queda nada dentro.
+        assertEquals(
+                "ac9650d8" +
+                    "0000000000000000000000000000000000000000000000000000000000000020" +
+                    "0000000000000000000000000000000000000000000000000000000000000002" +
+                    "0000000000000000000000000000000000000000000000000000000000000040" +
+                    "0000000000000000000000000000000000000000000000000000000000000160" +
+                    "00000000000000000000000000000000000000000000000000000000000000e4" +
+                    "04e45aaf000000000000000000000000dac17f958d2ee523a2206206994597c1" +
+                    "3d831ec7000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce" +
+                    "3606eb4800000000000000000000000000000000000000000000000000000000" +
+                    "0000006400000000000000000000000000000000000000000000000000000000" +
+                    "0000000200000000000000000000000000000000000000000000000000000000" +
+                    "0098968000000000000000000000000000000000000000000000000000000000" +
+                    "0097d33000000000000000000000000000000000000000000000000000000000" +
+                    "0000000000000000000000000000000000000000000000000000000000000000" +
+                    "00000000000000000000000000000000000000000000000000000000000000a4" +
+                    "e0e189a0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce" +
+                    "3606eb4800000000000000000000000000000000000000000000000000000000" +
+                    "0097d330000000000000000000000000dc1972770cf114525e938f39ce4959d2" +
+                    "6e9c723400000000000000000000000000000000000000000000000000000000" +
+                    "000000320000000000000000000000004a31148ad2bf0355c93bf7c9218bb723" +
+                    "f15c901c00000000000000000000000000000000000000000000000000000000",
+            FirmaEvm.aHex(c.datos),
+        )
     }
 
     @Test
@@ -185,5 +215,45 @@ class SwapEvmTest {
         val d = SwapEvm.datosPermiso(BigInteger.valueOf(5_000_000))
         assertTrue(d.startsWith("095ea7b3"))
         assertEquals(SwapEvm.ROUTER.removePrefix("0x").lowercase(), d.substring(8 + 24, 8 + 64))
+    }
+
+    // --- La comisión de servicio de Koberlet ---------------------------------
+    //
+    // En Ethereum no hay contrato nuestro: reparte el propio router. Lo que hay que
+    // vigilar es a quién va cada parte, porque son direcciones de 40 caracteres y una
+    // letra cambiada no la ve nadie leyendo.
+
+    @Test
+    fun `la comision es del 0,5 por ciento y no llega al tope del router`() {
+        assertEquals(50, SwapEvm.COMISION_BIPS)
+        assertEquals(100, SwapEvm.COMISION_MAX_BIPS)
+        assertTrue("el router no admite más del 1 %", SwapEvm.COMISION_BIPS <= SwapEvm.COMISION_MAX_BIPS)
+    }
+
+    @Test
+    fun `las tres rutas reparten, y siempre a la misma cuenta`() {
+        val cobra = SwapEvm.COMISION_CUENTA.removePrefix("0x").lowercase()
+        val bips = BigInteger.valueOf(50).toString(16).padStart(64, '0')
+        for (ruta in listOf("usdc2eth", "eth2usdc", "usdt2usdc")) {
+            val hex = FirmaEvm.aHex(
+                SwapEvm.cambio(ruta, if (ruta == "usdt2usdc") 100 else 500, cuenta,
+                    BigInteger.valueOf(1_000_000), BigInteger.valueOf(900_000)).datos)
+            assertTrue("$ruta: reparte dentro del multicall",
+                hex.contains("9b2c0a37") || hex.contains("e0e189a0"))
+            assertTrue("$ruta: la comisión va a la cuenta de DNNS", hex.contains(cobra))
+            assertTrue("$ruta: son 50 bips", hex.contains(bips))
+            // Y lo que queda sigue yendo al dueño, que es lo que de verdad importa.
+            assertTrue("$ruta: el resto es para el dueño", hex.contains(cuenta.removePrefix("0x").lowercase()))
+        }
+    }
+
+    @Test
+    fun `la cuenta que cobra esta en el codigo, no la manda la pantalla`() {
+        // Si la pantalla pudiera decir a dónde va la comisión, un XSS en el WebView
+        // podría desviarla. Aquí es una constante y `cambio()` no la recibe.
+        assertTrue(Regex("^0x[0-9a-fA-F]{40}$").matches(SwapEvm.COMISION_CUENTA))
+        val firma = SwapEvm::class.java.methods.first { it.name == "cambio" }
+        assertEquals("cambio(clave, comisión de pool, cuenta, entra, mínimo): cinco argumentos y ninguna dirección más",
+            5, firma.parameterCount)
     }
 }

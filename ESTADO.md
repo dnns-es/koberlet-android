@@ -137,7 +137,7 @@ El navegador es para la primera instalación.
     aceptada la 1.0 y **la puerta volvió a salir sola**.
 
 
-## 0.54.0 (16/09/2026) — el Mercado también sostiene la app
+## 0.54.0 (16/09/2026) — el Mercado también sostiene la app, en las dos redes
 
 «Mercado necesitamos también ese %, la app debe mantenerse de alguna manera.» Y era
 verdad: mirando la cadena se vio que el DCA y las órdenes límite **ya cobraban su
@@ -167,6 +167,22 @@ Desde esta versión el cambio de Kadena cobra **el mismo 0,5 %** que el resto.
 - Las **políticas** suben a la **1.2** con el apartado «Lo que cuesta usar Koberlet».
 
 El gas del cambio sube 4.000 unidades: la transacción lleva una transferencia más.
+
+**En Ethereum se cobra lo mismo, pero de otra manera**, y hay que decirlo tal cual: allí
+la comisión **sale de lo que recibes**, no de lo que das. La aparta el propio router de
+Uniswap con `unwrapWETH9WithFee` y `sweepTokenWithFee`, dentro del mismo `multicall`
+(`SwapEvm.kt` y su gemelo Swift). Es código suyo, auditado, y **no admite pasar del 1%**,
+así que ni por error se puede cobrar de más. Las cuatro rutas —USDC↔ETH y USDT↔USDC—
+reparten igual; el `usdt2usdc`, que antes era una sola llamada, ahora va en `multicall`
+para poder repartir. No queda nada dentro del router: la llamada que reparte lo saca todo.
+
+Probado contra Ethereum de verdad con `eth_simulateV1`, sin firmar y con saldo simulado:
+cambiando 1 ETH, al usuario le llegan 2.394,92 USDC y a la cuenta de servicio 12,034788,
+que es el **0,5000 %** exacto, y el router se queda en cero.
+
+Los vectores de `SwapEvmTest.kt` y `SwapEvmTests.swift` se han vuelto a generar con
+**ethers v6**, que es el contraste de fuera de siempre.
+
 En el móvil, **sin probar todavía**.
 
 ## 0.53.0 (15/09/2026) — enviar desde Ethereum

@@ -103,7 +103,7 @@ export const POLITICAS = {
     },
     {
         "t": "li",
-        "x": "Comisión de servicio de Koberlet: 0,5% en el cambio del Mercado, en el DCA y en las órdenes límite. Se descuenta de lo que entra, antes de la operación, y se ve en la pantalla de confirmación antes de que firmes. Va en la misma transacción: si la operación falla, no se cobra nada."
+        "x": "Comisión de servicio de Koberlet: 0,5% en el cambio del Mercado, en el DCA y en las órdenes límite. Se ve en la pantalla antes de que firmes, con la cifra exacta, y va en la misma transacción: si la operación falla, no se cobra nada. En Kadena se descuenta de lo que entregas, antes del cambio; en Ethereum sale de lo que recibes, porque la aparta el propio contrato de Uniswap, que no admite pasar del 1%."
     },
     {
         "t": "li",
@@ -345,7 +345,7 @@ export const POLITICAS = {
     },
     {
         "t": "li",
-        "x": "Koberlet service fee: 0.5% on the Market swap, on DCA and on limit orders. It is taken from what goes in, before the operation, and it is shown on the confirmation screen before you sign. It travels in the same transaction: if the operation fails, nothing is charged."
+        "x": "Koberlet service fee: 0.5% on the Market swap, on DCA and on limit orders. It is shown on screen before you sign, with the exact figure, and it travels in the same transaction: if the operation fails, nothing is charged. On Kadena it is taken from what you hand over, before the swap; on Ethereum it comes out of what you receive, because Uniswap's own contract sets it aside, and it cannot go above 1%."
     },
     {
         "t": "li",

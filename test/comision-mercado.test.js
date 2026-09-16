@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { reparto, FEE_KOBERLET, CUENTA_KOBERLET, CLAVE_KOBERLET } from '../src/lib/dex.js';
+import { COMISION_KOB_PCT } from '../src/lib/ethswap.js';
 
 const RAIZ = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const lee = (...p) => readFileSync(join(RAIZ, ...p), 'utf8');
@@ -97,6 +98,36 @@ test('la cuenta que cobra NO viaja desde la pantalla al firmar', () => {
     assert.ok(!pantalla.includes(CUENTA_KOBERLET), 'la pantalla no debe llevar la cuenta de la comisión');
     assert.match(pantalla, /comision: q\.comisionStr/, 'la pantalla debe mandar la comisión que enseñó');
     assert.match(pantalla, /cantidad: q\.alPoolStr/, 'al pool se firma el neto, no lo que se entrega');
+});
+
+test('en Ethereum reparte el propio Uniswap, y siempre a la misma cuenta', () => {
+    // Aquí no hay contrato nuestro: el router sabe apartar una parte dentro del mismo
+    // multicall. La cuenta que cobra vive en el código nativo, como los contratos, y
+    // los dos aparatos tienen que llevar la MISMA, o el dinero iría a sitios distintos.
+    const kotlin = lee('android', 'app', 'src', 'main', 'java', 'es', 'dnns', 'koberlet', 'SwapEvm.kt');
+    const swift = lee('ios', 'KoberletCore', 'Sources', 'KoberletCore', 'SwapEvm.swift');
+    const CUENTA = '0x4A31148aD2BF0355C93bf7C9218Bb723F15c901c';
+    for (const [nombre, texto] of [['Kotlin', kotlin], ['Swift', swift]]) {
+        assert.ok(texto.includes(CUENTA), `${nombre} no lleva la cuenta que cobra`);
+        assert.ok(texto.includes('9b2c0a37'), `${nombre} no desenvuelve repartiendo`);
+        assert.ok(texto.includes('e0e189a0'), `${nombre} no barre el token repartiendo`);
+        assert.ok(/50/.test(texto) && texto.includes('100'), `${nombre} no lleva los bips ni el tope`);
+    }
+    // La pantalla dice cuánto se cambia, nunca a dónde va la comisión.
+    assert.ok(!lee('src', 'mercado-eth.js').includes(CUENTA), 'la pantalla no debe llevar la cuenta');
+    assert.ok(!lee('src', 'lib', 'ethswap.js').includes(CUENTA), 'la parte web no debe llevar la cuenta');
+    assert.equal(COMISION_KOB_PCT, 0.5);
+});
+
+test('en Ethereum lo que se enseña es lo que se recibe', () => {
+    // El suelo que se firma va contra lo que da el POOL; lo que se enseña es eso menos
+    // la comisión. Enseñar el bruto sería prometer más de lo que llega.
+    const fuente = lee('src', 'lib', 'ethswap.js');
+    assert.match(fuente, /const neto = mejor\.salida - comisionKob/);
+    assert.match(fuente, /netoMinimo = minimo - \(minimo \* COMISION_KOB_BIPS\) \/ 10000n/);
+    const pantalla = lee('src', 'mercado-eth.js');
+    assert.match(pantalla, /cot\.netoMinimoTexto/, 'el mínimo que se enseña tiene que ser el neto');
+    assert.match(pantalla, /minimo: q\.minimoTexto/, 'el que se firma sigue siendo el del pool');
 });
 
 test('lo que se simula es lo mismo que luego se firma', () => {
