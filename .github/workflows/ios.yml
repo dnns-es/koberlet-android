@@ -9,8 +9,14 @@
 # un iPhone de verdad -para eso hace falta firmar- pero es gratis, no pide ningun
 # secreto y sirve para el 90% del trabajo: el port del plugin nativo.
 #
-# La fase de firma + TestFlight se añade como un job aparte cuando esten los
-# certificados en los secretos del repo. Este job no se toca por eso.
+# El segundo job firma de verdad y sube a TestFlight. Solo corre en main (o a
+# mano), solo si el simulador ha compilado, y solo si estan los secretos:
+#   APPLE_CERT_P12 / APPLE_CERT_PASSWORD  certificado Apple Distribution (.p12 en base64)
+#   APPLE_PROFILE                         perfil «Koberlet App Store» (.mobileprovision en base64)
+#   APPLE_TEAM_ID                         el equipo de Apple
+#   APPLE_ASC_KEY_P8 / APPLE_ASC_KEY_ID / APPLE_ASC_ISSUER_ID  clave API de App Store Connect
+# Ninguno esta en el repo: se generaron en Windows con OpenSSL y viven en .keys/
+# (ignorado por git) y en los secretos de GitHub.
 name: iOS
 
 on:
@@ -84,3 +90,130 @@ jobs:
           name: koberlet-ios-simulador
           path: ios/DerivedData/Build/Products/Debug-iphonesimulator/Koberlet-simulador.zip
           retention-days: 14
+
+  testflight:
+    name: Firmar y subir a TestFlight
+    needs: simulador
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_PROFILE: ${{ secrets.APPLE_PROFILE }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_ASC_KEY_P8: ${{ secrets.APPLE_ASC_KEY_P8 }}
+      APPLE_ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
+      APPLE_ASC_ISSUER_ID: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+    steps:
+      # Sin secretos no hay firma: el job se queda en verde sin hacer nada, para
+      # que un fork o un PR no fallen por algo que no es suyo.
+      - name: Comprobar secretos
+        id: secretos
+        run: |
+          if [ -n "$APPLE_CERT_P12" ] && [ -n "$APPLE_PROFILE" ] && [ -n "$APPLE_ASC_KEY_P8" ]; then
+            echo "hay=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay=false" >> "$GITHUB_OUTPUT"
+            echo "Faltan secretos de Apple: no se firma."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secretos.outputs.hay == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secretos.outputs.hay == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependencias y web
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          npm ci
+          npm run build:ios
+
+      # Un llavero propio y temporal con el certificado, su clave y el
+      # intermedio de Apple (WWDR G3, el que firmo nuestro certificado). El perfil
+      # va a las dos carpetas donde lo busca Xcode segun la version.
+      - name: Certificado y perfil
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -e
+          LLAVERO="$RUNNER_TEMP/firma.keychain-db"
+          CLAVE_LLAVERO="$(uuidgen)"
+          security create-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          security set-keychain-settings -lut 21600 "$LLAVERO"
+          security unlock-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          echo "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$LLAVERO"
+          curl -sSfo "$RUNNER_TEMP/wwdr.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import "$RUNNER_TEMP/wwdr.cer" -k "$LLAVERO" -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CLAVE_LLAVERO" "$LLAVERO" > /dev/null
+          security list-keychains -d user -s "$LLAVERO" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$LLAVERO"
+          rm -f "$RUNNER_TEMP/distribution.p12"
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"
+            echo "$APPLE_PROFILE" | base64 --decode > "$d/koberlet-app-store.mobileprovision"
+          done
+
+      # Version = la de package.json (la misma que en Android); build = numero
+      # de ejecucion, que siempre crece, como exige TestFlight.
+      - name: Archivar (firmado)
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -o pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "Koberlet $VERSION ($GITHUB_RUN_NUMBER)"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Koberlet.xcarchive" \
+            -derivedDataPath ios/DerivedData \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="Koberlet App Store" \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            -quiet \
+            archive
+
+      # exportArchive con destino «upload» manda el .ipa a App Store Connect con
+      # la clave API; TestFlight lo procesa en unos minutos.
+      - name: Subir a TestFlight
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$APPLE_ASC_KEY_P8" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>es.dnns.koberlet</key><string>Koberlet App Store</string></dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Koberlet.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$APPLE_ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$APPLE_ASC_ISSUER_ID" \
+            -allowProvisioningUpdates
+          rm -rf "$RUNNER_TEMP/asc"
