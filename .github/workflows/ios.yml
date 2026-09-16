@@ -159,7 +159,10 @@ jobs:
           done
 
       # Version = la de package.json (la misma que en Android); build = numero
-      # de ejecucion, que siempre crece, como exige TestFlight.
+      # de ejecucion, que siempre crece, como exige TestFlight. La firma (equipo,
+      # identidad y perfil) esta en el target App del proyecto, no aqui: pasada
+      # por linea de comandos se aplicaria tambien a los paquetes Swift, que no
+      # admiten perfil y hacen fallar el archivo.
       - name: Archivar (firmado)
         if: steps.secretos.outputs.hay == 'true'
         run: |
@@ -174,10 +177,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Koberlet.xcarchive" \
             -derivedDataPath ios/DerivedData \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="Koberlet App Store" \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             -quiet \
