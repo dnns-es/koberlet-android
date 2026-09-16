@@ -63,7 +63,11 @@
         * { box-sizing: border-box; }
         body {
             margin: 0;
-            padding: 16px;
+            /* En iPhone la web llega hasta los bordes (viewport-fit=cover): hay
+               que dejar sitio a la barra de estado y a la isla. En Android
+               esos env() valen 0 y queda como estaba. */
+            padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+                     16px calc(16px + env(safe-area-inset-left));
             background: var(--fondo);
             color: var(--texto);
             font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -531,7 +535,7 @@
         #barra button svg { width: 21px; height: 21px; }
         #barra button.activa { color: var(--activo); }
         /* Hueco para que la barra no tape el último botón de cada pantalla. */
-        body.con-barra { padding-bottom: 78px; }
+        body.con-barra { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
 
         /* Hoja con las secciones que no caben en la barra. */
         .hoja-fondo {
