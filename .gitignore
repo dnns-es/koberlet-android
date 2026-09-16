@@ -24,7 +24,7 @@ play/bundle/
 .env
 *.log
 
-# Sesiones de Claude y copias automaticas: trabajo local, no fuente
+# Sesiones del editor y copias automaticas: trabajo local, no fuente
 # Paquetes ya sellados y registros de pruebas en el movil
 *.zip
 pruebas/
