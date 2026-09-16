@@ -205,6 +205,16 @@ escribirPngRgb(join(DESTINO, 'icono-512.png'), 512, 512,
     componer(icono, 512, 512, VERDE, 1));
 console.log('play/assets/icono-512.png          512x512  RGB sin alfa');
 
+// 1b. Icono de iPhone: 1024x1024 opaco, el unico que pide Xcode (los tamaños
+// pequeños los saca el sistema). Android recorta el icono adaptativo a sus 72 dp
+// centrales de 108, asi que 108/72 = 1.5 deja el hexagono del mismo tamaño que
+// se ve en el movil. iOS le redondea las esquinas el solo: no hay que hacerlo aqui.
+const ICONO_IOS = join(RAIZ, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png');
+if (existsSync(dirname(ICONO_IOS))) {
+    escribirPngRgb(ICONO_IOS, 1024, 1024, componer(icono, 1024, 1024, VERDE, 108 / 72));
+    console.log('ios/.../AppIcon-512@2x.png          1024x1024 RGB sin alfa');
+}
+
 // 2. Grafico de funciones: 1024x500, la banda de arriba de la ficha.
 //
 // Esta lleva texto, y el texto se dibuja donde se sabe dibujar texto: en HTML.
