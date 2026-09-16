@@ -3,6 +3,7 @@
 
 import Foundation
 import CryptoKit
+import secp256k1
 
 /// DERIVACION DE CLAVES - el nucleo del monedero.
 ///
@@ -12,7 +13,7 @@ import CryptoKit
 /// Estandares, los mismos que en Android (ver Derivacion.kt):
 ///   - Semilla: BIP-39 (PBKDF2-HMAC-SHA512, 2048 vueltas, sal "mnemonic").
 ///   - Kadena:  SLIP-0010 sobre Ed25519, ruta m'/44'/626'/<indice>'.
-///   - EVM:     BIP-32 sobre secp256k1, ruta m/44'/60'/0'/0/0 (fase 2 en iOS).
+///   - EVM:     BIP-32 sobre secp256k1, ruta m/44'/60'/0'/0/0, como MetaMask.
 ///
 /// Nada de esto vale si no da EXACTAMENTE las mismas cuentas que Android y el
 /// escritorio. Por eso los tests llevan los mismos vectores publicos.
@@ -139,15 +140,62 @@ public enum Derivacion {
 
     // --- BIP-32 (secp256k1) - EVM -------------------------------------------
     //
-    // Todavia no en el iPhone: hace falta secp256k1 y Keccak, que llegan en la
-    // fase 2 del port. Mientras, una cartera de Ethereum se niega con un mensaje
-    // claro en vez de derivar algo mal.
+    // La aritmetica de la curva la hace libsecp256k1 (la de Bitcoin Core):
+    // (IL + k) mod n es su `tweak add`, y la publica comprimida su serializacion.
 
+    /// Ruta BIP-44 estandar de Ethereum: m/44'/60'/0'/0/<indice>.
     public static func privadaEvm(_ semillaBytes: [UInt8], _ indice: UInt32) throws -> [UInt8] {
-        throw FalloBoveda.estado("Las carteras de Ethereum llegan al iPhone en la siguiente fase.")
+        var i = hmacSha512(Array("Bitcoin seed".utf8), semillaBytes)
+        var clave = Array(i[0..<32])
+        var cadena = Array(i[32..<64])
+        for paso in [44 | duro, 60 | duro, 0 | duro, 0, indice] {
+            var datos = [UInt8](repeating: 0, count: 37)
+            if paso & duro != 0 {                              // endurecido: se usa la privada
+                datos[0] = 0
+                datos.replaceSubrange(1..<33, with: clave)
+            } else {                                           // normal: la publica comprimida
+                datos.replaceSubrange(0..<33, with: try publicaComprimida(clave))
+            }
+            datos[33] = UInt8(paso >> 24)
+            datos[34] = UInt8((paso >> 16) & 0xff)
+            datos[35] = UInt8((paso >> 8) & 0xff)
+            datos[36] = UInt8(paso & 0xff)
+            i = hmacSha512(cadena, datos)
+            clave = try sumarModN(clave, Array(i[0..<32]))
+            cadena = Array(i[32..<64])
+        }
+        return clave
     }
 
+    private static func publicaComprimida(_ privada: [UInt8]) throws -> [UInt8] {
+        guard let k = try? secp256k1.Signing.PrivateKey(dataRepresentation: Data(privada)) else {
+            throw FalloBoveda.argumento("Clave privada fuera de rango.")
+        }
+        return Array(k.publicKey.dataRepresentation)
+    }
+
+    private static func sumarModN(_ clave: [UInt8], _ sumando: [UInt8]) throws -> [UInt8] {
+        guard let k = try? secp256k1.Signing.PrivateKey(dataRepresentation: Data(clave)),
+              let suma = try? k.add(sumando)
+        else { throw FalloBoveda.argumento("Clave privada fuera de rango.") }
+        return Array(suma.dataRepresentation)
+    }
+
+    /// Direccion Ethereum con la suma de verificacion EIP-55 (las mayusculas SON la suma).
     public static func direccionEvm(_ privada: [UInt8]) throws -> String {
-        throw FalloBoveda.estado("Las carteras de Ethereum llegan al iPhone en la siguiente fase.")
+        guard let k = try? secp256k1.Signing.PrivateKey(dataRepresentation: Data(privada), format: .uncompressed) else {
+            throw FalloBoveda.argumento("Clave privada fuera de rango.")
+        }
+        let punto = Array(k.publicKey.dataRepresentation)          // 65 bytes, 0x04 delante
+        if punto.count != 65 { throw FalloBoveda.estado("La clave pública no tiene la forma esperada.") }
+        let hash = Keccak.hash256(Array(punto[1...]))
+        let cuerpo = Hex.aHex(Array(hash[12..<32]))
+        let hashCuerpo = Array(Hex.aHex(Keccak.hash256(Array(cuerpo.utf8))))
+        var s = "0x"
+        for (i, c) in cuerpo.enumerated() {
+            let nibble = Int(String(hashCuerpo[i]), radix: 16) ?? 0
+            s.append(c.isNumber || nibble < 8 ? c : Character(c.uppercased()))
+        }
+        return s
     }
 }
