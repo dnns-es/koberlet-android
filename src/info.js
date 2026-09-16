@@ -55,8 +55,10 @@ export function pintarInfo(raiz, ctx) {
         t('Un monedero de Kadena para el móvil. Las claves se crean en este aparato y se quedan aquí, cifradas con tu contraseña: no hay servidor nuestro que las tenga ni que pueda devolvértelas si las pierdes.'),
         'nota'));
     c.append(fila(t('Versión'), ctx.version));
-    c.append(fila(t('Dónde corre'), t(esNativo() ? 'APK de Android' : 'Navegador')));
-    c.append(fila(t('Bóveda'), t(ctx.motor === 'nativa' ? 'nativa (Android)' : 'simulada (pruebas)')));
+    const sistema = CANAL === 'ios' ? t('App de iPhone') : t('APK de Android');
+    const nativa = CANAL === 'ios' ? t('nativa (iPhone)') : t('nativa (Android)');
+    c.append(fila(t('Dónde corre'), esNativo() ? sistema : t('Navegador')));
+    c.append(fila(t('Bóveda'), ctx.motor === 'nativa' ? nativa : t('simulada (pruebas)')));
     c.append(fila(t('Red'), ctx.red.nombre));
 
     // Las actualizaciones van aqui, junto a la version, igual que en el escritorio:

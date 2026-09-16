@@ -656,6 +656,8 @@ const EN = {
     'APK de Android': 'Android APK',
     'Bóveda': 'Vault',
     'nativa (Android)': 'native (Android)',
+    'nativa (iPhone)': 'native (iPhone)',
+    'App de iPhone': 'iPhone app',
     'simulada (pruebas)': 'simulated (testing)',
     'Lo que todavía no está': 'Not here yet',
     'Lo que conviene saber': 'Worth knowing',
