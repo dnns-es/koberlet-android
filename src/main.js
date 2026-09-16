@@ -28,6 +28,7 @@ import { arrancarIdioma, fijarIdioma, idiomaElegido, t, locale } from './idioma.
 import { carteraActiva, fijarCarteraActiva, agrupaCarteras } from './cartera-activa.js';
 import { corta } from './direccion.js';
 import { hayQueAceptar, pintarPoliticas } from './politicas.js';
+import { CANAL } from './canal.js';
 import { fijarRedMercado } from './mercado-red.js';
 import { formatea, recorta } from './cifras.js';
 import { nombreCartera } from './nombres.js';
@@ -267,8 +268,9 @@ async function pintarPanel(cuentas) {
     // que las claves están en el chip. En el navegador no se repite en cada
     // pantalla que la bóveda es de pruebas: eso ya se sabe, y sigue estando en
     // Info y en Seguridad para quien lo quiera comprobar.
+    const nativa = CANAL === 'ios' ? t('nativa (iPhone)') : t('nativa (Android)');
     $('sub').textContent = motor === 'nativa'
-        ? `${donde} · ${t('Bóveda')} ${t('nativa (Android)')}`
+        ? `${donde} · ${t('Bóveda')} ${nativa}`
         : donde;
 
     app().append(chipCartera(grupo, porCartera));
