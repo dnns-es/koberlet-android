@@ -19,12 +19,16 @@ let package = Package(
         // Solo por scrypt: CryptoKit no lo trae. AES-GCM, HMAC, SHA y Ed25519
         // van con CryptoKit, que es del sistema.
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.8.0"),
+        // secp256k1 para Ethereum: envoltorio Swift de libsecp256k1 (la de
+        // Bitcoin Core). Version fijada: en la 0.18 el modulo cambio de nombre.
+        .package(url: "https://github.com/21-DOT-DEV/swift-secp256k1.git", exact: "0.17.0"),
     ],
     targets: [
         .target(
             name: "KoberletCore",
             dependencies: [
                 .product(name: "CryptoSwift", package: "CryptoSwift"),
+                .product(name: "secp256k1", package: "swift-secp256k1"),
             ],
             resources: [
                 .copy("bip39-english.txt"),

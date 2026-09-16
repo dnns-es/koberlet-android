@@ -65,8 +65,13 @@ final class DerivacionTests: XCTestCase {
         XCTAssertThrowsError(try Hex.deHex("zz"))
     }
 
-    func testEthereumTodaviaNoEnIphone() {
-        // Fase 2. Mientras, tiene que negarse con un mensaje, no derivar mal.
-        XCTAssertThrowsError(try Carteras.montar("c1", "x", semilla, "evm"))
+    func testLaDireccionEvmCoincideConMetaMaskConLasMayusculasEip55() throws {
+        // Las mayusculas no son estetica: son la suma de verificacion del estandar.
+        XCTAssertEqual(
+            "0x9858EfFD232B4033E47d90003D41EC34EcaEda94",
+            try Derivacion.direccionEvm(try Derivacion.privadaEvm(Derivacion.semillaABytes(semilla), 0))
+        )
+        let c = try Carteras.montar("c1", "Eth", semilla, "evm")
+        XCTAssertEqual("0x9858EfFD232B4033E47d90003D41EC34EcaEda94", (c["cuentas"] as! [JSON])[0]["cuenta"] as? String)
     }
 }

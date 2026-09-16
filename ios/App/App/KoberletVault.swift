@@ -34,8 +34,6 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
     /// Sesion abierta. Vive SOLO en memoria y muere con el proceso.
     private var sesion: JSON?
 
-    private static let noEvm = "Las carteras de Ethereum llegan al iPhone en la siguiente fase."
-
     // --- Fichero ------------------------------------------------------------
 
     private var carpeta: URL {
@@ -404,12 +402,120 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    // --- Ethereum: fase 2 del port ---------------------------------------------
+    // --- Ethereum ------------------------------------------------------------
+    //
+    // Mismo reparto: de la pantalla vienen cantidades y una cuenta de destino;
+    // el contrato al que se llama, la funcion y la cadena los pone FirmaEvm.
+    // Lo que devuelve es un `rawTransaction` ya firmado que la pantalla reenvia.
 
-    @objc func firmarPermisoEvm(_ call: CAPPluginCall) { call.reject(KoberletVault.noEvm) }
-    @objc func firmarEnvioEvm(_ call: CAPPluginCall) { call.reject(KoberletVault.noEvm) }
-    @objc func firmarCambioEvm(_ call: CAPPluginCall) { call.reject(KoberletVault.noEvm) }
-    @objc func firmarPuenteHaciaKadena(_ call: CAPPluginCall) { call.reject(KoberletVault.noEvm) }
+    /// Lo que la pantalla puede decir del gas, comprobado luego en FirmaEvm.
+    private func sobreDe(_ call: CAPPluginCall) throws -> FirmaEvm.Sobre {
+        guard let nonce = call.getString("nonce").flatMap({ Int64($0) }) else { throw FalloBoveda.argumento("Falta el nonce de la cuenta.") }
+        guard let gasLimit = call.getString("gasLimit").flatMap({ Int64($0) }) else { throw FalloBoveda.argumento("Falta el límite de gas.") }
+        guard let maxFee = call.getString("maxFeePerGas").flatMap({ BigUInt(decimal: $0) }) else { throw FalloBoveda.argumento("Falta el precio del gas.") }
+        guard let propina = call.getString("maxPriorityFeePerGas").flatMap({ BigUInt(decimal: $0) }) else { throw FalloBoveda.argumento("Falta la propina del gas.") }
+        return FirmaEvm.Sobre(nonce: nonce, gasLimit: gasLimit, maxFeePerGas: maxFee, maxPriorityFeePerGas: propina)
+    }
+
+    /// Lo comun a toda firma Ethereum: abrir, exigir que la cartera sea de
+    /// Ethereum, sacar la privada, firmar y borrarla.
+    private func firmaEvm(_ call: CAPPluginCall, _ titulo: String,
+                          _ montar: @escaping (_ privada: [UInt8], _ sobre: FirmaEvm.Sobre) throws -> String) {
+        guard let carteraId = call.getString("carteraId") else { return call.reject("Falta la cartera.") }
+        if !existe { return call.reject("No hay ninguna cartera en este aparato.") }
+        conContrasena(call, titulo) { contrasena in
+            self.hilo(call) {
+                let sobre = try self.sobreDe(call)
+                let datos = try self.abrirFichero(contrasena)
+                guard let cartera = Carteras.buscar(datos, carteraId) else { throw FalloBoveda.argumento("Esa cartera no existe.") }
+                if Carteras.redDe(cartera) != "evm" { throw FalloBoveda.argumento("Esa cartera no es de Ethereum.") }
+                var privada = try Carteras.privadaDe(cartera)
+                defer { for i in privada.indices { privada[i] = 0 } }
+                return ["raw": try montar(privada, sobre)]
+            }
+        }
+    }
+
+    /// El PERMISO para que el puente (o Uniswap) pueda mover tu USDC. A quien se
+    /// autoriza sale de una lista CERRADA de dos nombres; la cantidad es la justa.
+    @objc func firmarPermisoEvm(_ call: CAPPluginCall) {
+        guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
+        let paraQue = call.getString("para") ?? "puente"
+        let decimales = call.getInt("decimales") ?? FirmaEvm.decimalesUsdc
+        let claveRuta = call.getString("ruta") ?? ""
+        firmaEvm(call, "Autoriza el token en Ethereum") { privada, sobre in
+            let unidades = try FirmaEvm.aUnidades(cantidad, decimales)
+            let contrato: String
+            let datosPermiso: [UInt8]
+            switch paraQue {
+            case "puente":
+                contrato = FirmaEvm.tokenUsdc
+                datosPermiso = try FirmaEvm.datosPermiso(unidades)
+            case "mercado":
+                let ruta = try SwapEvm.ruta(claveRuta)
+                contrato = ruta.tokenIn
+                datosPermiso = try Hex.deHex(try SwapEvm.datosPermiso(unidades))
+            default:
+                throw FalloBoveda.argumento("No se sabe a quién habría que autorizar.")
+            }
+            return try FirmaEvm.transaccionFirmada(a: contrato, valorWei: BigUInt.cero, datos: datosPermiso, sobre: sobre, privada: privada)
+        }
+    }
+
+    /// Un ENVIO normal en Ethereum: ETH, USDC o USDT. El token llega por su
+    /// nombre de una lista de tres; el contrato lo pone este fichero.
+    @objc func firmarEnvioEvm(_ call: CAPPluginCall) {
+        guard let token = call.getString("token") else { return call.reject("Falta qué se envía.") }
+        guard let para = call.getString("para") else { return call.reject("Falta la cuenta de destino.") }
+        guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
+        firmaEvm(call, "Firma el envío") { privada, sobre in
+            let destino = try FirmaEvm.direccionValida(para)
+            switch token {
+            case "ETH":
+                return try FirmaEvm.transaccionFirmada(a: destino, valorWei: try FirmaEvm.aUnidades(cantidad, 18),
+                                                       datos: [], sobre: sobre, privada: privada)
+            case "USDC", "USDT":
+                let contrato = token == "USDC" ? FirmaEvm.tokenUsdc : FirmaEvm.tokenUsdt
+                let unidades = try FirmaEvm.aUnidades(cantidad, FirmaEvm.decimalesUsdc)
+                return try FirmaEvm.transaccionFirmada(a: contrato, valorWei: BigUInt.cero,
+                                                       datos: try FirmaEvm.datosEnvioToken(destino, unidades), sobre: sobre, privada: privada)
+            default:
+                throw FalloBoveda.argumento("Ese token no está entre los que sabe enviar la app.")
+            }
+        }
+    }
+
+    /// Un CAMBIO en Uniswap. La ruta por su nombre, la comision del pool, cuanto
+    /// entra y el minimo que se acepta recibir, que va dentro de lo firmado.
+    @objc func firmarCambioEvm(_ call: CAPPluginCall) {
+        guard let claveRuta = call.getString("ruta") else { return call.reject("Falta el cambio que se quiere hacer.") }
+        guard let comision = call.getInt("comision") else { return call.reject("Falta la comisión del pool.") }
+        guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
+        guard let minimo = call.getString("minimo") else { return call.reject("Falta el mínimo que aceptas recibir.") }
+        firmaEvm(call, "Firma el cambio") { privada, sobre in
+            let ruta = try SwapEvm.ruta(claveRuta)
+            let cuenta = try Derivacion.direccionEvm(privada)
+            let entra = try FirmaEvm.aUnidades(cantidad, ruta.decIn)
+            let sale = try FirmaEvm.aUnidades(minimo, ruta.decOut)
+            let cambio = try SwapEvm.cambio(claveRuta: claveRuta, comision: comision, cuenta: cuenta, cantidadEntra: entra, salidaMinima: sale)
+            return try FirmaEvm.transaccionFirmada(a: SwapEvm.router, valorWei: cambio.valorWei, datos: cambio.datos, sobre: sobre, privada: privada)
+        }
+    }
+
+    /// El ENVIO por el puente desde Ethereum hacia Kadena. El custodio se
+    /// calcula aqui dentro a partir de la cuenta, nunca se recibe hecho.
+    @objc func firmarPuenteHaciaKadena(_ call: CAPPluginCall) {
+        guard let cuentaKda = call.getString("cuentaKda") else { return call.reject("Falta la cuenta de Kadena.") }
+        guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
+        guard let peajeWei = call.getString("peajeWei") else { return call.reject("Falta el peaje del puente.") }
+        firmaEvm(call, "Firma el envío por el puente") { privada, sobre in
+            guard let peaje = BigUInt(decimal: peajeWei) else { throw FalloBoveda.argumento("El peaje no es un número.") }
+            let unidades = try FirmaEvm.aUnidades(cantidad, FirmaEvm.decimalesUsdc)
+            return try FirmaEvm.transaccionFirmada(a: FirmaEvm.router, valorWei: try FirmaEvm.peajeComprobado(peaje),
+                                                   datos: try FirmaEvm.datosPuenteHaciaKadena(cuentaKda, unidades),
+                                                   sobre: sobre, privada: privada)
+        }
+    }
 
     // --- Face ID / Touch ID en lugar de teclear la contraseña -------------------
 
