@@ -551,6 +551,18 @@ object FirmaKda {
     const val AMM_CHAIN = "2"
 
     /**
+     * La comision de servicio de Koberlet y la cuenta que la cobra.
+     *
+     * Estan AQUI y no en la pantalla a proposito: la pantalla dice cuanto, pero no
+     * a donde. Aunque el WebView estuviera comprometido, la comision no se puede
+     * desviar a otra cuenta, y el tope del 0,5 % se comprueba abajo antes de firmar.
+     * Es la misma que ya cobran el DCA y las ordenes limite dentro de sus contratos.
+     */
+    const val COMISION_CUENTA = "k:e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df"
+    const val COMISION_CLAVE = "e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df"
+    const val COMISION_TOPE = "0.005"
+
+    /**
      * Firma un cambio en el AMM de Kadena (`swap-exact-in`).
      *
      * La pantalla trae el CAMINO -uno o dos saltos, descubiertos de la cadena-, el
@@ -577,6 +589,7 @@ object FirmaKda {
         privada: ByteArray,
         publica: String,
         creationTime: Long,
+        comision: String = "0.0",
         gasLimit: Int = 14000,
         gasPrice: String = "1e-8",
     ): JSONObject {
@@ -599,15 +612,55 @@ object FirmaKda {
             throw IllegalArgumentException("Para el mercado la cuenta Kadena tiene que ser k: y 64 caracteres.")
         }
 
-        val codigo = """($AMM.swap-exact-in (read-decimal \"amountIn\") (read-decimal \"amountOutMin\") [""" +
+        // `cantidad` es lo que entra en el pool: el NETO. La comision se aparto antes
+        // y va aparte, en esta misma transaccion. Se comprueba aqui que no pase del
+        // 0,5 % de lo que el usuario entrega en total, redondeando a favor de la
+        // pantalla un solo decimal para no pelearse con el ultimo digito.
+        val cuota = decimalValido(comision)
+        val cuotaBD = java.math.BigDecimal(cuota)
+        if (cuotaBD.signum() < 0) throw IllegalArgumentException("La comisión no puede ser negativa.")
+        val hayComision = cuotaBD.signum() > 0
+        if (hayComision) {
+            val bruto = java.math.BigDecimal(entra).add(cuotaBD)
+            val tope = bruto.multiply(java.math.BigDecimal(COMISION_TOPE))
+                .setScale(cuotaBD.scale(), java.math.RoundingMode.CEILING)
+            if (cuotaBD > tope) {
+                throw IllegalArgumentException("La comisión no puede ser mayor que la parte que le toca.")
+            }
+        }
+
+        val cambio = """($AMM.swap-exact-in (read-decimal \"amountIn\") (read-decimal \"amountOutMin\") [""" +
             camino.joinToString(" ") + """] \"$cuenta\" \"$cuenta\" (read-keyset \"ks\"))"""
-        val datos = """{"amountIn":{"decimal":"$entra"},"amountOutMin":{"decimal":"$sale"},""" +
+        // El cambio y el cobro, atados: si el cambio revierte no se cobra nada, y si
+        // la comision no se puede pagar no hay cambio. `transfer-create` porque la
+        // cuenta que cobra puede no existir todavia en el token que entra.
+        val codigo = if (hayComision) {
+            """(let ((r $cambio)) (${camino[0]}.transfer-create \"$cuenta\" \"$COMISION_CUENTA\"""" +
+                """ (read-keyset \"ks-koberlet\") (read-decimal \"comision\")) r)"""
+        } else {
+            cambio
+        }
+        val extraDatos = if (hayComision) {
+            ""","comision":{"decimal":"$cuota"},"ks-koberlet":{"keys":["$COMISION_CLAVE"],"pred":"keys-all"}"""
+        } else {
+            ""
+        }
+        val datos = """{"amountIn":{"decimal":"$entra"},"amountOutMin":{"decimal":"$sale"}$extraDatos,""" +
             """"ks":{"keys":["$pubKey"],"pred":"keys-all"}}"""
+        // Lo que se firma acota el dano: el TRANSFER del pool por el neto exacto y,
+        // si la hay, el de la comision por su cifra exacta y hacia la cuenta de arriba.
+        val extraClist = if (hayComision) {
+            """,{"name":"${camino[0]}.TRANSFER","args":["$cuenta","$COMISION_CUENTA",{"decimal":"$cuota"}]}"""
+        } else {
+            ""
+        }
+        // Una transferencia mas = mas gas.
+        val gas = if (hayComision) gasLimit + 4000 else gasLimit
 
         val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":$datos}},""" +
             """"signers":[{"pubKey":"$publica","clist":[{"name":"coin.GAS","args":[]},""" +
-            """{"name":"${camino[0]}.TRANSFER","args":["$cuenta","$poolPrimerSalto",{"decimal":"$entra"}]}]}],""" +
-            """"meta":{"chainId":"$AMM_CHAIN","sender":"$cuenta","gasLimit":$gasLimit,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
+            """{"name":"${camino[0]}.TRANSFER","args":["$cuenta","$poolPrimerSalto",{"decimal":"$entra"}]}$extraClist]}],""" +
+            """"meta":{"chainId":"$AMM_CHAIN","sender":"$cuenta","gasLimit":$gas,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
             """"nonce":"koberlet-android-swap:${System.currentTimeMillis()}"}"""
 
         val hash = hashComando(cmd)

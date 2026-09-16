@@ -26,6 +26,17 @@ const AMM = 'kaddex.exchange';
 const KDA = 'coin';
 const FEE = 0.003;              // comisión del pool, 0,3 %
 export const IMPACTO_MAX = 10;  // el freno, en %
+
+// Comision de servicio de Koberlet: la misma que ya cobran el DCA y las ordenes
+// limite dentro de sus contratos, y la misma que el Koberlet de escritorio. Se
+// descuenta de lo que ENTRA, antes del cambio, y viaja en la misma transaccion:
+// si el cambio revierte no se cobra nada, y si la comision no se puede pagar no
+// hay cambio. La cuenta que cobra la pone el codigo nativo, no esta pantalla; aqui
+// esta solo para poder enseñar la cifra y para simular el mismo comando que se
+// firmara luego.
+export const FEE_KOBERLET = 0.005;
+export const CUENTA_KOBERLET = 'k:e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df';
+export const CLAVE_KOBERLET = 'e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9c81500e2f3748df';
 export const FONDO_MIN = 1000;  // por debajo de esto es un charco y no se lista
 const CHAIN = '2';              // el AMM del fork vive en la chain 2
 
@@ -128,6 +139,30 @@ export async function saldoEnMercado(red, modulo, cuenta) {
     }
 }
 
+// Redondeo HACIA ABAJO a los decimales del token. Dos motivos, los dos serios:
+// cobrar de más, aunque sea un decimal, es cobrar lo que no es tuyo; y mandar más
+// decimales de los que admite el token hace que el contrato tire la transacción.
+function piso(x, decimales) {
+    const f = Math.pow(10, decimales);
+    return Math.floor(x * f) / f;
+}
+
+/**
+ * Lo que se parte de la cantidad que entra: comision para Koberlet y resto al pool.
+ *
+ * Se devuelven tambien en texto porque es ese texto, y no el numero, lo que acaba
+ * dentro del comando firmado: asi lo que se enseña y lo que se firma son lo mismo.
+ */
+export function reparto(cantidad, decimales) {
+    const comision = piso(Number(cantidad) * FEE_KOBERLET, decimales);
+    const alPool = piso(Number(cantidad) - comision, decimales);
+    return {
+        comision, alPool,
+        comisionStr: comision.toFixed(decimales),
+        alPoolStr: alPool.toFixed(decimales),
+    };
+}
+
 // AMM x*y=k con la comisión del pool ya descontada.
 function salidaSalto(entrada, rin, rout) {
     const ef = entrada * (1 - FEE);
@@ -170,12 +205,22 @@ export async function cotizar(red, m, de, a, cantidad, slippage) {
         saltos = [s1, s2];
     }
 
+    // La comisión de Koberlet se aparta ANTES: al pool entra lo que queda. Si el
+    // mínimo se calculase sobre el bruto quedaría por encima de lo que el pool
+    // puede dar con el neto, y el cambio revertiría siempre.
+    const decimalesEntrada = await precisionDe(red, de);
+    const { comision, alPool, comisionStr, alPoolStr } = reparto(cant, decimalesEntrada);
+    if (!(alPool > 0)) throw new Error('Esa cantidad es demasiado pequeña para este token.');
+
     let spot = 1;
     for (const s of saltos) spot *= s.rout / s.rin;
-    let x = cant;
+    let x = alPool;
     for (const s of saltos) x = salidaSalto(x, s.rin, s.rout);
 
-    const ideal = cant * spot;
+    // El impacto se mide sobre lo que de verdad entra en el pool: la comisión ya
+    // se enseña aparte y meterla aquí la contaría dos veces, además de acercar el
+    // freno del 10 % sin que el pool tenga nada que ver.
+    const ideal = alPool * spot;
     const impacto = ideal > 0 ? Math.max(0, (1 - x / ideal) * 100) : 100;
     // El minimo de salida tiene que caber en la precision del token o el contrato
     // lo rechaza por `enforce-unit`: doce decimales para un token de seis no valen.
@@ -184,6 +229,8 @@ export async function cotizar(red, m, de, a, cantidad, slippage) {
     return {
         camino, esperada: x, minimo, minimoStr: minimo.toFixed(decimalesSalida), decimalesSalida,
         impacto, impactoMax: IMPACTO_MAX, frenado: impacto > IMPACTO_MAX,
+        comision, alPool, comisionStr, alPoolStr, decimalesEntrada,
+        comisionPct: FEE_KOBERLET * 100, cuentaComision: CUENTA_KOBERLET,
         precioEfectivo: x / cant, precioSpot: spot, slippagePct: slip * 100,
         cuentaPrimerPar: saltos[0].par.cuenta, saltos: saltos.length,
         fondoEntrada: saltos[0].rin,
@@ -207,22 +254,36 @@ export async function simularCambio({ cuenta, red, m, de, a, cantidad, slippage 
         throw new Error('Cambio detenido: moverías el precio más del 10 %. En este pool no hay fondo para tanto; prueba con menos cantidad.');
     }
 
-    const code = `(${AMM}.swap-exact-in (read-decimal "amountIn") (read-decimal "amountOutMin") [`
+    const cambio = `(${AMM}.swap-exact-in (read-decimal "amountIn") (read-decimal "amountOutMin") [`
         + q.camino.join(' ') + `] "${cuenta}" "${cuenta}" (read-keyset "ks"))`;
+    // Las dos cosas van juntas dentro de la misma transacción: si el cambio falla no
+    // se cobra comisión, y al revés. `transfer-create` porque la cuenta que cobra
+    // puede no existir todavía en el token que entra.
+    const code = q.comision > 0
+        ? `(let ((r ${cambio})) (${de}.transfer-create "${cuenta}" "${CUENTA_KOBERLET}"`
+          + ` (read-keyset "ks-koberlet") (read-decimal "comision")) r)`
+        : cambio;
     const data = {
-        amountIn: { decimal: String(cantidad) },
+        amountIn: { decimal: q.alPoolStr },
         amountOutMin: { decimal: q.minimoStr },
         ks: { keys: [pubKey], pred: 'keys-all' },
     };
     const clist = [
         { name: 'coin.GAS', args: [] },
         // La primera pata sale de la cuenta y entra en el pool del primer salto.
-        { name: de + '.TRANSFER', args: [cuenta, q.cuentaPrimerPar, { decimal: String(cantidad) }] },
+        { name: de + '.TRANSFER', args: [cuenta, q.cuentaPrimerPar, { decimal: q.alPoolStr }] },
     ];
+    if (q.comision > 0) {
+        data.comision = { decimal: q.comisionStr };
+        data['ks-koberlet'] = { keys: [CLAVE_KOBERLET], pred: 'keys-all' };
+        clist.push({ name: de + '.TRANSFER', args: [cuenta, CUENTA_KOBERLET, { decimal: q.comisionStr }] });
+    }
 
+    // Con la comisión la transacción lleva una transferencia más: el gas sube con ella.
+    const gasLimit = (q.saltos === 1 ? 8000 : 14000) + (q.comision > 0 ? 4000 : 0);
     const { resultado, gas } = await simular(
         red.nodo, red.networkId, CHAIN, code, [{ pubKey, clist }], cuenta,
-        { gasLimit: q.saltos === 1 ? 8000 : 14000, data },
+        { gasLimit, data },
     );
     return {
         cotizacion: q,

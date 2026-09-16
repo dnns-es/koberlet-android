@@ -363,9 +363,13 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         guard let minimo = call.getString("minimo") else { return call.reject("Falta el mínimo que aceptas recibir.") }
         guard let caminoJs = call.getArray("camino") else { return call.reject("Falta el camino del cambio.") }
         let camino = caminoJs.compactMap { $0 as? String }
+        // La comisión de servicio: la pantalla dice cuánto, `FirmaKda` dice a dónde
+        // y comprueba que no pase del 0,5 %. Si no viene, no se cobra nada.
+        let comision = call.getString("comision") ?? "0.0"
         firmaKda(call, "Firma el cambio") { privada, publica, creation, _ in
             try FirmaKda.cambioAmm(networkId: networkId, camino: camino, cuenta: "k:\(publica)", poolPrimerSalto: pool,
-                                   cantidad: cantidad, minimo: minimo, privada: privada, publica: publica, creationTime: creation)
+                                   cantidad: cantidad, minimo: minimo, privada: privada, publica: publica, creationTime: creation,
+                                   comision: comision)
         }
     }
 

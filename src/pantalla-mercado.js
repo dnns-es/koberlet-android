@@ -223,6 +223,12 @@ function cambiador(ctx, m, lista, kda) {
             datos.innerHTML = '';
             datos.append(fila(t('Como mínimo recibes'), numero(q.minimo, 8) + ' ' + simbolo(lista, recibo.select.value)));
 
+            // La comisión se enseña aquí y otra vez al confirmar: se ve antes de
+            // firmar, con la cifra exacta y en el token que se entrega.
+            datos.append(fila(
+                t('Comisión de Koberlet ({0} %)', numero(q.comisionPct, 2)),
+                numero(q.comision, 8) + ' ' + simbolo(lista, doy.select.value)));
+
             const impacto = fila(t('Mueves el precio'), numero(q.impacto, 2) + ' %');
             // Por encima del 3 % ya se paga de más lo suficiente para que se vea.
             if (q.impacto > 3) impacto.querySelector('.der').style.color = 'var(--mal)';
@@ -248,6 +254,8 @@ function cambiador(ctx, m, lista, kda) {
             // El aviso va ANTES de firmar, que es cuando sirve: lo de abajo ya no
             // es una consulta, es dinero moviéndose.
             datos.append(elemento('p', t('Esto SÍ cambia el dinero. Como mínimo recibirás {0}; si el pool diera menos, la transacción se cae y solo se pierde el gas.', q.minimoStr), 'nota'));
+            datos.append(elemento('p', t('De lo que das se aparta antes el {0} % para Koberlet: {1} {2}. Va en la misma transacción, así que si el cambio falla no se cobra nada.',
+                numero(q.comisionPct, 2), q.comisionStr, simbolo(lista, doy.select.value)), 'nota'));
             zonaFirma.hidden = false;
         } catch (e) {
             datos.innerHTML = '';
@@ -312,7 +320,10 @@ function cambiador(ctx, m, lista, kda) {
                     networkId: ctx.red.networkId,
                     camino: q.camino,
                     pool: q.cuentaPrimerPar,
-                    cantidad: String(cantidad),
+                    // Lo que entra en el pool es el NETO; la comisión va aparte y en
+                    // la misma transacción. Las dos cifras son las que se enseñaron.
+                    cantidad: q.alPoolStr,
+                    comision: q.comisionStr,
                     // El mínimo que se firma es EL QUE SE ENSEÑÓ.
                     minimo: q.minimoStr,
                     creationTime: String(Math.floor(Date.now() / 1000) - 90),

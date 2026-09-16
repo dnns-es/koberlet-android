@@ -307,6 +307,16 @@ const EN = {
         'Asking Uniswap…',
     'Comisión del pool':
         'Pool fee',
+    'Comisión de Koberlet ({0} %)':
+        'Koberlet fee ({0} %)',
+    'De lo que das se aparta antes el {0} % para Koberlet: {1} {2}. Va en la misma transacción, así que si el cambio falla no se cobra nada.':
+        'Before the swap, {0} % of what you give goes to Koberlet: {1} {2}. It travels in the same transaction, so if the swap fails nothing is charged.',
+    'Esa cantidad es demasiado pequeña para este token.':
+        'That amount is too small for this token.',
+    'La comisión no puede ser mayor que la parte que le toca.':
+        'The fee cannot be larger than the share it is due.',
+    'La comisión no puede ser negativa.':
+        'The fee cannot be negative.',
     'El mínimo es lo que se firma: si en el momento del cambio fuera a dar menos, la transacción se cae y solo se pierde el gas. Se tolera un {0} % de diferencia.':
         'The minimum is what gets signed: if at swap time it would give less, the transaction fails and only the gas is lost. A {0} % difference is tolerated.',
     'No tienes tanto {0}.':
