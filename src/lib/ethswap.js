@@ -26,6 +26,14 @@ const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 /** El router al que hay que dar permiso. Lo mismo que hay en `SwapEvm.kt`. */
 export const ROUTER = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45';
 
+// La comision de servicio de Koberlet en Ethereum. La aplica el propio router dentro
+// del mismo multicall, y la cuenta que cobra la pone el codigo nativo (`SwapEvm.kt` y
+// su gemelo Swift), no esta pantalla. Aqui esta solo para poder enseñar la cifra.
+//
+// Ojo con no confundirla con `comision` a secas, que en este fichero es la del POOL.
+const COMISION_KOB_BIPS = 50n;
+export const COMISION_KOB_PCT = Number(COMISION_KOB_BIPS) / 100;
+
 // quoteExactInputSingle((address,address,uint256,uint24,uint160))
 const SEL_QUOTE = '0xc6a5026a';
 const SEL_ALLOWANCE = '0xdd62ed3e';
@@ -144,13 +152,24 @@ export async function cotizar(clave, cantidad) {
     }
     if (!mejor) throw new Error('Ningún pool de Uniswap contestó a ese cambio. ' + (ultimo || ''));
 
-    // El suelo: lo cotizado menos el deslizamiento que se tolera.
+    // El suelo: lo cotizado menos el deslizamiento que se tolera. Va contra lo que da
+    // el POOL, antes de la comisión de Koberlet, porque es lo que comprueba el router.
     const minimo = mejor.salida - (mejor.salida * 5n) / 1000n;
+    // Lo que de verdad le llega al usuario: el router aparta la comisión al repartir.
+    const comisionKob = (mejor.salida * COMISION_KOB_BIPS) / 10000n;
+    const neto = mejor.salida - comisionKob;
+    const netoMinimo = minimo - (minimo * COMISION_KOB_BIPS) / 10000n;
     return {
         ...mejor,
         minimo,
         salidaTexto: aTexto(mejor.salida, r.decOut),
         minimoTexto: aTexto(minimo, r.decOut),
+        // Estas tres son las que se enseñan: la comisión ya está descontada.
+        neto, netoMinimo, comisionKob,
+        netoTexto: aTexto(neto, r.decOut),
+        netoMinimoTexto: aTexto(netoMinimo, r.decOut),
+        comisionKobTexto: aTexto(comisionKob, r.decOut),
+        comisionKobPct: COMISION_KOB_PCT,
         ruta: r,
     };
 }

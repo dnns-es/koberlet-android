@@ -46,9 +46,29 @@ object SwapEvm {
     private const val MSG_SENDER = "0x0000000000000000000000000000000000000001"
     private const val ADDRESS_THIS = "0x0000000000000000000000000000000000000002"
 
+    /**
+     * La comision de servicio de Koberlet, la misma que en Kadena: 0,5%.
+     *
+     * Aqui NO hace falta contrato ni transferencia aparte, porque el propio router
+     * sabe repartir: `sweepTokenWithFee` y `unwrapWETH9WithFee` mandan una parte a
+     * otra cuenta dentro del mismo multicall. Es codigo suyo, auditado, y el router
+     * no admite pasar del 1%, asi que ni por error se puede cobrar de mas.
+     *
+     * Diferencia con Kadena, y hay que decirla tal cual: alli se aparta de lo que
+     * ENTRA; aqui sale de lo que SE RECIBE, porque es lo que el router sabe hacer.
+     *
+     * La cuenta esta aqui, en el codigo, como los contratos: la pantalla dice cuanto
+     * se cambia, nunca a donde va la comision.
+     */
+    const val COMISION_BIPS = 50
+    const val COMISION_MAX_BIPS = 100
+    const val COMISION_CUENTA = "0x4A31148aD2BF0355C93bf7C9218Bb723F15c901c"
+
     // Selectores. Las pruebas los recalculan con keccak en vez de creerselos.
     private const val SEL_EXACT_INPUT_SINGLE = "04e45aaf"
     private const val SEL_UNWRAP_WETH9 = "49404b7c"
+    private const val SEL_UNWRAP_WETH9_CON_COMISION = "9b2c0a37"
+    private const val SEL_BARRER_CON_COMISION = "e0e189a0"
     private const val SEL_REFUND_ETH = "12210e8a"
     private const val SEL_MULTICALL = "ac9650d8"
     private const val SEL_APPROVE = "095ea7b3"
@@ -124,6 +144,33 @@ object SwapEvm {
     fun datosDesenvolver(minimo: BigInteger, para: String): String =
         SEL_UNWRAP_WETH9 + palabra(minimo) + palabraDireccion(para)
 
+    /**
+     * `unwrapWETH9WithFee(uint256 minimo, address para, uint256 bips, address quienCobra)`:
+     * lo mismo, pero apartando la comision de Koberlet antes de entregar el resto.
+     */
+    fun datosDesenvolverConComision(minimo: BigInteger, para: String): String {
+        exigirComisionSensata()
+        return SEL_UNWRAP_WETH9_CON_COMISION + palabra(minimo) + palabraDireccion(para) +
+            palabra(BigInteger.valueOf(COMISION_BIPS.toLong())) + palabraDireccion(COMISION_CUENTA)
+    }
+
+    /**
+     * `sweepTokenWithFee(address token, uint256 minimo, address para, uint256 bips, address quienCobra)`:
+     * saca del router TODO lo que salio del pool y lo reparte. No queda nada dentro.
+     */
+    fun datosBarrerConComision(token: String, minimo: BigInteger, para: String): String {
+        exigirComisionSensata()
+        return SEL_BARRER_CON_COMISION + palabraDireccion(token) + palabra(minimo) + palabraDireccion(para) +
+            palabra(BigInteger.valueOf(COMISION_BIPS.toLong())) + palabraDireccion(COMISION_CUENTA)
+    }
+
+    /** El router no admite mas del 1%; esto lo comprueba antes de llegar alli. */
+    private fun exigirComisionSensata() {
+        if (COMISION_BIPS < 0 || COMISION_BIPS > COMISION_MAX_BIPS) {
+            throw IllegalArgumentException("La comisión no puede pasar del 1 %.")
+        }
+    }
+
     /** `refundETH()`: devuelve el ETH que sobre, que si no se queda en el router. */
     fun datosDevolverEth(): String = SEL_REFUND_ETH
 
@@ -185,13 +232,17 @@ object SwapEvm {
         val r = ruta(claveRuta)
         val mia = FirmaEvm.direccionValida(cuenta)
 
+        // En los tres casos lo que sale del pool va primero al ROUTER y de ahi se
+        // reparte en la misma transaccion: al dueño lo suyo y a Koberlet su 0,5 %.
+        // Si algo falla, falla todo y no se cobra nada; y no queda nada dentro del
+        // router, porque la llamada que reparte lo saca entero.
         if (r.saleEth) {
-            // El router se queda el WETH y lo desenvuelve. El suelo se aplica en el
+            // El router se queda el WETH y lo desenvuelve. El suelo se aplica al
             // desenvolver, que revierte si sale menos; por eso el cambio va con
             // minimo 0: quien manda es la segunda llamada.
             val datos = datosMulticall(listOf(
                 datosCambio(r.tokenIn, r.tokenOut, comision, ADDRESS_THIS, cantidadEntra, BigInteger.ZERO),
-                datosDesenvolver(salidaMinima, mia),
+                datosDesenvolverConComision(salidaMinima, mia),
             ))
             return Cambio(FirmaEvm.deHex(datos), BigInteger.ZERO)
         }
@@ -200,14 +251,19 @@ object SwapEvm {
             // El ETH viaja como `value` y el router lo envuelve solo. `refundETH`
             // devuelve lo que sobre, que si no se queda atrapado en el contrato.
             val datos = datosMulticall(listOf(
-                datosCambio(r.tokenIn, r.tokenOut, comision, MSG_SENDER, cantidadEntra, salidaMinima),
+                datosCambio(r.tokenIn, r.tokenOut, comision, ADDRESS_THIS, cantidadEntra, salidaMinima),
+                datosBarrerConComision(r.tokenOut, salidaMinima, mia),
                 datosDevolverEth(),
             ))
             return Cambio(FirmaEvm.deHex(datos), cantidadEntra)
         }
 
-        // Token por token: una sola llamada, sin envolver nada.
-        val datos = datosCambio(r.tokenIn, r.tokenOut, comision, mia, cantidadEntra, salidaMinima)
+        // Token por token: sin envolver nada, pero igualmente en dos pasos para poder
+        // repartir lo que sale.
+        val datos = datosMulticall(listOf(
+            datosCambio(r.tokenIn, r.tokenOut, comision, ADDRESS_THIS, cantidadEntra, salidaMinima),
+            datosBarrerConComision(r.tokenOut, salidaMinima, mia),
+        ))
         return Cambio(FirmaEvm.deHex(datos), BigInteger.ZERO)
     }
 }

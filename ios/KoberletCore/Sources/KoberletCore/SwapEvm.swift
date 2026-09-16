@@ -21,8 +21,18 @@ public enum SwapEvm {
     private static let msgSender = "0x0000000000000000000000000000000000000001"
     private static let addressThis = "0x0000000000000000000000000000000000000002"
 
+    /// La comision de servicio de Koberlet, igual que en Kotlin: 0,5% que reparte el
+    /// propio router de Uniswap dentro del mismo multicall. En Kadena se aparta de lo
+    /// que ENTRA; aqui sale de lo que SE RECIBE, que es lo que el router sabe hacer.
+    /// La cuenta esta en el codigo, como los contratos: la pantalla nunca la manda.
+    public static let comisionBips = 50
+    public static let comisionMaxBips = 100
+    public static let comisionCuenta = "0x4A31148aD2BF0355C93bf7C9218Bb723F15c901c"
+
     private static let selExactInputSingle = "04e45aaf"
     private static let selUnwrapWeth9 = "49404b7c"
+    private static let selUnwrapWeth9ConComision = "9b2c0a37"
+    private static let selBarrerConComision = "e0e189a0"
     private static let selRefundEth = "12210e8a"
     private static let selMulticall = "ac9650d8"
     private static let selApprove = "095ea7b3"
@@ -75,6 +85,30 @@ public enum SwapEvm {
         selUnwrapWeth9 + (try FirmaEvm.palabra(minimo)) + (try FirmaEvm.palabraDireccion(para))
     }
 
+    /// `unwrapWETH9WithFee(minimo, para, bips, quienCobra)`: lo mismo, apartando antes
+    /// la comision de Koberlet.
+    public static func datosDesenvolverConComision(_ minimo: BigUInt, _ para: String) throws -> String {
+        try exigirComisionSensata()
+        return selUnwrapWeth9ConComision + (try FirmaEvm.palabra(minimo)) + (try FirmaEvm.palabraDireccion(para))
+            + (try FirmaEvm.palabra(BigUInt(UInt64(comisionBips)))) + (try FirmaEvm.palabraDireccion(comisionCuenta))
+    }
+
+    /// `sweepTokenWithFee(token, minimo, para, bips, quienCobra)`: saca del router todo
+    /// lo que salio del pool y lo reparte. No queda nada dentro.
+    public static func datosBarrerConComision(_ token: String, _ minimo: BigUInt, _ para: String) throws -> String {
+        try exigirComisionSensata()
+        return selBarrerConComision + (try FirmaEvm.palabraDireccion(token)) + (try FirmaEvm.palabra(minimo))
+            + (try FirmaEvm.palabraDireccion(para))
+            + (try FirmaEvm.palabra(BigUInt(UInt64(comisionBips)))) + (try FirmaEvm.palabraDireccion(comisionCuenta))
+    }
+
+    /// El router no admite mas del 1%; esto lo comprueba antes de llegar alli.
+    private static func exigirComisionSensata() throws {
+        if comisionBips < 0 || comisionBips > comisionMaxBips {
+            throw FalloBoveda.argumento("La comisión no puede pasar del 1 %.")
+        }
+    }
+
     /// `refundETH()`.
     public static func datosDevolverEth() -> String { selRefundEth }
 
@@ -118,27 +152,34 @@ public enum SwapEvm {
         let r = try ruta(claveRuta)
         let mia = try FirmaEvm.direccionValida(cuenta)
 
+        // En los tres casos lo que sale del pool va primero al ROUTER y de ahi se
+        // reparte en la misma transaccion: al dueño lo suyo y a Koberlet su 0,5 %.
         if r.saleEth {
             // El router se queda el WETH y lo desenvuelve; el suelo se aplica al
             // desenvolver, por eso el cambio va con minimo 0.
             let datos = try datosMulticall([
                 try datosCambio(tokenIn: r.tokenIn, tokenOut: r.tokenOut, comision: comision, destinatario: addressThis,
                                 cantidadEntra: cantidadEntra, salidaMinima: BigUInt.cero),
-                try datosDesenvolver(salidaMinima, mia),
+                try datosDesenvolverConComision(salidaMinima, mia),
             ])
             return Cambio(datos: try Hex.deHex(datos), valorWei: BigUInt.cero)
         }
         if r.entraEth {
             // El ETH viaja como `value`; `refundETH` devuelve lo que sobre.
             let datos = try datosMulticall([
-                try datosCambio(tokenIn: r.tokenIn, tokenOut: r.tokenOut, comision: comision, destinatario: msgSender,
+                try datosCambio(tokenIn: r.tokenIn, tokenOut: r.tokenOut, comision: comision, destinatario: addressThis,
                                 cantidadEntra: cantidadEntra, salidaMinima: salidaMinima),
+                try datosBarrerConComision(r.tokenOut, salidaMinima, mia),
                 datosDevolverEth(),
             ])
             return Cambio(datos: try Hex.deHex(datos), valorWei: cantidadEntra)
         }
-        let datos = try datosCambio(tokenIn: r.tokenIn, tokenOut: r.tokenOut, comision: comision, destinatario: mia,
-                                    cantidadEntra: cantidadEntra, salidaMinima: salidaMinima)
+        // Token por token: en dos pasos, para poder repartir lo que sale.
+        let datos = try datosMulticall([
+            try datosCambio(tokenIn: r.tokenIn, tokenOut: r.tokenOut, comision: comision, destinatario: addressThis,
+                            cantidadEntra: cantidadEntra, salidaMinima: salidaMinima),
+            try datosBarrerConComision(r.tokenOut, salidaMinima, mia),
+        ])
         return Cambio(datos: try Hex.deHex(datos), valorWei: BigUInt.cero)
     }
 }

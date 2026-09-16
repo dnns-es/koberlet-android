@@ -317,6 +317,10 @@ const EN = {
         'The fee cannot be larger than the share it is due.',
     'La comisión no puede ser negativa.':
         'The fee cannot be negative.',
+    'La comisión no puede pasar del 1 %.':
+        'The fee cannot go above 1%.',
+    'Koberlet se queda el {0} % de lo que recibes: {1} {2}. Lo aparta el propio Uniswap en la misma transacción, así que si el cambio falla no se cobra nada.':
+        'Koberlet takes {0} % of what you receive: {1} {2}. Uniswap itself sets it aside in the same transaction, so if the swap fails nothing is charged.',
     'El mínimo es lo que se firma: si en el momento del cambio fuera a dar menos, la transacción se cae y solo se pierde el gas. Se tolera un {0} % de diferencia.':
         'The minimum is what gets signed: if at swap time it would give less, the transaction fails and only the gas is lost. A {0} % difference is tolerated.',
     'No tienes tanto {0}.':
