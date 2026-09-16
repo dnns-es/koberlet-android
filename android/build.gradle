@@ -1,0 +1,35 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // 8.9+ es el primero que acepta compileSdk 36 (Android 16). Pide Gradle
+        // 8.11.1 o mas, que es justo el del wrapper: no hace falta tocarlo.
+        classpath 'com.android.tools.build:gradle:8.9.3'
+        classpath 'com.google.gms:google-services:4.4.2'
+        // El plugin de la boveda va en Kotlin: mas seguro para manejar bytes y
+        // limpiar memoria que Java, y es el lenguaje en el que estan hoy los
+        // ejemplos de Capacitor.
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

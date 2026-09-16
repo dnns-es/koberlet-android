@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- Koberlet Android - Copyright 2026 DNNS.es (Oberluss)
+     SPDX-License-Identifier: Apache-2.0
+
+     GRAFICO DE FUNCIONES DE LA FICHA DE GOOGLE PLAY (1024x500).
+
+     Es la banda ancha que sale arriba del todo en la ficha de la tienda. Se dibuja
+     aqui, en HTML, y se convierte a PNG con Chrome sin ventana
+     (`node herramientas/assets-play.js --banda`): asi el texto lleva tipografia de
+     verdad en vez de letras dibujadas a mano, y retocarlo es editar este fichero.
+
+     Lo que NO lleva, a proposito: ni cifras de rentabilidad, ni "gana", ni
+     "invierte", ni logos de monedas. En una app financiera cada uno de esos
+     reclamos es un motivo de rechazo por si solo, y ademas seria mentir: esto
+     guarda claves, no promete dinero.
+
+     Medidas exactas y sin canal alfa; de eso se encarga el conversor. -->
+<meta charset="utf-8">
+<title>Koberlet · gráfico de funciones</title>
+<style>
+    /* Sin margenes ni barras: la pagina ES la imagen. */
+    html, body { margin: 0; padding: 0; background: #63E038; }
+
+    .banda {
+        width: 1024px;
+        height: 500px;
+        position: relative;
+        overflow: hidden;
+        background: #63E038;
+        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* El icono, a la izquierda y grande: es lo que el usuario reconocera luego en
+       su pantalla de inicio. */
+    .icono {
+        position: absolute;
+        left: 56px;
+        top: 50%;
+        transform: translateY(-58%);
+        width: 300px;
+        height: 300px;
+    }
+
+    .texto {
+        position: absolute;
+        left: 396px;
+        top: 50%;
+        transform: translateY(-58%);
+        color: #111;
+    }
+
+    .nombre {
+        font-size: 92px;
+        font-weight: 700;
+        letter-spacing: -2px;
+        line-height: 1;
+        margin: 0;
+    }
+
+    .claim {
+        font-size: 31px;
+        font-weight: 400;
+        line-height: 1.3;
+        margin: 18px 0 0;
+        opacity: .82;
+    }
+
+    /* Banda inferior: separa la composicion del borde y da un pie sobrio.
+       Es tambien donde Play recorta en algunos tamaños, asi que ahi no va
+       nada imprescindible. */
+    .pie {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: 70px;
+        background: #111;
+        color: #63E038;
+        font-size: 23px;
+        letter-spacing: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-transform: uppercase;
+    }
+</style>
+
+<div class="banda">
+    <!-- El icono se incrusta como SVG y no como fichero para que el render no
+         dependa de rutas relativas ni de que Chrome tenga permiso de fichero local. -->
+    <svg class="icono" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+        <!-- Hexagono de punta arriba, hueco, con la K dentro. Mismas proporciones
+             que el ic_launcher del proyecto. -->
+        <polygon points="54,10 92,32 92,76 54,98 16,76 16,32"
+                 fill="none" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+        <g fill="#111">
+            <rect x="37" y="33" width="9.5" height="42"/>
+            <polygon points="46.5,54 62,33 73,33 57,54"/>
+            <polygon points="57,54 73,75 62,75 46.5,54"/>
+        </g>
+    </svg>
+
+    <div class="texto">
+        <p class="nombre">Koberlet</p>
+        <p class="claim">Monedero Kadena y EVM.<br>Tus claves, en tu aparato.</p>
+    </div>
+
+    <div class="pie">No custodial · Código abierto</div>
+</div>

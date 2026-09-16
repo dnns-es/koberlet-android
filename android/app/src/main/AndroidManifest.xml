@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- La copia de seguridad automática de Android sube los datos de la app a la
+         cuenta de Google del usuario. Con una bóveda de claves dentro, eso sería
+         mandar el fichero cifrado a un servidor ajeno sin que nadie lo haya
+         pedido. Se apaga: las copias las hace el dueño exportando. -->
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/reglas_copia"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Enlaces de cobro `kadena:k:...?amount=..&chain=..`. Con esto, al
+                 enfocar un QR de cobro con la cámara del móvil, Android ofrece
+                 abrir Koberlet en vez de dejar un texto que no sirve de nada.
+
+                 Abrir NO es pagar: el enlace solo rellena las casillas de la
+                 pantalla de envío. Sigue habiendo resumen, contraseña o huella y
+                 firma, porque un enlace lo puede lanzar cualquier aplicación o
+                 cualquier página, no solo una cámara apuntando a un papel. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kadena" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- REQUEST_INSTALL_PACKAGES ya NO está aquí: vive en el manifiesto de la
+         variante `directa` (android/app/src/directa/AndroidManifest.xml), que es
+         la que se cuelga en descargas.dnns.es y trae instalador propio.
+         La variante `play` no lo pide porque Google Play no permite que una app
+         instale código por su cuenta; allí actualiza la tienda. -->
+    <!-- Cámara: solo para leer códigos QR de direcciones. La imagen se analiza
+         dentro del aparato (jsQR) y no se guarda ni se manda a ningún sitio. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+</manifest>

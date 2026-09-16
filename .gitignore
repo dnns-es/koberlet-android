@@ -1,0 +1,32 @@
+# Secretos: la clave de firma del APK NUNCA entra en el repo.
+# Si se pierde, ningun APK futuro se puede instalar encima de los ya repartidos.
+.keys/
+*.jks
+*.keystore
+firma.properties
+
+# Dependencias y compilados
+node_modules/
+dist/
+salida/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/debug/
+# El bundle que se sube a Play es una salida de compilacion, no una fuente: se
+# regenera con `npm run aab:play`. Los textos y graficos de la ficha SI se
+# versionan, que son trabajo y hay que poder ver como han cambiado.
+play/bundle/
+
+# Entorno
+.env
+*.log
+
+# Sesiones de Claude y copias automaticas: trabajo local, no fuente
+.claude/
+# Paquetes ya sellados y registros de pruebas en el movil
+*.zip
+pruebas/
+

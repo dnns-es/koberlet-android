@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lo que SOLO lleva la variante `directa`, la de descargas.dnns.es.
+
+     Android fusiona este manifiesto con el de `main`. Aqui va unicamente el
+     permiso del instalador propio, que es la diferencia real entre los dos
+     canales; todo lo demas (actividad, enlaces kadena:, FileProvider, copia de
+     seguridad apagada) es comun y esta en main/AndroidManifest.xml. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Necesario para abrir el instalador del sistema con el APK descargado. No
+         instala nada por su cuenta: Android enseña igualmente su diálogo y el
+         dueño tiene que aceptar, ademas de haber permitido antes instalar desde
+         esta app.
+
+         En la variante de Google Play este permiso NO se pide, y el codigo que lo
+         usaria (KoberletUpdate.kt) tampoco se compila. Play lo prohibe. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+</manifest>

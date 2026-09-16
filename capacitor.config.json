@@ -1,0 +1,11 @@
+{
+  "appId": "es.dnns.koberlet",
+  "appName": "Koberlet",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

@@ -1,0 +1,236 @@
+// Koberlet Android - Copyright 2026 DNNS.es (Oberluss)
+// SPDX-License-Identifier: Apache-2.0
+
+// MERCADO DE KADENA (el AMM del fork). AQUI NO SE FIRMA NADA.
+//
+// Portado de `lib/dex.js` del Koberlet de escritorio: se lee el mercado entero de
+// la cadena, se cotiza el cambio y se le pregunta al nodo si saldria bien. Cambiar
+// de verdad hay que firmarlo, y eso se monta en Kotlin como los envios de KDA; no
+// aqui.
+//
+// Dos cosas que hay que tener claras de este mercado, y que la pantalla enseña sin
+// suavizar (van tal cual del escritorio, medidas en la cadena):
+//
+//   1. Casi todo son charcos. De los 82 pares, la mayoria no llega a 1.000 KDA de
+//      fondo. Con ese fondo, un cambio normal mueve el precio una barbaridad.
+//   2. Hay precios sin ningun sentido. `cBTC` cotiza a 104 KDA la unidad cuando un
+//      bitcoin de verdad son cientos de miles. Nadie garantiza que el precio de un
+//      pool tenga algo que ver con el del mundo real.
+//
+// Por eso no hay catalogo de tokens elegidos a mano: se lee lo que hay, se enseña
+// el fondo y el precio que sale, y se FRENA por encima del 10 % de impacto.
+
+import { local, simular, exigirCuentaKda } from './kda.js';
+
+const AMM = 'kaddex.exchange';
+const KDA = 'coin';
+const FEE = 0.003;              // comisión del pool, 0,3 %
+export const IMPACTO_MAX = 10;  // el freno, en %
+export const FONDO_MIN = 1000;  // por debajo de esto es un charco y no se lista
+const CHAIN = '2';              // el AMM del fork vive en la chain 2
+
+const num = (v) => (v && typeof v === 'object') ? Number(v.decimal != null ? v.decimal : v.int) : Number(v);
+
+// Todo el mercado en UNA sola llamada: el objeto del par ya trae las reservas
+// dentro, asi que los 82 pares caben en una peticion en vez de 164. Medido en la
+// cadena el 12/09/2026: 45.580 de gas, dentro del limite de una consulta.
+//
+// El `try` no es adorno: hay pares rotos cuyo modulo ni siquiera carga, y sin el se
+// caeria la lectura entera por culpa de uno. Salen con r0 = -1 y se descartan.
+const CODE_MERCADO = '(map (lambda (k)'
+    + ' (try { "k": k, "cuenta": "", "r0": -1.0, "r1": -1.0 }'
+    + '   (let ((p (' + AMM + '.get-pair-by-key k)))'
+    + '     { "k": k, "cuenta": (at \'account p),'
+    + '       "r0": (at \'reserve (at \'leg0 p)), "r1": (at \'reserve (at \'leg1 p)) })))'
+    + ' (' + AMM + '.get-pairs))';
+
+// La precision de cada token, preguntada suelta y recordada: en el escritorio se
+// aprendio que pedirla dentro del mapa grande revienta la consulta entera cuando
+// uno de los tokens esta roto.
+const PREC = new Map();
+
+async function precisionDe(red, modulo) {
+    if (modulo === KDA) return 12;
+    if (PREC.has(modulo)) return PREC.get(modulo);
+    const r = await local(red.nodo, red.networkId, CHAIN, `(${modulo}.precision)`);
+    if (!r || r.status !== 'success') {
+        throw new Error('Ese token no responde: su contrato está roto o no existe.');
+    }
+    const p = Number(num(r.data));
+    if (!(p >= 0 && p <= 30)) throw new Error('Ese token devuelve una precisión rara.');
+    PREC.set(modulo, p);
+    return p;
+}
+
+/** El mercado tal y como esta ahora: que se puede cambiar por que y con cuanto fondo. */
+export async function mercado(red) {
+    const r = await local(red.nodo, red.networkId, CHAIN, CODE_MERCADO);
+    if (!r || r.status !== 'success') {
+        throw new Error('No se pudo leer el mercado.');
+    }
+    const pares = [];
+    for (const x of (r.data || [])) {
+        const [a, b] = String(x.k).split(':');
+        if (!a || !b) continue;
+        const ra = num(x.r0);
+        const rb = num(x.r1);
+        if (!(ra > 0) || !(rb > 0)) continue;
+        pares.push({ clave: x.k, cuenta: String(x.cuenta), t0: a, t1: b, r0: ra, r1: rb });
+    }
+
+    // Un token por cada par contra KDA: son los que permiten enrutar cualquier
+    // cosa con cualquier cosa pasando por el medio.
+    const tokens = [];
+    for (const p of pares) {
+        const conKda = p.t0 === KDA ? 1 : (p.t1 === KDA ? 0 : -1);
+        if (conKda < 0) continue;
+        const modulo = conKda === 1 ? p.t1 : p.t0;
+        const reservaKda = conKda === 1 ? p.r0 : p.r1;
+        const reservaTok = conKda === 1 ? p.r1 : p.r0;
+        if (reservaKda < FONDO_MIN) continue;
+        tokens.push({
+            modulo, simbolo: modulo.split('.').pop(),
+            fondoKda: reservaKda, reservaTok,
+            precioKda: reservaKda / reservaTok,
+            par: p.clave, cuentaPar: p.cuenta,
+        });
+    }
+    tokens.sort((x, y) => y.fondoKda - x.fondoKda);
+    return { tokens, pares, kda: { modulo: KDA, simbolo: 'KDA', precision: 12 } };
+}
+
+/**
+ * Saldo de un token del mercado en la chain 2, que es donde vive el AMM.
+ *
+ * Va aparte del saldo del Panel (que suma las 20 chains) por un motivo practico:
+ * para cambiar algo aqui, lo que cuenta es lo que tengas EN ESTA chain. Un total
+ * de las 20 chains puesto al lado del boton MAX seria un numero que no se puede
+ * cambiar de golpe.
+ *
+ * Devuelve null cuando no se ha podido preguntar; cero solo cuando la cadena dice
+ * que no hay nada.
+ */
+export async function saldoEnMercado(red, modulo, cuenta) {
+    exigirCuentaKda(cuenta, 'consultada');
+    if (!/^[A-Za-z0-9_.-]+$/.test(String(modulo))) return null;
+    try {
+        const r = await local(red.nodo, red.networkId, CHAIN, `(${modulo}.get-balance "${cuenta}")`);
+        if (r && r.status === 'success') {
+            const v = num(r.data);
+            return isNaN(v) ? null : v;
+        }
+        const err = JSON.stringify((r && r.error) || r || '');
+        // Sin fila en la tabla = no tiene ese token aqui, y eso es un cero de verdad.
+        if (/row not found|No value found|does not exist/i.test(err)) return 0;
+        return null;
+    } catch (_) {
+        return null;
+    }
+}
+
+// AMM x*y=k con la comisión del pool ya descontada.
+function salidaSalto(entrada, rin, rout) {
+    const ef = entrada * (1 - FEE);
+    return ef * rout / (rin + ef);
+}
+
+function buscaPar(m, a, b) {
+    const p = m.pares.find((x) => (x.t0 === a && x.t1 === b) || (x.t0 === b && x.t1 === a));
+    if (!p) return null;
+    const directo = p.t0 === a;
+    return { par: p, rin: directo ? p.r0 : p.r1, rout: directo ? p.r1 : p.r0 };
+}
+
+/**
+ * Cotizacion. Si hay par directo se va por el; si no, se pasa por KDA en dos
+ * saltos, que el `swap-exact-in` admite un camino entero en una sola transaccion.
+ *
+ * El impacto se mide contra el precio que tendria el pool si el cambio fuese
+ * infinitamente pequeño: es lo que de verdad se paga de mas por mover el precio,
+ * comision aparte. No es una estimacion prudente ni un adorno: es el numero que
+ * decide si el cambio tiene sentido o si el pool es demasiado pequeño.
+ */
+export async function cotizar(red, m, de, a, cantidad, slippage) {
+    const cant = Number(cantidad);
+    if (!(cant > 0)) throw new Error('La cantidad tiene que ser mayor que cero.');
+    if (de === a) throw new Error('Son el mismo token.');
+    const slip = slippage == null ? 0.005 : Number(slippage);
+
+    let camino;
+    let saltos;
+    const directo = buscaPar(m, de, a);
+    if (directo) {
+        camino = [de, a];
+        saltos = [directo];
+    } else {
+        const s1 = buscaPar(m, de, KDA);
+        const s2 = buscaPar(m, KDA, a);
+        if (!s1 || !s2) throw new Error('No hay camino entre esos dos tokens en este mercado.');
+        camino = [de, KDA, a];
+        saltos = [s1, s2];
+    }
+
+    let spot = 1;
+    for (const s of saltos) spot *= s.rout / s.rin;
+    let x = cant;
+    for (const s of saltos) x = salidaSalto(x, s.rin, s.rout);
+
+    const ideal = cant * spot;
+    const impacto = ideal > 0 ? Math.max(0, (1 - x / ideal) * 100) : 100;
+    // El minimo de salida tiene que caber en la precision del token o el contrato
+    // lo rechaza por `enforce-unit`: doce decimales para un token de seis no valen.
+    const decimalesSalida = await precisionDe(red, a);
+    const minimo = x * (1 - slip);
+    return {
+        camino, esperada: x, minimo, minimoStr: minimo.toFixed(decimalesSalida), decimalesSalida,
+        impacto, impactoMax: IMPACTO_MAX, frenado: impacto > IMPACTO_MAX,
+        precioEfectivo: x / cant, precioSpot: spot, slippagePct: slip * 100,
+        cuentaPrimerPar: saltos[0].par.cuenta, saltos: saltos.length,
+        fondoEntrada: saltos[0].rin,
+    };
+}
+
+/**
+ * Le pregunta al nodo si el cambio saldria bien, con el MISMO comando que llevaria
+ * el cambio de verdad -codigo, datos y capabilities- pero sin firma.
+ *
+ * El freno del 10 % se comprueba tambien aqui, no solo en la pantalla: la pantalla
+ * se puede equivocar, y esto es lo ultimo que se toca antes de la cadena.
+ */
+export async function simularCambio({ cuenta, red, m, de, a, cantidad, slippage }) {
+    exigirCuentaKda(cuenta, 'remitente');
+    const pubKey = String(cuenta).replace(/^k:/, '');
+    if (!/^[0-9a-fA-F]{64}$/.test(pubKey)) throw new Error('Para el mercado la cuenta Kadena tiene que ser k: y 64 caracteres.');
+
+    const q = await cotizar(red, m, de, a, cantidad, slippage);
+    if (q.frenado) {
+        throw new Error('Cambio detenido: moverías el precio más del 10 %. En este pool no hay fondo para tanto; prueba con menos cantidad.');
+    }
+
+    const code = `(${AMM}.swap-exact-in (read-decimal "amountIn") (read-decimal "amountOutMin") [`
+        + q.camino.join(' ') + `] "${cuenta}" "${cuenta}" (read-keyset "ks"))`;
+    const data = {
+        amountIn: { decimal: String(cantidad) },
+        amountOutMin: { decimal: q.minimoStr },
+        ks: { keys: [pubKey], pred: 'keys-all' },
+    };
+    const clist = [
+        { name: 'coin.GAS', args: [] },
+        // La primera pata sale de la cuenta y entra en el pool del primer salto.
+        { name: de + '.TRANSFER', args: [cuenta, q.cuentaPrimerPar, { decimal: String(cantidad) }] },
+    ];
+
+    const { resultado, gas } = await simular(
+        red.nodo, red.networkId, CHAIN, code, [{ pubKey, clist }], cuenta,
+        { gasLimit: q.saltos === 1 ? 8000 : 14000, data },
+    );
+    return {
+        cotizacion: q,
+        code,
+        bien: !!resultado && resultado.status === 'success',
+        motivo: resultado && resultado.status !== 'success'
+            ? JSON.stringify(resultado.error || resultado).slice(0, 300)
+            : null,
+        gas,
+    };
+}

@@ -1,0 +1,79 @@
+# Koberlet Android/iOS - Copyright 2026 DNNS.es (Oberluss)
+# SPDX-License-Identifier: Apache-2.0
+#
+# COMPILACION PARA iPHONE EN GITHUB ACTIONS.
+#
+# No hay ningun Mac en casa: este runner de macOS es el compilador. Cada push
+# compila la app para el SIMULADOR de iPhone, sin firma, y con eso sabemos si el
+# Swift compila y si la web empaquetada arranca en Xcode. No se puede instalar en
+# un iPhone de verdad -para eso hace falta firmar- pero es gratis, no pide ningun
+# secreto y sirve para el 90% del trabajo: el port del plugin nativo.
+#
+# La fase de firma + TestFlight se añade como un job aparte cuando esten los
+# certificados en los secretos del repo. Este job no se toca por eso.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['play/**', '*.md']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  simulador:
+    name: Compilar para el simulador
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependencias
+        run: npm ci
+
+      # Los mismos tests que en Windows: comprobaciones estaticas sobre src/ y
+      # los fuentes nativos. Baratos y cazan lo tonto antes de gastar minutos de Xcode.
+      - name: Tests
+        run: npm test
+
+      # Web del canal 'ios' (sin auto-update) y sync al proyecto Xcode. Con SPM no
+      # hay CocoaPods que instalar: el propio xcodebuild resuelve los paquetes.
+      - name: Web + sync iOS
+        run: npm run build:ios
+
+      - name: Xcode disponible
+        run: xcodebuild -version
+
+      - name: Compilar (simulador, sin firma)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -quiet \
+            build
+
+      # El .app del simulador, por si alguien con Mac quiere arrancarlo en el
+      # Simulator sin compilar nada: se descarga, se descomprime y
+      # `xcrun simctl install booted Koberlet.app`.
+      - name: Empaquetar el .app del simulador
+        run: |
+          cd ios/DerivedData/Build/Products/Debug-iphonesimulator
+          ditto -c -k --keepParent App.app Koberlet-simulador.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: koberlet-ios-simulador
+          path: ios/DerivedData/Build/Products/Debug-iphonesimulator/Koberlet-simulador.zip
+          retention-days: 14
