@@ -3,7 +3,7 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **17/09/2026** · versión **0.56.0** · bundle en `bundle/koberlet-0.56.1-play.aab`
+Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.56.1-play.aab`
 
 ---
 
@@ -38,7 +38,7 @@ npm run aab:play
 ```
 
 Deja el `.aab` en `android/app/build/outputs/bundle/playRelease/`. El que está
-en `bundle/koberlet-0.52.2-play.aab` es esa misma salida, copiada aquí para
+en `bundle/koberlet-0.56.1-play.aab` es esa misma salida, copiada aquí para
 tenerla localizada.
 
 Comprobado sobre el bundle generado:
