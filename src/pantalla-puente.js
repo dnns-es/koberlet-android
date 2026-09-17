@@ -99,7 +99,7 @@ function bloqueViaje(raiz, ctx) {
     // «experimental, cantidades pequeñas» se cae por petición de Antonio; el aviso
     // que de verdad hace falta -que el respaldo cuelga de una sola llave- sigue en
     // «Cómo funciona un puente», al pie de la pantalla.
-    const cabecera = elemento('div', null, 'cab-puente');
+    const cabecera = elemento('div', null, 'cab-seccion');
     const linea = elemento('p', null, 'nota');
     const verHistorial = document.createElement('button');
     verHistorial.type = 'button';

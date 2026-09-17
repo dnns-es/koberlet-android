@@ -359,12 +359,14 @@
         /* La escalera de pasos de un envío por el puente. El de ahora va en negrita
            y con el reloj a la derecha; los que aún no han llegado, en gris, para
            que se vea de un vistazo cuánto queda. */
-        /* La cabecera del Puente: el par a la izquierda, el historial a la derecha.
-           El historial va arriba y no al fondo porque se busca cuando algo no
-           aparece, y entonces no se tiene paciencia para bajar buscándolo. */
-        .cab-puente { display: flex; align-items: baseline; gap: 10px; }
-        .cab-puente .nota { flex: 1; min-width: 0; margin: 0; }
-        .cab-puente .enlace { flex: 0 0 auto; }
+        /* Cabecera de sección: a la izquierda el título (o el par, en el Puente) y
+           a la derecha el historial. El historial va arriba y no al fondo porque se
+           busca cuando algo no aparece, y entonces no se tiene paciencia para bajar
+           buscándolo. La usan el Puente y las Compras periódicas. */
+        .cab-seccion { display: flex; align-items: baseline; gap: 10px; }
+        .cab-seccion .nota, .cab-seccion h2 { flex: 1; min-width: 0; }
+        .cab-seccion .nota { margin: 0; }
+        .cab-seccion .enlace { flex: 0 0 auto; }
 
         /* Cada envío del historial, separado del siguiente por una línea. */
         .envio { padding: 12px 0; border-top: 1px solid var(--linea); }
