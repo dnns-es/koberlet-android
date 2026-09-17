@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-17 · Versión publicada: **0.56.0** (hash cotejado por HTTPS y mismo certificado que la 0.55.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-17 · Versión publicada: **0.56.1** (hash cotejado por HTTPS y mismo certificado que la 0.56.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -135,6 +135,64 @@ El navegador es para la primera instalación.
     aceptar se guarda versión y fecha y se sigue a desbloquear, y en Info aparece la
     versión aceptada. Y con la 1.1 se vio funcionar el mecanismo: el aparato tenía
     aceptada la 1.0 y **la puerta volvió a salir sola**.
+
+
+## 0.56.1 (17/09/2026) — el saldo tardaba diez segundos por culpa nuestra
+
+Antonio, probando en el móvil: «se queda buscando saldo mucho tiempo» y «siempre da
+error en alguna chain». Y el dato que lo resolvió: **en iPhone con la 0.55.0 va
+perfecto**.
+
+No era la cadena, ni el nodo caído, ni su conexión. El Panel pide el saldo de KDA en
+las 20 chains **y** el de cada token de la red en las 20: con PCO y SPT son **60
+peticiones simultáneas**. Medido contra `api.chainweb-community.org`, esas mismas 60:
+
+| A la vez | Tiempo | Fallos |
+|---|---|---|
+| 4 | 2,6 s | 0 |
+| 6 | 1,3 s | 0 |
+| 8 | 1,1 s | 0 |
+| 16 | 0,7 s | 0 |
+| **60** | **10,4 s** | **6** |
+
+De cuatro a dieciséis va fino; a sesenta se desploma y además **pierde respuestas**.
+Esos fallos eran los que salían como «faltan chains por contestar», que asusta —y con
+razón, porque insinúa que puedes tener más dinero del que se ve— siendo culpa nuestra.
+
+**Por qué en iPhone no y en Android sí**: el nodo negocia **HTTP/2** (comprobado por
+ALPN). URLSession lo usa y mete las 60 multiplexadas por **una sola conexión**; el
+plugin HTTP de Capacitor en Android va por `HttpURLConnection`, HTTP/1.1, y pide
+sesenta conexiones. Eso es lo que se castiga.
+
+Y que quede dicho, porque es tentador culpar a la última versión: **esto no lo rompió
+la 0.56.0**. Las 60 peticiones se hacen desde el primer commit. Lo que cambió fue
+cuánto aguanta el nodo.
+
+- **Como mucho 8 peticiones en el aire**, en `src/red.js`, que es el único sitio por
+  donde sale todo. Va ahí y no en quien llama para que proteja también lo que se
+  escriba mañana. Se eligen 8 y no 16 —que fue lo más rápido— porque 16 está más
+  cerca del escalón, no se sabe dónde cae exactamente ni si es igual en otro nodo:
+  entre 8 y 16 hay cuatro décimas, entre acertar y pasarse hay diez segundos.
+- **El turno se suelta en un `finally`.** Si una petición que falla se quedara su
+  hueco —y fallar es lo normal: una chain muda, el móvil sin cobertura—, a la octava
+  la app se quedaría **sin red para siempre y sin decirlo**. `test/cola-red.test.js`
+  vigila eso, el tope y que no se pierda ninguna petición.
+- **El total en KDA ya no espera a los tokens.** Iban juntos en un `Promise.all`, así
+  que el número grande quedaba atado al más lento: se sabía a los 2,4 s y se pintaba
+  a los 10,4. Ahora los tokens entran por su `.then()`, como ya hacían el precio, el
+  puente y los del historial. Era el único que bloqueaba.
+
+### Y uno que apareció por el camino, que no se buscaba
+
+**Abrir la app escaneando un QR de cobro reventaba el Panel si la cartera tenía
+saldo.** `abrirEnvio()` usa `enviables` y se llama en cuanto se recoge el enlace, pero
+`enviables` se declaraba 140 líneas más abajo: zona muerta del `const`, y el
+`ReferenceError` lo pintaba el `catch` de la tarjeta como un «No se pudo consultar».
+Con la cartera vacía **no se veía**, porque se sale antes por el aviso de que la
+cuenta no tiene KDA —o sea, justo lo que pasa cuando lo pruebas con una cartera
+recién creada, que es como se probó—. La declaración sube a donde ya se sabe el
+saldo. Reproducido el fallo y comprobado el arreglo en los tres casos: sin QR, con QR
+y cartera vacía, y con QR y cartera con fondos.
 
 
 ## 0.56.0 (17/09/2026) — las cinco notas del probador del iPad
