@@ -185,6 +185,13 @@ Los vectores de `SwapEvmTest.kt` y `SwapEvmTests.swift` se han vuelto a generar 
 
 En el móvil, **sin probar todavía**.
 
+**iPhone: la versión mínima sube a iOS 15.** Apple avisó tras la subida de la 0.53.0
+(ITMS-90068): desde la primavera de 2027 no acepta binarios con menos de 15.0. No es un
+rechazo, la 0.53.0 entró bien, pero se arregla ahora y se olvida. **No deja fuera a
+nadie**: iOS 15 funciona en exactamente los mismos iPhone que iOS 14, hasta el 6s y el
+SE de primera generación. Cambiado en los cuatro sitios del proyecto de Xcode y en el
+paquete `KoberletCore`.
+
 ## 0.53.0 (15/09/2026) — enviar desde Ethereum
 
 Antonio, con la app abierta en una cartera de Ethereum y una foto de la hoja de excusa:
