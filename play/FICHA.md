@@ -4,7 +4,7 @@ Textos listos para pegar en la Consola de Play, en **Presencia en Play → Ficha
 de Play principal**. Cada bloque lleva su cuenta de caracteres: los límites los
 impone Google y no deja guardar si te pasas ni por uno.
 
-Versión de referencia: **0.52.2** · Idioma principal: **Español (España)**
+Versión de referencia: **0.56.1** · Idioma principal: **Español (España)**
 
 > Si cambias un texto aquí, cámbialo también en la Consola. Este fichero es el
 > original; la Consola es una copia. Al revés se pierde el rastro de qué se
@@ -154,6 +154,20 @@ Están en `play/assets/`, generados con `node herramientas/assets-play.js`.
 |---|---|---|---|
 | Icono | `icono-512.png` | 512×512, PNG sin alfa | ✅ generado |
 | Gráfico de funciones | `grafico-funciones-1024x500.png` | 1024×500, sin alfa | ✅ generado |
-| Capturas de teléfono | — | mín. 2, máx. 8 | ⏳ **faltan** |
+| Capturas de teléfono | `captura-1..5.png` | 5, hechas en un Xiaomi | ✅ hechas |
 
-Las capturas hay que hacerlas en el móvil de verdad. Ver `CAPTURAS.md`.
+Las capturas se hicieron en el móvil el 17/09/2026, con la cartera de usar y tirar
+«Play» (sus 12 palabras guardadas, porque su QR de cobro queda publicado y lo que
+alguien mande ahí algún día tiene que poder recuperarse).
+
+Revisadas antes de subirlas: no sale ninguna dirección de Antonio ni un trozo de
+frase de recuperación. En la primera tanda sí salían —la agenda enseñaba «Wallet
+Trabajo Escritorio» y el envío iba desde «Wallet Movil» con su saldo—, y se
+rehicieron las dos.
+
+> Mejora pendiente, que no bloquea: las carteras van casi a cero, así que la
+> **captura 1 —la que sale en el listado de búsqueda— enseña una cartera de un
+> céntimo**, y además es la de Ethereum en vez del Panel de Kadena, que es lo que
+> distingue a esta app. Con 10-20 KDA en la cartera «Play» se rehacen la 1, la 3 y
+> la 5 y quedan mucho mejor. **La ficha se edita sin tocar la app y sin volver a
+> pasar revisión**, así que se puede cambiar cuando se quiera.
