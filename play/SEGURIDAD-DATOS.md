@@ -129,10 +129,47 @@ manda.
 | Público objetivo | **Mayores de 18 años** — es lo que corresponde a una app financiera, y evita que caiga bajo la Política de Familias |
 | Acceso a la app | Sin restricciones: no hace falta cuenta ni credenciales para que el revisor la pruebe |
 
-### Instrucciones para el revisor (campo "Acceso a la app")
+### Instrucciones para el revisor ("Datos de inicio de sesión")
 
-Merece la pena rellenarlo aunque no haya login, porque si no el revisor se queda
-en la pantalla de crear monedero sin saber qué hacer:
+La declaración que antes se llamaba «Acceso a la aplicación». Dos cosas que se
+aprendieron rellenándola el 17/09/2026:
+
+**Se marca «Sí», aunque no haya login.** Parece lo contrario de la verdad —nada
+está restringido: el monedero lo crea el revisor y la contraseña la elige él— pero
+el campo para escribirle instrucciones **solo aparece marcando «Sí»**. Y un revisor
+que abre un monedero de criptomonedas, se topa con «apunta estas 12 palabras» y una
+contraseña que no sabe para qué sirve, y no tiene ni una línea de explicación, es un
+rechazo esperando a pasar. Además, la lista del «Sí» que enseña Google incluye
+literalmente **autenticación biométrica** y **códigos QR**, y la app tiene las dos.
+
+**El texto va en inglés.** Lo pide la propia pantalla. Los campos de usuario y
+contraseña se dejan **vacíos**: no hay ninguna cuenta que dar.
+
+Nombre del conjunto: `No login required - local wallet`
+
+```
+No account or credentials are required. This is a non-custodial wallet: there is
+no server-side account to log into.
+
+On first launch the app asks you to accept the terms of use and then to create a
+wallet. Choose "create a new wallet": the app shows a 12-word recovery phrase and
+asks you to set a password. That password encrypts the vault on the device itself
+- it is not an account on any service and it is never sent to any server. Any
+password you choose works.
+
+After the wallet is created the app shows the balances (zero on a new wallet) and
+every screen can be reached without holding any funds: Panel, Send, Receive,
+Market, Bridge, Recurring buys, Settings and Info.
+
+Biometric unlock (fingerprint or face) is optional and only appears if the device
+has it enrolled. The password always works as an alternative, so it never blocks
+access to any part of the app.
+
+There is no Koberlet server storing user data: the app only queries public nodes
+of the Kadena and Ethereum networks.
+```
+
+El mismo texto en español, que es como se escribió y sirve para releerlo:
 
 ```
 La app no requiere cuenta ni credenciales.
