@@ -3,7 +3,8 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.56.1-play.aab`
+Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.56.1-play.aab`,
+**enviado a revisión** en el canal `alpha`
 
 ---
 
@@ -19,12 +20,13 @@ Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.5
 | 6 | Formulario de Seguridad de los Datos | ✅ respondido (`SEGURIDAD-DATOS.md`) |
 | 7 | Firma de la app | ✅ **hecho** — Play firma con la clave de DNNS (ver punto 7) |
 | 8 | Actualización OTA incompatible con Play | ✅ resuelto con dos canales |
-| 9 | Capturas de pantalla | ⏳ **faltan** — hay que hacerlas en el móvil |
+| 9 | Capturas de pantalla | ✅ hechas y subidas (mejorables, ver punto 9) |
 | 10 | Swaps / puente / DCA | ✅ **decidido**: se envía completo, con la verdad por delante |
 | 11 | Cuenta de desarrollador y verificación | ✅ **hecha y verificada** (oberdnns@gmail.com) |
-| 12 | Prueba cerrada, 12 testers, 14 días | ⏳ pendiente |
+| 12 | Prueba cerrada, 12 testers, 14 días | ⏳ **en marcha** — 0.56.1 en revisión, faltan testers |
 | 13 | App creada en la Consola | ✅ `es.dnns.koberlet` |
 | 14 | Publicación por API sin abrir la Consola | ✅ montada (ver punto 13) |
+| 15 | Licencias de cripto país por país | ✅ **resuelto** con la exención de cartera sin custodia (punto 14) |
 
 ---
 
@@ -209,10 +211,21 @@ los assets web puestos no son los del canal que se está construyendo. Si alguie
 hace `npm run build` a secas y luego intenta el bundle de Play, el build para con
 un mensaje diciendo qué comando hay que usar.
 
-## 9. Capturas ⏳ FALTA
+## 9. Capturas ✅ — hechas el 17/09/2026
 
-Mínimo 2. Hay que hacerlas en el móvil. Instrucciones y avisos en `CAPTURAS.md`
-— sobre todo el de no publicar direcciones reales con saldo.
+Cinco, tomadas en el Xiaomi con la cartera desechable «Play». Instrucciones y
+avisos en `CAPTURAS.md` — sobre todo el de no publicar direcciones reales con
+saldo, que en la primera tanda sí se coló y hubo que rehacer dos.
+
+**Defecto conocido, que no bloquea:** las cinco llegaron al repositorio pegadas
+en un chat, y ese camino las recomprimió. Son **JPEG de 757×1600 px** aunque se
+llamen `.png`. Play las acepta (admite JPEG y mira el contenido, no la
+extensión), pero se quedan por debajo del **mínimo de 1080×1080** que Google pide
+para poder promocionar la app en sus listas.
+
+Cuando se rehagan la 1, la 3 y la 5 con saldo, pasarlas **por cable USB** desde
+`DCIM/Screenshots`, no por mensajería. La ficha se edita sin volver a pasar
+revisión, así que esto se cambia cuando se quiera.
 
 ## 10. Swaps, puente y DCA ✅ — decidido el 17/09/2026
 
@@ -273,10 +286,32 @@ La app está creada en la Consola como **`es.dnns.koberlet`**, que es el mismo
 `applicationId` del `build.gradle`. Tiene que serlo: si no coincide, Play rechaza
 el bundle sin más explicación.
 
-## 12. Prueba cerrada ⏳
+## 12. Prueba cerrada ⏳ — arrancada el 17/09/2026
 
-Requisito obligatorio para cuentas personales creadas después de noviembre de
-2023, y es lo que marca el calendario real:
+**Dónde está ahora:** la 0.56.1 (versionCode 5601) está **enviada a revisión** en
+el canal `alpha` («Prueba cerrada - Alpha»), con los 177 países marcados y la
+lista de correo creada. Falta que Google la apruebe y faltan testers.
+
+Tres cosas que se aprendieron montándola y que no son evidentes:
+
+- **El enlace de aceptación no funciona hasta que hay una versión aprobada** en el
+  canal. Antes de eso, a todo el mundo le sale «App not available», y ese mismo
+  mensaje cubre también el caso de «no estás en la lista». Repartirlo antes de
+  tiempo solo genera doce personas mandando la misma captura.
+- **Google no manda ninguna invitación.** El enlace
+  (`https://play.google.com/apps/testing/es.dnns.koberlet`) lo reparte uno mismo.
+  Se puede publicar en un grupo abierto sin riesgo: con listas de correo, quien no
+  esté en la lista no puede instalar nada.
+- **El correo tiene que ser el que el móvil tiene en Play.** Si alguien da otro,
+  la aceptación se apunta en la cuenta equivocada, no cuenta, y no salta ningún
+  aviso. Es el fallo que más veces rompe estas pruebas.
+
+El contador de los 12 se mira en **Probar y publicar → Producción → acceso a
+producción**, no en la pestaña de testers (ahí solo se ve a quién has invitado,
+no quién ha entrado). Va con retraso: cuenta **aceptaciones**, no instalaciones, y
+puede tardar un día en reflejar a alguien que acaba de aceptar.
+
+El requisito, que es lo que marca el calendario real:
 
 - **12 testers como mínimo**, cada uno con su cuenta de Google.
 - **En un dispositivo Android físico** (los emuladores no cuentan).
@@ -338,6 +373,78 @@ Eso se sube una vez y no compensa automatizarlo.
 
 ---
 
+## 14. Licencias de cripto país por país ✅ — resuelto el 17/09/2026
+
+Esto no aparece hasta que subes el bundle, y es lo que más asusta de todo el
+proceso. Al ir a confirmar la versión, la Consola da un error:
+
+> Debes indicarnos si tu aplicación incluye funciones financieras.
+
+Y detrás, en **Funciones financieras → paso 2, Documentación**, sale una tabla de
+doce filas pidiendo **documentación de licencia** para cada territorio: Baréin,
+Canadá, Unión Europea, Israel, Japón, Filipinas, Sudáfrica, Corea del Sur,
+Emiratos Árabes Unidos, Reino Unido, Estados Unidos y «Todos los países o
+regiones».
+
+El texto de la fila de la UE es explícito: MiCA exige autorización como proveedor
+de servicios de criptoactivos, y **las apps que no suban licencia válida se
+retiran de Google Play**.
+
+### La salida: la exención
+
+Al abrir cada fila, además de los campos para la licencia hay **dos casillas**.
+La segunda es la que resuelve el caso:
+
+> ☑ Confirmo que mi aplicación es una cartera de software sin custodia
+
+Se marca esa, se dejan **vacíos** «Entidad autorizada» y «Número de licencia», y
+se guarda. Hay que repetirlo en las doce filas.
+
+Es verdad literal y comprobable en el código: las claves se crean y se quedan
+cifradas en la bóveda del aparato y no salen ni para firmar. Y encaja con la
+regulación: MiCA regula la **custodia por cuenta de terceros**, que es justo lo
+que Koberlet no hace.
+
+### La casilla que NO se marca
+
+> ☐ Confirmo que mi aplicación no ofrece la compra, tenencia ni intercambio de
+> criptomonedas en este país o territorio, y que he aplicado las medidas de
+> restricción geográfica necesarias
+
+Dos afirmaciones falsas en el caso de Koberlet: la app **sí** ofrece intercambio
+(el swap por DEX), y **no** hay ninguna restricción geográfica aplicada. Firmarla
+sería una declaración falsa a Google, y eso se paga con la cuenta entera, no con
+la app.
+
+### Lo que queda abierto
+
+**El swap es lo que puede sacar a la app de esa exención.** Un revisor puede
+decidir que algo que además intercambia ya no es «solo una cartera sin custodia»
+y retirarla de la UE. No es ocultación: el swap, el puente y el DCA se declararon
+por escrito y por delante en el campo «Otro» de la declaración financiera (ver
+`SEGURIDAD-DATOS.md` punto 3). La casilla que se marca es cierta, y lo que podría
+matizarla lo cuenta uno mismo sin que se lo pregunten.
+
+Si aun así dicen que no, el plan sigue siendo el de siempre: el APK de
+`descargas.dnns.es`.
+
+### Otra declaración que salta al enviar
+
+**ID de publicidad.** Obligatoria para todo lo que apunte a Android 13+. La
+respuesta es **No**, y se comprobó donde importa, que es el manifiesto ya
+fusionado de la variante que va en el bundle:
+
+```bash
+grep -n "uses-permission" \
+  android/app/build/intermediates/merged_manifest/playRelease/*/AndroidManifest.xml
+```
+
+No aparece `com.google.android.gms.permission.AD_ID`. Ese es el sitio donde hay
+que mirar y no el manifiesto de `src/main`: si una dependencia usara el ID de
+publicidad, su permiso se habría fusionado ahí aunque nadie lo escribiera a mano.
+
+---
+
 ## El orden en que yo lo haría
 
 1. Crear la cuenta y **verificar identidad el mismo día** (empieza el reloj de
@@ -349,9 +456,13 @@ Eso se sube una vez y no compensa automatizarlo.
    incompatibles para siempre.
 5. Rellenar ficha, seguridad de los datos, clasificación y declaración
    financiera.
-6. Subir el `.aab` a **prueba cerrada** y meter a los 12 testers.
-7. Esperar los 14 días sin que se salga nadie.
-8. Solicitar producción.
+6. Subir el `.aab` a **prueba cerrada**. Aquí saltan las dos declaraciones que no
+   se ven hasta este momento: **licencias de cripto por país** (punto 14) e **ID
+   de publicidad**.
+7. Enviar a revisión. **Hasta que Google apruebe, el enlace de testers no
+   funciona**, así que no repartirlo antes.
+8. Meter a los 12 testers y esperar los 14 días sin que se salga nadie.
+9. Solicitar producción.
 
 ## Cómo regenerar todo esto
 
