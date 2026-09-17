@@ -3,7 +3,7 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **17/09/2026** · versión **0.56.0** · bundle en `bundle/koberlet-0.56.0-play.aab`
+Estado a **17/09/2026** · versión **0.56.0** · bundle en `bundle/koberlet-0.56.1-play.aab`
 
 ---
 
@@ -181,9 +181,27 @@ No se ha quitado nada. Se ha partido en **dos canales** de la misma base:
 
 Comprobado sobre los binarios, no sobre el código:
 
-- En el `.aab` de Play: `REQUEST_INSTALL_PACKAGES` **no aparece**, la clase
-  `KoberletUpdate` **no está en el dex**, y la URL de `descargas.dnns.es` **no
-  está en el JavaScript**.
+- En el `.aab` de Play: `REQUEST_INSTALL_PACKAGES` **no aparece** y la clase
+  `KoberletUpdate` **no está en el dex**. Comprobado otra vez sobre el bundle de
+  la 0.56.1.
+
+> Matiz, porque aquí antes ponía que `descargas.dnns.es` no estaba en el
+> JavaScript y **eso no es exacto**: sale tres veces, y las tres son del **texto de
+> las políticas** (`src/politicas-texto.js`), no del actualizador. Una es el enlace
+> para ver las políticas en la web y las otras dos son la frase que dice que la app
+> hace «comprobación de actualizaciones a descargas.dnns.es».
+>
+> Lo que importa es que **no hay código de actualización**, y no lo hay. Pero esa
+> frase **es falsa en la variante de Play**, que no lleva actualizador: la política
+> declara una conexión que esa versión no hace. Declarar de más no es un problema
+> de política de Google -el problema es declarar de menos-, pero no es verdad, y
+> este proyecto no deja pasar cosas que no son verdad.
+>
+> El fichero **se genera** desde el `POLITICAS.md` del monedero de escritorio con
+> `herramientas-politicas.js`: hay que arreglarlo allí, no aquí, o el siguiente
+> regenerado lo revierte. Y de paso, ese enlace sigue apuntando a la URL vieja
+> (`…/kob7t2m9x4/politicas.html`) en vez de a la limpia que va en la ficha
+> (`…/koberlet/politicas.html`); las dos responden, pero no dicen lo mismo.
 - En el APK directo: los tres siguen ahí, intactos.
 
 Y hay un cepo para que no se cuele un despiste: Gradle **se niega a compilar** si
