@@ -108,9 +108,14 @@ Obligatorios en la ficha.
 
 | Campo | Valor |
 |---|---|
-| Correo electrónico | (poner el de contacto público de DNNS.es) |
+| Correo electrónico | `oberdnns@gmail.com` |
 | Sitio web | `https://descargas.dnns.es/koberlet/politicas.html` |
 | Política de privacidad | **`https://descargas.dnns.es/koberlet/politicas.html`** |
+
+> El correo **sale público** en la ficha, al lado del nombre del desarrollador.
+> Se eligió el Gmail de la cuenta de Play (17/09/2026) y no `admin@dnns.es`, para
+> que el spam que atrae una ficha pública no caiga en el correo de administración.
+> Cambiarlo después se puede, pero es el que verá quien tenga la app instalada.
 
 > ✅ **Resuelto el 16/09/2026.** La política estaba en
 > `…/kob7t2m9x4/politicas.html`, con el segmento aleatorio que venía de tener las
