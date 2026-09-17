@@ -61,11 +61,22 @@ function cadaCuanto(segundos) {
  * @param raiz  donde pintar
  * @param ctx   { cuentas, red }
  */
-export function pintarDca(raiz, ctx) {
+export function pintarDca(raiz, ctx, opciones = {}) {
     raiz.innerHTML = '';
 
     const c = caja();
-    c.append(elemento('h2', t('Compras periódicas')));
+
+    // La lista de planes ya no se abre sola. A esta pantalla se entra a crear un
+    // plan, y la lista obliga a preguntar a la cadena: se quedaba la pantalla
+    // esperando para enseñar algo que la mayoría de las veces no se venía a ver.
+    // Detrás de «Historial», igual que en el puente.
+    const cabecera = elemento('div', null, 'cab-seccion');
+    const verPlanes = document.createElement('button');
+    verPlanes.type = 'button';
+    verPlanes.className = 'enlace';
+    verPlanes.textContent = t('Historial');
+    cabecera.append(elemento('h2', t('Compras periódicas')), verPlanes);
+    c.append(cabecera);
 
     // Los planes son de una cuenta concreta, así que lo primero es decir de cuál.
     const elige = selectorCartera(ctx.cuentas, 'kda', t('Cartera'), () => pintarDca(raiz, ctx));
@@ -76,36 +87,44 @@ export function pintarDca(raiz, ctx) {
         return;
     }
 
+    const avisoPausa = elemento('div');
     const donde = elemento('div');
-    donde.append(elemento('p', t('Preguntando a la cadena…'), 'nota'));
-    c.append(donde);
+    c.append(avisoPausa, donde);
     raiz.append(c);
     raiz.append(bloqueNuevoPlan(raiz, ctx, kda));
 
-    (async () => {
-        try {
-            const [planes, pausa] = await Promise.all([
-                planesDe(kda.cuenta, ctx.red),
-                enPausa(ctx.red),
-            ]);
+    // Que el contrato esté parado SÍ se dice sin pedirlo: un plan «activo» no
+    // compra nada mientras lo esté, y uno nuevo tampoco. Ese aviso no puede
+    // quedarse dentro del historial, porque hace falta justo al crear el plan.
+    enPausa(ctx.red).then((pausa) => {
+        if (pausa === true) {
+            avisoPausa.append(elemento('p', t('El contrato está parado: ahora mismo no compra ningún plan.'), 'malo'));
+        }
+    }).catch(() => { /* si no se puede preguntar, no se inventa un aviso */ });
+
+    let abierto = false;
+    verPlanes.addEventListener('click', () => {
+        abierto = !abierto;
+        donde.innerHTML = '';
+        verPlanes.textContent = abierto ? t('Ocultar') : t('Historial');
+        if (!abierto) return;
+        donde.append(elemento('p', t('Preguntando a la cadena…'), 'nota'));
+        planesDe(kda.cuenta, ctx.red).then((planes) => {
             donde.innerHTML = '';
-
-            // Un plan «activo» en un contrato parado no compra nada. Eso se dice
-            // antes de la lista, no después.
-            if (pausa === true) {
-                donde.append(elemento('p', t('El contrato está parado: ahora mismo no compra ningún plan.'), 'malo'));
-            }
-
             if (!planes.length) {
                 donde.append(elemento('p', t('No tienes ningún plan de compras.'), 'nota'));
                 return;
             }
             planes.forEach((p) => donde.append(tarjetaPlan(p, raiz, ctx, kda)));
-        } catch (e) {
+        }).catch((e) => {
             donde.innerHTML = '';
             donde.append(elemento('p', t(String(e.message || e)), 'malo'));
-        }
-    })();
+        });
+    });
+
+    // Al volver de parar, recargar o cerrar un plan, la lista sí se abre: es lo
+    // que se estaba mirando, y cerrarla escondería el resultado.
+    if (opciones.verPlanes) verPlanes.click();
 }
 
 function tarjetaPlan(p, raiz, ctx, kda) {
@@ -277,7 +296,7 @@ function botonesPlan(p, raiz, ctx, kda) {
                 const ver = document.createElement('button');
                 ver.className = 'secundario';
                 ver.textContent = t('Ver mis planes');
-                ver.addEventListener('click', () => pintarDca(raiz, ctx));
+                ver.addEventListener('click', () => pintarDca(raiz, ctx, { verPlanes: true }));
                 salida.append(ver);
             } else {
                 esc.falla();
@@ -530,7 +549,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
                 const ver = document.createElement('button');
                 ver.className = 'secundario';
                 ver.textContent = t('Ver mis planes');
-                ver.addEventListener('click', () => pintarDca(raiz, ctx));
+                ver.addEventListener('click', () => pintarDca(raiz, ctx, { verPlanes: true }));
                 salida.append(ver);
             } else {
                 esc.falla();
