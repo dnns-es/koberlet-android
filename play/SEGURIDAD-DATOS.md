@@ -142,32 +142,28 @@ contraseña que no sabe para qué sirve, y no tiene ni una línea de explicació
 rechazo esperando a pasar. Además, la lista del «Sí» que enseña Google incluye
 literalmente **autenticación biométrica** y **códigos QR**, y la app tiene las dos.
 
-**El texto va en inglés.** Lo pide la propia pantalla. Los campos de usuario y
-contraseña se dejan **vacíos**: no hay ninguna cuenta que dar.
+**El texto va en inglés y cabe en 500 caracteres.** Las dos cosas las pide la
+propia pantalla, y el límite no se ve hasta que pegas y te lo pinta en rojo: la
+primera versión ocupaba 992. Los campos de usuario y contraseña se dejan
+**vacíos**: no hay ninguna cuenta que dar.
 
 Nombre del conjunto: `No login required - local wallet`
 
+Esto son 472 caracteres, con 28 de margen (conviene dejarlo, porque no está claro
+cómo cuenta Google los saltos de línea):
+
 ```
-No account or credentials are required. This is a non-custodial wallet: there is
-no server-side account to log into.
+No credentials needed. Accept the terms, choose "create a new wallet", note the 12-word phrase and set any password: it only encrypts the vault on the device and is never sent anywhere.
 
-On first launch the app asks you to accept the terms of use and then to create a
-wallet. Choose "create a new wallet": the app shows a 12-word recovery phrase and
-asks you to set a password. That password encrypts the vault on the device itself
-- it is not an account on any service and it is never sent to any server. Any
-password you choose works.
+All screens work with a zero balance: Panel, Send, Receive, Market, Bridge, Recurring buys, Settings, Info.
 
-After the wallet is created the app shows the balances (zero on a new wallet) and
-every screen can be reached without holding any funds: Panel, Send, Receive,
-Market, Bridge, Recurring buys, Settings and Info.
-
-Biometric unlock (fingerprint or face) is optional and only appears if the device
-has it enrolled. The password always works as an alternative, so it never blocks
-access to any part of the app.
-
-There is no Koberlet server storing user data: the app only queries public nodes
-of the Kadena and Ethereum networks.
+Biometric unlock is optional and the password always works, so no part of the app is ever locked. There is no Koberlet server: it only queries public Kadena and Ethereum nodes.
 ```
+
+Lo que tiene que sobrevivir a cualquier recorte futuro, que es lo que el revisor
+necesita para no atascarse: que **no hace falta cuenta**, qué tiene que pulsar,
+que **la contraseña se la inventa él**, que puede recorrerlo **todo sin fondos**, y
+que **la huella nunca le bloquea el paso**.
 
 El mismo texto en español, que es como se escribió y sirve para releerlo:
 
