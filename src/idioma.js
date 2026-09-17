@@ -480,8 +480,14 @@ const EN = {
         'Only {0} → {1}',
     'Entregado en Ethereum':
         'Delivered on Ethereum',
+    'Entregado en Kadena':
+        'Delivered on Kadena',
     'Salió de Kadena':
         'Left Kadena',
+    'Salió de Ethereum':
+        'Left Ethereum',
+    'Esto vino de Ethereum. Cuando el relayer lo entregue, aparece en la chain 2 de esa cuenta de Kadena: aquí no hay nada que comprobar.':
+        'This one came from Ethereum. When the relayer delivers it, it shows up on chain 2 of that Kadena account: there is nothing to check here.',
     'Lo rechazó el contrato':
         'The contract rejected it',
     'Sin confirmar':
@@ -813,17 +819,35 @@ const EN = {
         'That package does not come from the DNNS server; it will not be downloaded.',
     'La huella del paquete descargado no cuadra: se ha descartado.':
         'The downloaded package fingerprint does not match: it has been discarded.',
-    // Huella o cara
+    // La identificacion sin contrasena. Como se llame en el aparato lo dice el
+    // sistema y entra por {0} (ver `biometria.js`): «Face ID» en un iPhone, «la
+    // huella» en un movil con lector. Face ID y Touch ID no se traducen.
     'Huella o cara': 'Fingerprint or face',
-    'Abrir con huella': 'Open with fingerprint',
-    'Firmar con huella': 'Sign with fingerprint',
-    'Activar la huella': 'Turn on fingerprint',
-    'Dejar de usar la huella': 'Stop using fingerprint',
-    'Contraseña de la cartera (o firma con huella)': 'Wallet password (or sign with fingerprint)',
-    'Activada: se te pide la huella o la cara en lugar de la contraseña, que se sigue admitiendo siempre.':
-        'On: you are asked for your fingerprint or face instead of the password, which still works at any time.',
-    'Para no teclear la contraseña en cada firma. Al activarlo, tu contraseña queda guardada en este móvil, cifrada con una clave del chip que solo se abre con tu huella o tu cara.':
-        'So you do not type the password on every signature. Turning it on stores your password on this phone, encrypted with a key in the secure chip that only opens with your fingerprint or face.',
+    'huella': 'fingerprint',
+    'la huella': 'fingerprint',
+    'la cara': 'face recognition',
+    'la huella o la cara': 'fingerprint or face',
+    'Abrir con {0}': 'Open with {0}',
+    'Firmar con {0}': 'Sign with {0}',
+    'Activar {0}': 'Turn on {0}',
+    'Dejar de usar {0}': 'Stop using {0}',
+    'Contraseña de la cartera (o firma con {0})': 'Wallet password (or sign with {0})',
+    'Activada: se te pide {0} en lugar de la contraseña, que se sigue admitiendo siempre.':
+        'On: you are asked for {0} instead of the password, which still works at any time.',
+    'Para no teclear la contraseña en cada firma. Al activarlo, tu contraseña queda guardada en este móvil, cifrada con una clave del chip que solo se abre con {0}.':
+        'So you do not type the password on every signature. Turning it on stores your password on this phone, encrypted with a key in the secure chip that only opens with {0}.',
+    'Ver u ocultar la contraseña': 'Show or hide the password',
+    // Lo que pone en el dialogo del sistema al identificarse. Lo saca iOS o Android,
+    // no la app, pero el texto se le manda ya traducido desde `boveda/nativa.js`.
+    'Abre tu cartera': 'Open your wallet',
+    'Confirma que eres tú para activarlo': 'Confirm it is you to turn it on',
+    'Firma el envío': 'Sign the transfer',
+    'Firma el envío entre chains': 'Sign the cross-chain transfer',
+    'Firma el envío por el puente': 'Sign the bridge transfer',
+    'Firma el permiso del token': 'Sign the token approval',
+    'Firma el cambio': 'Sign the swap',
+    'Firma el plan de compras': 'Sign the recurring plan',
+    'Firma el cambio en el plan': 'Sign the change to the plan',
     'No se pudo consultar el lector de este aparato.': 'This device\u2019s reader could not be queried.',
     'La huella solo funciona en la app instalada.': 'Fingerprint only works in the installed app.',
     'Este móvil no admite identificación segura.': 'This phone does not support secure identification.',

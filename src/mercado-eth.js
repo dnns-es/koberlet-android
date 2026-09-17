@@ -24,6 +24,7 @@
 
 import { boveda } from './boveda/contrato.js';
 import { t } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { pasos, parteDelNodo } from './pasos.js';
 import { lineaCopiable } from './copiable.js';
 import { selectorCartera } from './cartera-activa.js';
@@ -144,7 +145,7 @@ export function bloqueMercadoEth(raiz, ctx, repintar) {
 
     boveda.bioEstado().then((e) => {
         if (!e || !e.activada) return;
-        zonaFirma.append(boton(t('Firmar con huella'), () => cambiar({ huella: true }), 'secundario'));
+        zonaFirma.append(boton(t('Firmar con {0}', nombreBio(e)), () => cambiar({ huella: true }), 'secundario'));
     }).catch(() => { /* si no se puede preguntar, queda la contraseña */ });
 
     c.append(doy.caja, vuelta, recibo.caja, datos, zonaFirma, salida);

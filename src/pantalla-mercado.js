@@ -24,6 +24,7 @@ import { selectorCartera } from './cartera-activa.js';
 import { redMercado, fijarRedMercado } from './mercado-red.js';
 import { lado } from './lado-cambio.js';
 import { t } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { recorta } from './cifras.js';
 import { boveda } from './boveda/contrato.js';
 import { enviarComando, esperarResultado } from './lib/kda.js';
@@ -186,7 +187,7 @@ function cambiador(ctx, m, lista, kda) {
 
     boveda.bioEstado().then((e) => {
         if (!e || !e.activada) return;
-        zonaFirma.append(boton(t('Firmar con huella'), () => mandar({ huella: true }), 'secundario'));
+        zonaFirma.append(boton(t('Firmar con {0}', nombreBio(e)), () => mandar({ huella: true }), 'secundario'));
     }).catch(() => { /* si no se puede preguntar, queda la contraseña */ });
 
     let cotizacion = null;

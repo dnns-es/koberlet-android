@@ -14,6 +14,7 @@
 import { boveda } from './boveda/contrato.js';
 import { cuentaKdaValida, enviarComando, esperarResultado, pruebaSpv, rematarEntreChains } from './lib/kda.js';
 import { t, locale } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { corta } from './direccion.js';
 import { recorta } from './cifras.js';
 import { pasos, parteDelNodo } from './pasos.js';
@@ -450,21 +451,32 @@ function pintarConfirmacion(raiz, ctx, envio) {
     enviar.textContent = t('Firmar y enviar');
     enviar.addEventListener('click', () => mandar({ contrasena: i.value }));
 
-    // Con la huella activada, la contraseña no hace falta teclearla: el chip la
-    // desenvuelve tras identificarte. Se pide igual en CADA envío -no es «ya estás
-    // dentro, pasa»-, solo que ahora se pide con el dedo.
+    // Con la identificación activada, la contraseña no hace falta teclearla: el
+    // chip la desenvuelve tras identificarte. Se pide igual en CADA envío -no es
+    // «ya estás dentro, pasa»-, solo que ahora se pide con el dedo o con la cara.
+    let conBio = null;
+    let enMarcha = false;
     boveda.bioEstado().then((bio) => {
         if (!bio || !bio.activada) return;
-        const conHuella = document.createElement('button');
-        conHuella.className = 'secundario';
-        conHuella.textContent = t('Firmar con huella');
-        conHuella.addEventListener('click', () => mandar({ huella: true }));
-        enviar.after(conHuella);
-        // Con huella, la contraseña queda de respaldo y no como paso obligatorio.
-        l.textContent = t('Contraseña de la cartera (o firma con huella)');
-    }).catch(() => { /* sin huella, todo sigue como siempre */ });
+        conBio = document.createElement('button');
+        conBio.className = 'secundario';
+        conBio.textContent = t('Firmar con {0}', nombreBio(bio));
+        conBio.addEventListener('click', () => mandar({ huella: true }));
+        // Si la firma ya iba en marcha cuando llegó la respuesta, este botón NO
+        // puede aparecer: seria una segunda firma del mismo envio a un toque.
+        conBio.hidden = enMarcha;
+        enviar.after(conBio);
+        // Con la identificación, la contraseña queda de respaldo y no como paso obligatorio.
+        l.textContent = t('Contraseña de la cartera (o firma con {0})', nombreBio(bio));
+    }).catch(() => { /* sin identificación, todo sigue como siempre */ });
 
     async function mandar(comoFirmar) {
+        // Dos toques seguidos no son dos envios. El de la contraseña se escondia,
+        // pero el de la huella se quedaba puesto y encima ENCIMA: se podia firmar
+        // el mismo envio dos veces mientras el primero estaba en el aire
+        // (lo aviso un probador el 17/09/2026).
+        if (enMarcha) return;
+        enMarcha = true;
         estado.innerHTML = '';
 
         // Los botones DESAPARECEN mientras esto corre, no se quedan grises. Un botón
@@ -473,6 +485,7 @@ function pintarConfirmacion(raiz, ctx, envio) {
         // «Atrás» a mitad de una firma es cerrar la pantalla sin saber si el dinero
         // ha salido.
         enviar.hidden = true;
+        if (conBio) conBio.hidden = true;
         atras.disabled = true;
 
         const p = pasos(entreChains ? [
@@ -541,6 +554,8 @@ function pintarConfirmacion(raiz, ctx, envio) {
                 const motivo = (r.result && r.result.error && r.result.error.message) || t('el contrato lo rechazó');
                 detras.append(elemento('p', t('La transacción entró en un bloque pero falló: {0}', motivo), 'malo'));
             }
+            // Aquí ya no se firma nada: el botón pasa a ser «Volver», así que el de
+            // la identificación se queda fuera y `enMarcha` sigue puesto.
             enviar.textContent = t('Volver');
             enviar.hidden = false;
             enviar.onclick = () => ctx.alVolver();
@@ -550,7 +565,11 @@ function pintarConfirmacion(raiz, ctx, envio) {
             // después es la diferencia entre que el dinero haya salido o no.
             p.falla();
             detras.append(elemento('p', t(String(e.message || e)), 'malo'));
+            // Esto sí se puede volver a intentar: aquí no ha salido nada, así que
+            // vuelven los dos botones de firmar y se suelta el cerrojo.
+            enMarcha = false;
             enviar.hidden = false;
+            if (conBio) conBio.hidden = false;
         } finally {
             atras.disabled = false;
         }

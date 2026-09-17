@@ -920,7 +920,8 @@ class KoberletVault : Plugin() {
         call.resolve(JSObject()
             .put("disponible", motivo == null)
             .put("motivo", motivo ?: "")
-            .put("activada", Huella.activada(context)))
+            .put("activada", Huella.activada(context))
+            .put("tipo", Huella.tipo(context)))
     }
 
     /**
@@ -947,7 +948,8 @@ class KoberletVault : Plugin() {
                 call.reject("No se puede pedir la huella ahora mismo.")
                 return@Thread
             }
-            Huella.guardar(act, contrasena) { error ->
+            val loQuePone = call.getString("motivo")?.takeIf { it.isNotBlank() }
+            Huella.guardar(act, contrasena, loQuePone) { error ->
                 if (error != null) call.reject(error.message ?: "No se pudo activar la identificación.")
                 else call.resolve(JSObject().put("activada", true))
             }
@@ -972,7 +974,11 @@ class KoberletVault : Plugin() {
         if (call.getBoolean("huella", false) != true) return call.reject("Falta la contraseña.")
         if (!Huella.activada(context)) return call.reject("La identificación no está activada.")
         val act = activity ?: return call.reject("No se puede pedir la huella ahora mismo.")
-        Huella.recuperar(act, titulo) { contrasena, error ->
+        // El texto del dialogo lo pone la pantalla, que es la que sabe en que idioma
+        // esta la app -el idioma se elige DENTRO de Koberlet, no en el movil-. Si no
+        // lo manda, se queda el de aqui: en castellano, pero nunca vacio.
+        val loQuePone = call.getString("motivo")?.takeIf { it.isNotBlank() } ?: titulo
+        Huella.recuperar(act, loQuePone) { contrasena, error ->
             if (contrasena == null) call.reject(error?.message ?: "No se pudo identificar.")
             else alTener(contrasena)
         }

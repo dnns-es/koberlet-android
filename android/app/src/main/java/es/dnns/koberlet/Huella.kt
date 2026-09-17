@@ -4,6 +4,7 @@
 package es.dnns.koberlet
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -99,6 +100,19 @@ object Huella {
 
     fun activada(context: Context): Boolean = fichero(context).exists()
 
+    /**
+     * Como se llama en ESTE aparato, para que la pantalla no diga "huella" donde
+     * no hay lector de huella. Android no dice cual de los sensores va a salir,
+     * asi que aqui se contesta por lo que TIENE el aparato: si lleva lector de
+     * huella se dice huella, y si solo tiene cara se deja en blanco y la pantalla
+     * usa una palabra que vale para los dos.
+     */
+    fun tipo(context: Context): String = when {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT) -> "huella"
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_FACE) -> "cara"
+        else -> ""
+    }
+
     fun borrar(context: Context) {
         fichero(context).delete()
         try {
@@ -157,13 +171,18 @@ object Huella {
      * CIFRAR con esta clave sin ella, y eso es a proposito -si cifrar fuera libre,
      * cualquiera podria sustituir lo guardado por otra cosa-.
      */
-    fun guardar(actividad: FragmentActivity, contrasena: String, alTerminar: (Exception?) -> Unit) {
+    fun guardar(
+        actividad: FragmentActivity,
+        contrasena: String,
+        loQuePone: String? = null,
+        alTerminar: (Exception?) -> Unit,
+    ) {
         disponible(actividad)?.let { return alTerminar(SinBiometria(it)) }
         try {
             borrar(actividad)                       // una clave nueva por cada activacion
             val c = Cipher.getInstance("AES/GCM/NoPadding")
             c.init(Cipher.ENCRYPT_MODE, claveNueva())
-            pedir(actividad, c, "Confirma que eres tú para activarlo") { cifrador, error ->
+            pedir(actividad, c, loQuePone ?: "Confirma que eres tú para activarlo") { cifrador, error ->
                 if (cifrador == null) return@pedir alTerminar(error ?: Cancelado())
                 try {
                     val ct = cifrador.doFinal(contrasena.toByteArray(Charsets.UTF_8))

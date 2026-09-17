@@ -13,14 +13,56 @@
 //   android/app/src/main/java/es/dnns/koberlet/KoberletVault.kt
 
 import { registerPlugin } from '@capacitor/core';
+import { t } from '../idioma.js';
 
 const Vault = registerPlugin('KoberletVault');
+
+/**
+ * LO QUE PONE EN EL DIALOGO DE FACE ID / DE LA HUELLA.
+ *
+ * Van como funciones y no como texto suelto por dos cosas: el idioma puede
+ * cambiarse sin reiniciar, y asi cada frase queda escrita dentro de una llamada de
+ * verdad a la funcion de traducir, que es lo que mira la prueba que las vigila.
+ *
+ * Ese texto lo saca el SISTEMA, no la app, y hasta ahora venia escrito en
+ * castellano dentro de Kotlin y de Swift: con la app en ingles, el dialogo salia
+ * en español igual (lo aviso un probador el 17/09/2026). Se manda ya traducido
+ * desde aqui, que es el unico sitio que sabe en que idioma esta la app -el idioma
+ * se elige DENTRO de Koberlet, asi que el del aparato no sirve-.
+ *
+ * Si algun dia llega un metodo nuevo sin frase, el nativo pone la suya: se vera
+ * en castellano, pero nunca vacio.
+ */
+const MOTIVOS = {
+    abrir: () => t('Abre tu cartera'),
+    bioActivar: () => t('Confirma que eres tú para activarlo'),
+    firmarEnvioKda: () => t('Firma el envío'),
+    firmarEnvioToken: () => t('Firma el envío'),
+    firmarEnvioCrossKda: () => t('Firma el envío entre chains'),
+    firmarEnvioEvm: () => t('Firma el envío'),
+    firmarPuenteEvm: () => t('Firma el envío por el puente'),
+    firmarPuenteHaciaKadena: () => t('Firma el envío por el puente'),
+    firmarPermisoEvm: () => t('Firma el permiso del token'),
+    firmarCambioAmm: () => t('Firma el cambio'),
+    firmarCambioEvm: () => t('Firma el cambio'),
+    firmarCrearDca: () => t('Firma el plan de compras'),
+    firmarGestionDca: () => t('Firma el cambio en el plan'),
+};
 
 // Los errores del plugin llegan como excepciones con `message`; se reenvian tal
 // cual para que la pantalla enseñe el motivo de verdad y no un "algo ha fallado".
 async function llamar(metodo, datos) {
+    let payload = datos || {};
+    // Solo cuando se va a identificar: si se teclea la contraseña no sale ningún
+    // diálogo y el texto no pinta nada.
+    // `bioActivar` no lleva `huella`: la contraseña se teclea, pero guardarla
+    // exige identificarse y el sistema saca su diálogo igual.
+    const vaAPedirlo = payload.huella === true || metodo === 'bioActivar';
+    if (vaAPedirlo && !payload.motivo && MOTIVOS[metodo]) {
+        payload = { ...payload, motivo: MOTIVOS[metodo]() };
+    }
     try {
-        return await Vault[metodo](datos || {});
+        return await Vault[metodo](payload);
     } catch (e) {
         throw new Error(e && e.message ? e.message : `Fallo en la bóveda (${metodo}).`);
     }

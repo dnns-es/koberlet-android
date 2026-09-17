@@ -25,6 +25,7 @@ import { arrancarTema, fijarTema, temaElegido } from './tema.js';
 import { MONEDAS, CODIGOS, monedaElegida, fijarMoneda, formateaDinero, formateaPrecio, aKda } from './moneda.js';
 import { valorDeToken, precioPuestoAMano, PRECIO_EN_KDA } from './valor.js';
 import { arrancarIdioma, fijarIdioma, idiomaElegido, t, locale } from './idioma.js';
+import { bioConArticulo, tituloBio } from './biometria.js';
 import { carteraActiva, fijarCarteraActiva, agrupaCarteras } from './cartera-activa.js';
 import { corta } from './direccion.js';
 import { hayQueAceptar, pintarPoliticas } from './politicas.js';
@@ -1728,7 +1729,11 @@ function bloqueAnadirToken() {
  */
 function bloqueHuella() {
     const c = caja();
-    c.append(texto('h2', t('Huella o cara')));
+    // El titulo no puede decir «Huella o cara» en un iPhone, que no tiene lector
+    // de huella: se pone cuando se sabe de que aparato se trata, y hasta entonces
+    // queda la palabra que vale para los dos.
+    const titulo = texto('h2', t('Huella o cara'));
+    c.append(titulo);
     const donde = texto('div');
     c.append(donde);
 
@@ -1741,19 +1746,20 @@ function bloqueHuella() {
             donde.append(texto('p', t('No se pudo consultar el lector de este aparato.'), 'nota'));
             return;
         }
+        titulo.textContent = tituloBio(bio);
         if (!bio.disponible && !bio.activada) {
             donde.append(texto('p', t(String(bio.motivo || 'Este móvil no admite identificación segura.')), 'nota'));
             return;
         }
         if (bio.activada) {
-            donde.append(texto('p', t('Activada: se te pide la huella o la cara en lugar de la contraseña, que se sigue admitiendo siempre.'), 'nota'));
-            donde.append(boton(t('Dejar de usar la huella'), async () => {
+            donde.append(texto('p', t('Activada: se te pide {0} en lugar de la contraseña, que se sigue admitiendo siempre.', bioConArticulo(bio)), 'nota'));
+            donde.append(boton(t('Dejar de usar {0}', bioConArticulo(bio)), async () => {
                 await boveda.bioBorrar();
                 pinta();
             }, 'secundario'));
             return;
         }
-        donde.append(texto('p', t('Para no teclear la contraseña en cada firma. Al activarlo, tu contraseña queda guardada en este móvil, cifrada con una clave del chip que solo se abre con tu huella o tu cara.'), 'nota'));
+        donde.append(texto('p', t('Para no teclear la contraseña en cada firma. Al activarlo, tu contraseña queda guardada en este móvil, cifrada con una clave del chip que solo se abre con {0}.', bioConArticulo(bio)), 'nota'));
         const campo = document.createElement('div');
         campo.className = 'campo';
         const l = document.createElement('label');
@@ -1765,7 +1771,7 @@ function bloqueHuella() {
         i.autocomplete = 'off';
         campo.append(l, i);
         donde.append(campo);
-        const b = boton(t('Activar la huella'), async () => {
+        const b = boton(t('Activar {0}', bioConArticulo(bio)), async () => {
             b.disabled = true;
             try {
                 await boveda.bioActivar(i.value);

@@ -26,6 +26,7 @@ import { corta } from './direccion.js';
 import { minutosCerrojo } from './salir.js';
 import { ir } from './navegacion.js';
 import { t } from './idioma.js';
+import { tituloBio } from './biometria.js';
 
 function elemento(tag, texto, clase) {
     const e = document.createElement(tag);
@@ -112,6 +113,8 @@ function bloqueEstado(raiz, ctx) {
     c.append(acciones);
 
     boveda.bioEstado().then((b) => {
+        // El nombre de la fila tambien: en un iPhone esto es Face ID, no una huella.
+        laHuella.querySelector('.izq').textContent = tituloBio(b);
         const der = laHuella.querySelector('.der');
         if (b && b.activada) {
             der.textContent = t('Activada');
