@@ -47,6 +47,20 @@ enum Huella {
         }
     }
 
+    /// Como se llama en ESTE aparato. La pantalla lo necesita para no decir
+    /// "huella" donde no hay lector de huella: en un iPhone o un iPad moderno lo
+    /// que hay es Face ID, y llamarlo huella es mentirle al que lo esta mirando
+    /// (lo aviso un probador el 17/09/2026 desde un iPad).
+    static func tipo() -> String {
+        let ctx = LAContext()
+        _ = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+        switch ctx.biometryType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        default: return ""
+        }
+    }
+
     /// ¿Esta activada? Se pregunta al Llavero SIN sacar el dialogo: si el dato
     /// esta pero exige identificarse, responde "no se permite interaccion", y
     /// eso es un si.

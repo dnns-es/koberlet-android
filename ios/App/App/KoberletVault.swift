@@ -525,7 +525,8 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
 
     @objc func bioEstado(_ call: CAPPluginCall) {
         let motivo = Huella.disponible()
-        call.resolve(["disponible": motivo == nil, "motivo": motivo ?? "", "activada": Huella.activada()])
+        call.resolve(["disponible": motivo == nil, "motivo": motivo ?? "",
+                      "activada": Huella.activada(), "tipo": Huella.tipo()])
     }
 
     /// Activa Face ID. Pide la contraseña UNA vez y, antes de guardarla,
@@ -551,9 +552,13 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         if let escrita = call.getString("contrasena") { return alTener(escrita) }
         if call.getBool("huella") != true { return call.reject("Falta la contraseña.") }
         if !Huella.activada() { return call.reject("La identificación no está activada.") }
+        // El texto del dialogo de Face ID lo pone la pantalla, que es la que sabe en
+        // que idioma esta la app -se elige DENTRO de Koberlet, no en el iPhone-. Si
+        // no lo manda, se queda el de aqui: en castellano, pero nunca vacio.
+        let loQuePone = call.getString("motivo").flatMap { $0.isEmpty ? nil : $0 } ?? titulo
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                alTener(try Huella.recuperar(titulo))
+                alTener(try Huella.recuperar(loQuePone))
             } catch let e as FalloBoveda {
                 call.reject(e.mensaje)
             } catch {

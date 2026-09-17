@@ -14,6 +14,7 @@ import { enviarComando, esperarResultado } from './lib/kda.js';
 import { boveda } from './boveda/contrato.js';
 import { selectorCartera } from './cartera-activa.js';
 import { t, locale } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { pasos, parteDelNodo } from './pasos.js';
 import { lineaCopiable } from './copiable.js';
 import { recorta } from './cifras.js';
@@ -165,6 +166,7 @@ function botonesPlan(p, raiz, ctx, kda) {
     c.style.marginTop = '8px';
     const salida = elemento('div');
     const fila = elemento('div', null, 'fila-campo');
+    let enMarcha = false;
 
     const boton = (texto, clase, alPulsar) => {
         const b = document.createElement('button');
@@ -244,13 +246,19 @@ function botonesPlan(p, raiz, ctx, kda) {
             if (!b || !b.activada) return;
             const h = document.createElement('button');
             h.className = 'secundario';
-            h.textContent = t('Firmar con huella');
+            h.textContent = t('Firmar con {0}', nombreBio(b));
             h.addEventListener('click', () => mandar({ huella: true }, accion, cantidad));
             salida.append(h);
         }).catch(() => { /* si no se puede preguntar, se firma con la contraseña */ });
     }
 
     async function mandar(comoFirmar, accion, cantidad) {
+        // Mientras esto corre, los botones del plan se apagan: «Cerrar» a mitad de
+        // una recarga borraba la escalera de pasos y empezaba otra operacion con el
+        // dinero de la primera todavia en el aire.
+        if (enMarcha) return;
+        enMarcha = true;
+        fila.querySelectorAll('button').forEach((b) => { b.disabled = true; });
         salida.innerHTML = '';
         // La escalera de pasos: con el dinero en el aire hay que ver por dónde va.
         // Ver `pasos.js` para el porqué.
@@ -308,6 +316,9 @@ function botonesPlan(p, raiz, ctx, kda) {
             // dinero llegó a salir o no.
             esc.falla();
             detras.append(elemento('p', t(String(e.message || e)), 'malo'));
+        } finally {
+            enMarcha = false;
+            fila.querySelectorAll('button').forEach((b) => { b.disabled = false; });
         }
     }
 }
@@ -453,14 +464,27 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         resumen.textContent = t('Salen {0} compras de {1} {2}, una cada {3}: {4} en total. El servicio se lleva el 0,5 % de cada compra, unos {5} {2}.',
             compras, numero(cuota.input.value), entra().simbolo, duracion(cada.sel.value), duracionTotal(segundos), numero(comision, 4));
     };
-    bote.input.addEventListener('input', resumir);
-    cuota.input.addEventListener('input', resumir);
+    // Un error de hace dos toques no puede seguir en pantalla cuando el plan ya es
+    // otro: se queda contradiciendo a lo que se esta mirando. Se borra en cuanto se
+    // cambia algo -el sentido, el bote, la cuota o el periodo-, salvo si hay una
+    // firma en marcha, porque ahi lo que hay en `salida` es la escalera de pasos y
+    // eso NO se toca mientras el dinero esta en el aire.
+    // Lo aviso un probador el 17/09/2026: «al cambiar el sentido el error deberia
+    // desaparecer».
+    let enMarcha = false;
+    const olvidarAviso = () => { if (!enMarcha) salida.innerHTML = ''; };
+
+    bote.input.addEventListener('input', () => { olvidarAviso(); resumir(); });
+    cuota.input.addEventListener('input', () => { olvidarAviso(); resumir(); });
+    cada.sel.addEventListener('change', olvidarAviso);
     resumir();
     pintaSaldo();
 
     girar.addEventListener('click', () => {
+        if (enMarcha) return;          // con una firma en marcha, el plan no cambia
         haciaUsdc = !haciaUsdc;
         pintaPar();
+        olvidarAviso();
         resumir();
         pintaSaldo();
     });
@@ -501,13 +525,19 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
             if (!b || !b.activada) return;
             const h = document.createElement('button');
             h.className = 'secundario';
-            h.textContent = t('Firmar con huella');
+            h.textContent = t('Firmar con {0}', nombreBio(b));
             h.addEventListener('click', () => mandar({ huella: true }, dep, cuo));
             salida.append(h);
         }).catch(() => { /* si no se puede preguntar, se firma con la contraseña */ });
     }
 
     async function mandar(comoFirmar, dep, cuo) {
+        // Dos toques seguidos no son dos planes: el bote entero se ingresa al
+        // crearlo, asi que firmar dos veces cuesta el doble de dinero.
+        if (enMarcha) return;
+        enMarcha = true;
+        crear.disabled = true;
+        girar.disabled = true;
         salida.innerHTML = '';
         // La escalera de pasos: con el dinero en el aire hay que ver por dónde va.
         // Ver `pasos.js` para el porqué.
@@ -559,6 +589,13 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         } catch (e) {
             esc.falla();
             detras.append(elemento('p', t(String(e.message || e)), 'malo'));
+        } finally {
+            // Se suelta el cerrojo pase lo que pase: si salio bien, para poder crear
+            // otro plan; y si se torcio, para poder reintentarlo. La escalera de pasos
+            // se queda puesta hasta que se cambie algo del plan.
+            enMarcha = false;
+            crear.disabled = false;
+            girar.disabled = false;
         }
     }
 

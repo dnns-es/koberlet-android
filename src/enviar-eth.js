@@ -28,6 +28,7 @@
 
 import { boveda } from './boveda/contrato.js';
 import { t } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { pasos, parteDelNodo } from './pasos.js';
 import { lineaCopiable } from './copiable.js';
 import { contactosDe, guardarContacto, nombreDe } from './agenda.js';
@@ -396,21 +397,29 @@ function pintarConfirmacion(raiz, ctx, envio) {
     enviar.textContent = t('Firmar y enviar');
     enviar.addEventListener('click', () => mandar({ contrasena: i.value }));
 
+    let conBio = null;
+    let enMarcha = false;
     boveda.bioEstado().then((bio) => {
         if (!bio || !bio.activada) return;
-        const conHuella = document.createElement('button');
-        conHuella.className = 'secundario';
-        conHuella.textContent = t('Firmar con huella');
-        conHuella.addEventListener('click', () => mandar({ huella: true }));
-        enviar.after(conHuella);
-        l.textContent = t('Contraseña de la cartera (o firma con huella)');
-    }).catch(() => { /* sin huella, todo sigue como siempre */ });
+        conBio = document.createElement('button');
+        conBio.className = 'secundario';
+        conBio.textContent = t('Firmar con {0}', nombreBio(bio));
+        conBio.addEventListener('click', () => mandar({ huella: true }));
+        conBio.hidden = enMarcha;   // si la firma ya iba, este botón no aparece
+        enviar.after(conBio);
+        l.textContent = t('Contraseña de la cartera (o firma con {0})', nombreBio(bio));
+    }).catch(() => { /* sin identificación, todo sigue como siempre */ });
 
     async function mandar(comoFirmar) {
+        // Dos toques no son dos envios: el de la contraseña se escondia y el de la
+        // identificacion se quedaba puesto (visto 17/09/2026).
+        if (enMarcha) return;
+        enMarcha = true;
         estado.innerHTML = '';
         // Los botones DESAPARECEN mientras esto corre, no se quedan grises: un botón
         // gris sigue pareciendo el sitio donde hay que pulsar.
         enviar.hidden = true;
+        if (conBio) conBio.hidden = true;
         atras.disabled = true;
 
         const p = pasos([
@@ -465,7 +474,11 @@ function pintarConfirmacion(raiz, ctx, envio) {
             // entre que el dinero haya salido o no.
             p.falla();
             detras.append(elemento('p', t(String(e.message || e)), 'malo'));
+            // Aqui no ha salido nada: se puede reintentar, asi que vuelven los dos
+            // botones de firmar y se suelta el cerrojo.
+            enMarcha = false;
             enviar.hidden = false;
+            if (conBio) conBio.hidden = false;
         } finally {
             atras.disabled = false;
         }

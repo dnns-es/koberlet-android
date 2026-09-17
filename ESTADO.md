@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-17 · Versión publicada: **0.55.0** (hash cotejado por HTTPS y mismo certificado que la 0.54.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-17 · Versión publicada: **0.56.0** (hash cotejado por HTTPS y mismo certificado que la 0.55.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -136,6 +136,51 @@ El navegador es para la primera instalación.
     versión aceptada. Y con la 1.1 se vio funcionar el mecanismo: el aparato tenía
     aceptada la 1.0 y **la puerta volvió a salir sola**.
 
+
+## 0.56.0 (17/09/2026) — las cinco notas del probador del iPad
+
+Cinco avisos por TestFlight, desde un iPad con la 0.55.0 (build 6). Los cinco eran
+ciertos y los cinco están arreglados.
+
+**Lo que costaba dinero.** El botón de firmar con la huella o la cara **se quedaba
+puesto** mientras la transacción estaba en el aire: `enviar.js` y `enviar-eth.js`
+escondían el de la contraseña y se olvidaban del otro, que además se añade
+**después** -sale de una promesa-, así que también podía aparecer con la firma ya
+empezada. Se podía firmar el mismo envío dos veces. Ahora hay un cerrojo
+(`enMarcha`), los dos botones se esconden, y si la respuesta de `bioEstado()` llega
+tarde el botón nace escondido. Se suelta solo cuando el fallo permite reintentar.
+
+Lo mismo en el DCA: `Crear el plan` ingresa el bote **entero**, así que firmarlo dos
+veces cuesta el doble. Y los botones de un plan vivo (`Parar`, `Recargar`, `Cerrar`)
+se apagan mientras corre la operación: «Cerrar» a mitad de una recarga borraba la
+escalera de pasos y empezaba otra cosa con el dinero de la primera en el aire.
+
+**El comprobador del puente.** En el historial, el botón «Comprobar si ya llegó»
+salía en **todos** los apuntes. Pregunta por el mensaje del puente usando la
+referencia de Kadena, y en un envío de vuelta lo guardado es el hash de Ethereum:
+contestaba que el identificador no tenía buena pinta. Ahora solo sale donde puede
+contestar —Kadena → Ethereum y sin entregar—, el resto lleva una línea que dice
+dónde mirar, y el estado se cuenta en el sentido del viaje («Salió de Ethereum» y no
+«Salió de Kadena» al revés).
+
+**«Huella» en un aparato sin lector de huella.** En un iPhone o un iPad lo que hay
+es Face ID. El nombre no se adivina por la plataforma: lo dice el sistema
+(`LAContext.biometryType` en iOS, lo que declare tener el aparato en Android),
+llega en `bioEstado().tipo` y lo traduce `src/biometria.js` a «Face ID», «Touch ID»
+o «la huella». Trece frases pasan a llevar `{0}`. Face ID y Touch ID no se traducen.
+
+**El diálogo del sistema salía en castellano.** Ese texto lo pinta iOS o Android, y
+venía escrito a pelo dentro de Kotlin y de Swift: con la app en inglés salía en
+castellano igual. Ahora lo manda la pantalla ya traducido (`boveda/nativa.js`, un
+`motivo` por método), y el nativo solo lo usa si llega. El de antes se queda como
+respaldo. Se escapaba de la prueba de traducciones porque esas frases no acaban en
+punto, que es lo que la heurística buscaba en las cadenas nativas.
+
+`test/identificacion.test.js` (7 pruebas) vigila las cuatro cosas. APK
+`4aad36ac762dc20e2271a69ae1be83986d3edfb1293b3fdd0800f61847971353`, versionCode
+5600, certificado idéntico al de la 0.55.0.
+
+---
 
 ## 0.55.0 (17/09/2026) — el historial del DCA, detrás de su botón
 

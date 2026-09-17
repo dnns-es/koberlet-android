@@ -14,6 +14,7 @@
 // que se le rompe el movil, y a esas alturas ya no hay nada que hacer.
 
 import { boveda, contrasenaDebil, MIN_CONTRASENA } from './boveda/contrato.js';
+import { nombreBio } from './biometria.js';
 import { t, locale, idiomaActual, fijarIdioma } from './idioma.js';
 import { selectorRed } from './cartera-activa.js';
 import { REDES_KDA, CHAINS } from './config.js';
@@ -71,7 +72,7 @@ function campoClave(etiqueta, id) {
     ojo.type = 'button';
     ojo.className = 'ojo';
     ojo.textContent = '👁';
-    ojo.setAttribute('aria-label', 'Ver u ocultar la contraseña');
+    ojo.setAttribute('aria-label', t('Ver u ocultar la contraseña'));
     ojo.addEventListener('click', () => {
         i.type = i.type === 'password' ? 'text' : 'password';
         ojo.textContent = i.type === 'password' ? '👁' : '🙈';
@@ -425,7 +426,7 @@ export function pintarDesbloqueo(raiz, { motor, alTerminar, avisoCierre = null }
     // app falsa. Lo pide quien quiere entrar.
     boveda.bioEstado().then((bio) => {
         if (!bio || !bio.activada) return;
-        const conHuella = boton(t('Abrir con huella'), async () => {
+        const conHuella = boton(t('Abrir con {0}', nombreBio(bio)), async () => {
             conHuella.disabled = true;
             try {
                 const { cuentas } = await boveda.abrirConHuella();

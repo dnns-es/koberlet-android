@@ -26,6 +26,7 @@ import { selectorCartera, selectorDestino, cuentaElegida } from './cartera-activ
 import { enviarComando, esperarResultado } from './lib/kda.js';
 import { boveda } from './boveda/contrato.js';
 import { t, locale } from './idioma.js';
+import { nombreBio } from './biometria.js';
 import { recorta } from './cifras.js';
 import { pasos, parteDelNodo } from './pasos.js';
 import { lineaCopiable } from './copiable.js';
@@ -327,7 +328,7 @@ function bloqueViaje(raiz, ctx) {
             if (!e || !e.activada) return;
             const h = document.createElement('button');
             h.className = 'secundario';
-            h.textContent = t('Firmar con huella');
+            h.textContent = t('Firmar con {0}', nombreBio(b));
             h.addEventListener('click', () => viajar({ huella: true }));
             salida.append(h);
         }).catch(() => { /* si no se puede preguntar, queda la contraseña */ });
@@ -802,10 +803,25 @@ function enLlano(motivo) {
 
 // --- Historial ---------------------------------------------------------------
 
-/** Cómo se lee cada estado, en persona. */
+/**
+ * ¿Este apunte salió de Ethereum hacia Kadena? Los de vuelta se guardaron con
+ * `red: 'ethereum'`; los de ida, con el networkId de Kadena.
+ */
+const desdeEthereum = (e) => e.red === 'ethereum';
+
+/**
+ * Cómo se lee cada estado, en persona. Y en el sentido que toca: un apunte de
+ * vuelta no «salió de Kadena», salió de Ethereum, y decirlo al revés hace dudar
+ * de un envío que está bien.
+ */
 function comoVa(e) {
-    if (e.estado === 'entregado') return { txt: t('Entregado en Ethereum'), clase: 'bueno-fuerte' };
-    if (e.estado === 'en-bloque') return { txt: t('Salió de Kadena'), clase: null };
+    const deEth = desdeEthereum(e);
+    if (e.estado === 'entregado') {
+        return { txt: deEth ? t('Entregado en Kadena') : t('Entregado en Ethereum'), clase: 'bueno-fuerte' };
+    }
+    if (e.estado === 'en-bloque') {
+        return { txt: deEth ? t('Salió de Ethereum') : t('Salió de Kadena'), clase: null };
+    }
     if (e.estado === 'fallo') return { txt: t('Lo rechazó el contrato'), clase: 'malo' };
     if (e.estado === 'sin-saber') return { txt: t('Sin confirmar'), clase: 'malo' };
     return { txt: t('Mandado al nodo'), clase: 'nota' };
@@ -846,7 +862,24 @@ function hojaHistorial(ctx) {
         const est = comoVa(e);
         f.append(elemento('p', est.txt, est.clase));
         if (e.destino) f.append(elemento('div', t('Hacia {0}', e.destino), 'dir'));
-        f.append(lineaCopiable(t('Referencia de la transacción'), e.rk));
+        f.append(lineaCopiable(
+            desdeEthereum(e) ? t('Transacción en Ethereum') : t('Referencia de la transacción'),
+            e.rk));
+
+        // El comprobador es SOLO del viaje Kadena -> Ethereum: pregunta por el
+        // mensaje del puente usando la referencia de Kadena. En un apunte de vuelta
+        // lo que hay guardado es el hash de Ethereum, y al pulsar contestaba que el
+        // identificador no tiene buena pinta -un probador se lo encontro el
+        // 17/09/2026-. Y en uno ya entregado no queda nada que preguntar.
+        if (desdeEthereum(e)) {
+            f.append(elemento('p', t('Esto vino de Ethereum. Cuando el relayer lo entregue, aparece en la chain 2 de esa cuenta de Kadena: aquí no hay nada que comprobar.'), 'nota'));
+            hoja.append(f);
+            return;
+        }
+        if (e.estado === 'entregado') {
+            hoja.append(f);
+            return;
+        }
 
         const dice = elemento('p', '', 'nota');
         f.append(dice, boton(t('Comprobar si ya llegó'), async (ev) => {
