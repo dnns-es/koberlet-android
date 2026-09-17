@@ -86,6 +86,30 @@ financieras** hay que declarar qué tipo de app financiera es.
 | ¿Eres un exchange de criptomonedas? | **NO** — ver el razonamiento de abajo |
 | ¿Minas criptomonedas en el dispositivo? | **NO** |
 
+### Lo que se marcó de verdad en la Consola (17/09/2026)
+
+En **Contenido de la aplicación → Funciones financieras**, dentro de *Trading y
+fondos*, se marcó **solo «Cartera de criptomonedas»**. No se marcó «Mercado de
+criptomonedas», que es el *crypto exchange* al que Google exige registro MiCA/CASP.
+
+Y se marcó **«Otro»**, que abre un campo de texto libre, para **contar el swap por
+delante en vez de esperar a que lo encuentre el revisor**. Ese es el punto: declarar
+solo «monedero» y que luego vean el intercambio parece ocultación, y la ocultación
+es lo que pone en riesgo **la cuenta**, no solo la app. Contándolo, el peor caso es
+que rechacen la app, que es el escenario que ya estaba aceptado.
+
+El texto, en inglés porque el equipo de revisión trabaja en inglés:
+
+```
+The wallet also lets the user sign three kinds of on-chain operations, all of them non-custodial:
+
+1. Token swaps executed by public AMM smart contracts (Kadena DEX, Uniswap on Ethereum).
+2. A bridge to move assets between Kadena and Ethereum.
+3. Scheduled recurring buys (DCA) run by a public smart contract.
+
+Koberlet is not an exchange. It never takes custody of funds, holds no order book and is never a counterparty. Private keys stay encrypted on the device and never leave it. The app builds the transaction, signs it locally and sends it to a public node; the swap itself is executed by a smart contract that anyone can inspect on-chain. No Koberlet server takes part in any of this.
+```
+
 ### Cómo se sostiene ese "NO", si preguntan
 
 Decidido el 17/09/2026: **se envía la app completa y se declara lo que es.** El
