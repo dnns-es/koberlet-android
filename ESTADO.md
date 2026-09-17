@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-17 · Versión publicada: **0.54.0** (hash cotejado por HTTPS y mismo certificado que la 0.53.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-17 · Versión publicada: **0.55.0** (hash cotejado por HTTPS y mismo certificado que la 0.54.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -136,6 +136,29 @@ El navegador es para la primera instalación.
     versión aceptada. Y con la 1.1 se vio funcionar el mecanismo: el aparato tenía
     aceptada la 1.0 y **la puerta volvió a salir sola**.
 
+
+## 0.55.0 (17/09/2026) — el historial del DCA, detrás de su botón
+
+Entrar en **Compras periódicas** abría la lista de planes, y esa lista obliga a
+preguntar a la cadena: la pantalla se quedaba esperando para enseñar algo que casi
+nunca se venía a ver, porque a esa sección se entra **a crear un plan**.
+
+- La lista pasa detrás del botón **«Historial»**, arriba a la derecha, con la misma
+  cabecera que el Puente (la clase CSS `cab-puente` pasa a llamarse `cab-seccion`,
+  que ahora comparten las dos pantallas).
+- Al volver de **parar, reanudar, recargar o cerrar** un plan la lista se abre sola:
+  es lo que se estaba mirando, y cerrarla escondería el resultado
+  (`pintarDca(raiz, ctx, { verPlanes: true })`).
+- Lo que **no** se esconde es el aviso de **contrato parado**: con el contrato
+  parado un plan nuevo no compra nada, así que ese aviso hace falta justo donde se
+  crea el plan. Se pregunta aparte al entrar, y si la consulta falla no se inventa
+  ningún aviso.
+
+Nada más cambia: el Mercado, las comisiones, la bóveda y las firmas siguen igual.
+APK `8af7167c7848308bdb2de19a577d9398b9f7e035e6edb86eb8e778c90fe1e1f7`,
+versionCode 5500, certificado idéntico al de la 0.54.0.
+
+---
 
 ## 0.54.0 (16/09/2026) — el Mercado también sostiene la app, en las dos redes
 
