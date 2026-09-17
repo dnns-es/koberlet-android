@@ -280,6 +280,18 @@ final class FirmaKdaTests: XCTestCase {
         XCTAssertNoThrow(try cambio(cantidad: "99.5", comision: "0.5"))     // el 0,5 % justo
     }
 
+    func testElCeroDeLaDerechaNoAbreLaMano() {
+        // Aquí falló de verdad: `Decimal` normaliza y «1.0» pierde su decimal, así que
+        // el tope se redondeaba a la unidad y una comisión del 9 % colaba. Los decimales
+        // se cuentan en el texto, que es lo que también hace Kotlin.
+        for (entra, cuota) in [("10", "1.0"), ("10", "0.50"), ("100", "5.00"), ("1", "1.000")] {
+            XCTAssertThrowsError(try cambio(cantidad: entra, comision: cuota),
+                                 "\(cuota) sobre \(entra) no es el 0,5 %")
+        }
+        // Y con el cero de la derecha puesto, lo que sí toca se sigue firmando.
+        XCTAssertNoThrow(try cambio(cantidad: "99.50", comision: "0.50"))
+    }
+
     // --- Puente y DCA: lo que acota -------------------------------------------
 
     func testDestinoEvmSonLos32BytesAlineados() throws {
