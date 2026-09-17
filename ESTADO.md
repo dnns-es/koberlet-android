@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-16 · Versión publicada: **0.53.0** (hash y firma cotejados por HTTPS) · En preparación: **0.54.0** · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-17 · Versión publicada: **0.54.0** (hash cotejado por HTTPS y mismo certificado que la 0.53.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -184,6 +184,13 @@ Los vectores de `SwapEvmTest.kt` y `SwapEvmTests.swift` se han vuelto a generar 
 **ethers v6**, que es el contraste de fuera de siempre.
 
 En el móvil, **sin probar todavía**.
+
+APK `koberlet-0.54.0.apk`, SHA-256 `e9a77b18de934710c5048a55264d7feb343ac09d1ed6e42194dc1e96dee9c25e`,
+versionCode 5400. Publicado el 17/09/2026 con las **políticas 1.2 ya en la web antes que la
+app**, para que nadie se encontrara una comisión que las políticas todavía no mencionaban.
+Comprobado por HTTPS: el hash del APK descargado cuadra con el compilado, `latest.json`
+apunta a él y el certificado de firma es **el mismo** que el de la 0.53.0 (de lo contrario
+Android se negaría a actualizar). En iPhone, TestFlight tiene la 0.54.0 (build 5) válida.
 
 **iPhone: la versión mínima sube a iOS 15.** Apple avisó tras la subida de la 0.53.0
 (ITMS-90068): desde la primavera de 2027 no acepta binarios con menos de 15.0. No es un
