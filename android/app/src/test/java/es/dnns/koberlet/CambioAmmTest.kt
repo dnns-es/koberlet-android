@@ -216,6 +216,22 @@ class CambioAmmTest {
     }
 
     @Test
+    fun `el cero de la derecha no abre la mano`() {
+        // El gemelo de Swift falló justo aquí: `Decimal` normaliza y «1.0» perdía su
+        // decimal, con lo que el tope se redondeaba a la unidad y una comisión del 9 %
+        // colaba. Aquí `BigDecimal` conserva la escala, pero el caso se fija en los dos
+        // para que no vuelvan a separarse.
+        for ((entra, cuota) in listOf("10" to "1.0", "10" to "0.50", "100" to "5.00", "1" to "1.000")) {
+            try {
+                firmado(cantidad = entra, comision = cuota)
+                fail("$cuota sobre $entra no es el 0,5 %")
+            } catch (e: IllegalArgumentException) { /* eso se quería */ }
+        }
+        // Y con el cero de la derecha puesto, lo que sí toca se sigue firmando.
+        firmado(cantidad = "99.50", comision = "0.50")
+    }
+
+    @Test
     fun `el 0,5 por ciento justo si se firma`() {
         // 99,5 al pool + 0,5 de comision = 100 entregados: exactamente el 0,5 %.
         val data = cmdDe(firmado(cantidad = "99.5", comision = "0.5"))

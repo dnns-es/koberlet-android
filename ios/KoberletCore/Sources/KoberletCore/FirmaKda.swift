@@ -311,9 +311,15 @@ public enum FirmaKda {
         if cuotaD < 0 { throw FalloBoveda.argumento("La comisión no puede ser negativa.") }
         let hayComision = cuotaD > 0
         if hayComision {
+            // Los decimales se cuentan EN EL TEXTO, no en el `Decimal`: Foundation
+            // normaliza y «1.0» se le queda en exponente 0, con lo que el tope se
+            // redondeaba a la unidad y una comisión del 9 % pasaba el filtro. El
+            // BigDecimal de Kotlin sí conserva el cero, así que los gemelos no se
+            // comportaban igual. Lo cazó `testUnaComisionDeMasNoSeFirma`.
+            let decimales = cuota.contains(".") ? cuota.split(separator: ".")[1].count : 0
             var tope = ((Decimal(string: entra) ?? 0) + cuotaD) * comisionTope
             var topeRedondeado = Decimal()
-            NSDecimalRound(&topeRedondeado, &tope, -cuotaD.exponent, .up)
+            NSDecimalRound(&topeRedondeado, &tope, decimales, .up)
             if cuotaD > topeRedondeado {
                 throw FalloBoveda.argumento("La comisión no puede ser mayor que la parte que le toca.")
             }
