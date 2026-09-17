@@ -894,11 +894,37 @@ function tarjetaCartera(grupo) {
 
     (async () => {
         try {
-            const [saldo, tokens] = await Promise.all([
-                saldoKda(kda.cuenta, { nodo: redActiva.nodo, networkId: redActiva.networkId, chains: CHAINS }),
-                saldoTokens(kda.cuenta, { nodo: redActiva.nodo, networkId: redActiva.networkId, tokens: tokensDeRed(redActiva), chains: CHAINS }),
-            ]);
+            // EL KDA NO ESPERA A LOS TOKENS. Los dos iban juntos en un Promise.all
+            // y eso ataba el numero grande al mas lento: el KDA son 20 peticiones
+            // -una por chain- y cada token de la red son otras 20. Con los dos de
+            // fabrica son 60, y el nodo las atiende casi en fila: medido contra
+            // api.chainweb-community.org el 17/09/2026, una tarda 371 ms, las 20
+            // del KDA 2,4 s y las 60 juntas 10,4 s. Diez segundos de «Consultando
+            // el saldo…» con el total ya sabido a los dos.
+            //
+            // Se pide a la vez -la peticion sale ya, no se pierde tiempo- pero
+            // solo se ESPERA al KDA. Los tokens entran por su .then() cuando
+            // lleguen, igual que el precio, el puente y los del historial, que ya
+            // funcionaban asi. Este era el unico que bloqueaba.
+            const pedirTokens = saldoTokens(kda.cuenta, {
+                nodo: redActiva.nodo, networkId: redActiva.networkId,
+                tokens: tokensDeRed(redActiva), chains: CHAINS,
+            });
+            const saldo = await saldoKda(kda.cuenta, { nodo: redActiva.nodo, networkId: redActiva.networkId, chains: CHAINS });
             const chs = Object.keys(saldo.porChain).map(Number).sort((a, b) => a - b);
+
+            // Lo que se puede enviar, que se va llenando según llega. El KDA
+            // primero porque es lo que se manda el 90 % de las veces; los demás en
+            // el orden en que aparecen.
+            //
+            // Se declara AQUI y no mas abajo a proposito: `abrirEnvio` lo usa, y
+            // abrirEnvio se llama unas lineas despues si la app se ha abierto
+            // desde un QR de cobro. Estando declarado despues, esa llamada caia en
+            // la zona muerta del const y reventaba la tarjeta entera con un
+            // «Cannot access 'enviables' before initialization». Solo pasaba con
+            // cartera CON saldo -sin saldo se sale antes por el aviso-, que es
+            // justo el caso que no se prueba con una cartera recien creada.
+            const enviables = [{ simbolo: 'KDA', modulo: null, precision: 12, porChain: saldo.porChain }];
 
             // Si NO ha contestado ninguna chain no hay saldo que enseñar: hay un
             // problema de red. Pintar «0 KDA» ahi seria decirle a alguien que su
@@ -1065,11 +1091,6 @@ function tarjetaCartera(grupo) {
             // Todo activo entra por aqui: asi cada linea queda marcada con su
             // simbolo -que es como se le encuentra luego para ponerle el valor- y
             // el total se entera de que existe, sepa o no lo que vale.
-            // Lo que se puede enviar, que se va llenando según llega. El KDA
-            // primero porque es lo que se manda el 90 % de las veces; los demás en
-            // el orden en que aparecen.
-            const enviables = [{ simbolo: 'KDA', modulo: null, precision: 12, porChain: saldo.porChain }];
-
             const añadirActivo = (simbolo, sub, cantidad, porChain = null, envio = null) => {
                 if (envio && envio.modulo && porChain && Object.keys(porChain).length) {
                     enviables.push({ simbolo, modulo: envio.modulo, precision: envio.precision || 12, porChain });
@@ -1110,16 +1131,18 @@ function tarjetaCartera(grupo) {
             lista.append(laKda);
             if (!mudas && saldo.total > 0) enDinero.kdaCantidad = saldo.total;
 
-            // Los puestos a mano se dicen. Un contrato que uno mismo ha pegado
-            // puede devolver el numero que quiera, y en una lista de dinero eso
-            // no puede ir sin etiqueta.
-            tokens.filter((tk) => tk.cantidad > 0)
-                .forEach((tk) => añadirActivo(
-                    tk.simbolo,
-                    tk.propio ? redActiva.nombre + ' · ' + t('puesto por ti') : redActiva.nombre,
-                    tk.cantidad,
-                    tk.porChain,
-                    { modulo: tk.modulo, precision: tk.precision || 12 }));
+            // Los tokens de la red, cuando lleguen. Los puestos a mano se dicen:
+            // un contrato que uno mismo ha pegado puede devolver el numero que
+            // quiera, y en una lista de dinero eso no puede ir sin etiqueta.
+            pedirTokens.then((tokens) => {
+                tokens.filter((tk) => tk.cantidad > 0)
+                    .forEach((tk) => añadirActivo(
+                        tk.simbolo,
+                        tk.propio ? redActiva.nombre + ' · ' + t('puesto por ti') : redActiva.nombre,
+                        tk.cantidad,
+                        tk.porChain,
+                        { modulo: tk.modulo, precision: tk.precision || 12 }));
+            }).catch(() => { /* un token que no contesta no es el saldo: el panel sigue */ });
 
             if (mudas) {
                 // Ninguna respuesta: casi siempre es el móvil, no la cadena. Se
