@@ -3,7 +3,7 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **17/09/2026** · versión **0.55.0** · bundle en `bundle/koberlet-0.55.0-play.aab`
+Estado a **17/09/2026** · versión **0.56.0** · bundle en `bundle/koberlet-0.56.0-play.aab`
 
 ---
 
