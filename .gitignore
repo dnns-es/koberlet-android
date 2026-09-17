@@ -29,3 +29,8 @@ play/bundle/
 *.zip
 pruebas/
 
+
+# Ficheros de usar y tirar para pegar en la Consola de Play. Se generan desde
+# play/FICHA.md, que es el original: si se versionaran, habria dos copias del
+# mismo texto y la de aqui acabaria siendo la vieja sin que nadie se enterase.
+play/PEGAR-*.txt
