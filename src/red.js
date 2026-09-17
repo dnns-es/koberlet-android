@@ -23,6 +23,51 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 // segundo; 20 s es margen de sobra para una red movil mala sin dejar la app colgada.
 const ESPERA_MS = 20000;
 
+// --- Cuantas peticiones pueden ir en el aire A LA VEZ -----------------------
+//
+// Lanzarlas todas de golpe no es mas rapido: es MUCHO mas lento y ademas pierde
+// respuestas. El panel pide el saldo de KDA en las 20 chains y el de cada token
+// de la red en las 20: con los dos de fabrica son 60 peticiones simultaneas.
+// Medido contra api.chainweb-community.org el 17/09/2026, las mismas 60:
+//
+//      4 a la vez -> 2,6 s, 0 fallos      10 a la vez ->  1,8 s, 0 fallos
+//      6 a la vez -> 1,3 s, 0 fallos      16 a la vez ->  0,7 s, 0 fallos
+//      8 a la vez -> 1,1 s, 0 fallos      60 a la vez -> 10,4 s, 6 FALLOS
+//
+// De 4 a 16 va fino; a 60 se desploma. Algo delante del nodo penaliza al cliente
+// que abre demasiadas conexiones a la vez, y de ahi salian las dos quejas que
+// se veian en el movil: que el saldo tardaba una eternidad y que «siempre falla
+// alguna chain». Una chain que no contesta no se pinta como cero -eso ya estaba
+// bien resuelto- pero si como «faltan chains por contestar», que asusta y encima
+// era culpa nuestra.
+//
+// Esto NO estaba roto en la app y luego se arreglo: las 60 peticiones se hacian
+// desde el primer commit. Lo que cambio fue el nodo, que antes aguantaba el
+// aluvion. Por eso el limite se pone aqui, en el unico sitio por donde sale todo,
+// en vez de en quien llama: asi tambien queda protegido lo que se escriba manana.
+//
+// 8 y no 16 a proposito: 16 fue lo mas rapido en la prueba, pero esta mas cerca
+// del escalon y no se sabe donde cae exactamente ni si es el mismo en otro nodo.
+// La diferencia entre 8 y 16 son cuatro decimas; la diferencia entre acertar y
+// pasarse son diez segundos y respuestas perdidas.
+const A_LA_VEZ = 8;
+
+let enElAire = 0;
+const cola = [];
+
+async function pedirTurno() {
+    if (enElAire < A_LA_VEZ) { enElAire++; return; }
+    await new Promise((seguir) => cola.push(seguir));
+    // Al despertar el hueco ya viene contado: quien lo solto nos lo cedio sin
+    // pasar por cero, que si no se colaria otro entre medias.
+}
+
+function soltarTurno() {
+    const siguiente = cola.shift();
+    if (siguiente) siguiente();
+    else enElAire--;
+}
+
 /** ¿Corremos dentro del APK (true) o en el navegador de desarrollo (false)? */
 export function esNativo() {
     return Capacitor.isNativePlatform();
@@ -40,7 +85,18 @@ export function caminoRed() {
  * rechaza un comando ("One or more of the following errors occurred: ..."), y si
  * aqui se hiciera .json() ese motivo se perderia tras un "Unexpected token".
  */
-export async function postJson(url, cuerpo, { esperaMs = ESPERA_MS } = {}) {
+export async function postJson(url, cuerpo, opciones = {}) {
+    await pedirTurno();
+    try {
+        return await postJsonSinCola(url, cuerpo, opciones);
+    } finally {
+        // En el finally y no al terminar bien: un hueco que no se suelta porque
+        // la peticion fallo deja la cola atascada para siempre.
+        soltarTurno();
+    }
+}
+
+async function postJsonSinCola(url, cuerpo, { esperaMs = ESPERA_MS } = {}) {
     const t0 = performance.now();
     const body = JSON.stringify(cuerpo);
 
@@ -87,7 +143,16 @@ export async function postJson(url, cuerpo, { esperaMs = ESPERA_MS } = {}) {
  * WebView. Todo lo que ahi pedia por su cuenta (metadatos de piezas, pasarelas
  * ipfs, el historial de kdaindex) pasa por aqui cuando se porte.
  */
-export async function getTexto(url, { esperaMs = ESPERA_MS } = {}) {
+export async function getTexto(url, opciones = {}) {
+    await pedirTurno();
+    try {
+        return await getTextoSinCola(url, opciones);
+    } finally {
+        soltarTurno();
+    }
+}
+
+async function getTextoSinCola(url, { esperaMs = ESPERA_MS } = {}) {
     const t0 = performance.now();
 
     if (esNativo()) {
