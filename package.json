@@ -14,7 +14,10 @@
     "build:play": "vite build --mode play && cap sync android",
     "build:ios": "vite build --mode ios && cap sync ios",
     "apk:directa": "npm run build:directa && node herramientas/gradle.js assembleDirectaRelease",
-    "aab:play": "npm run build:play && node herramientas/gradle.js bundlePlayRelease"
+    "aab:play": "npm run build:play && node herramientas/gradle.js bundlePlayRelease",
+    "_comment_play_api": "Publicar en Google Play sin abrir la Consola, con la cuenta de servicio koberlet-publisher. 'play:subir internal' manda el .aab recien compilado al canal de probadores internos; para la prueba cerrada que cuenta para los 14 dias hay que usar 'alpha'. Explicado en play/PUBLICAR.md, punto 13.",
+    "play:estado": "node herramientas/play-api.js estado",
+    "play:subir": "node herramientas/play-api.js subir"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -32,6 +35,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
+    "googleapis": "^181.0.0",
     "vite": "^7.1.0"
   }
 }

@@ -3,7 +3,7 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **15/09/2026** · versión **0.52.2** · bundle en `bundle/koberlet-0.52.2-play.aab`
+Estado a **17/09/2026** · versión **0.55.0** · bundle en `bundle/koberlet-0.55.0-play.aab`
 
 ---
 
@@ -17,12 +17,14 @@ Estado a **15/09/2026** · versión **0.52.2** · bundle en `bundle/koberlet-0.5
 | 4 | Icono 512×512 y gráfico 1024×500 | ✅ generados |
 | 5 | Textos de la ficha | ✅ escritos (`FICHA.md`) |
 | 6 | Formulario de Seguridad de los Datos | ✅ respondido (`SEGURIDAD-DATOS.md`) |
-| 7 | Firma de la app | ✅ keystore listo — ⚠️ **leer el punto 7, tiene trampa** |
+| 7 | Firma de la app | ✅ **hecho** — Play firma con la clave de DNNS (ver punto 7) |
 | 8 | Actualización OTA incompatible con Play | ✅ resuelto con dos canales |
 | 9 | Capturas de pantalla | ⏳ **faltan** — hay que hacerlas en el móvil |
 | 10 | Swaps / puente / DCA | 🛑 **decisión pendiente** — puede tumbar el envío |
-| 11 | Cuenta de desarrollador y verificación | ⏳ pendiente (25 USD) |
+| 11 | Cuenta de desarrollador y verificación | ✅ **hecha y verificada** (oberdnns@gmail.com) |
 | 12 | Prueba cerrada, 12 testers, 14 días | ⏳ pendiente |
+| 13 | App creada en la Consola | ✅ `es.dnns.koberlet` |
+| 14 | Publicación por API sin abrir la Consola | ✅ montada (ver punto 13) |
 
 ---
 
@@ -99,33 +101,48 @@ más común al subir la ficha.
 En `SEGURIDAD-DATOS.md`, campo por campo. La respuesta es que la app no recoge
 ni comparte datos, y ahí está el razonamiento por si alguien pregunta.
 
-## 7. Firma de la app ⚠️ — esto tiene trampa y es importante
+## 7. Firma de la app ✅ — resuelto el 17/09/2026
 
-El keystore existe y está bien: `.keys/koberlet-release.jks`, RSA 4096, válido
-hasta **2056** (Play exige que pase de octubre de 2033). Firma v1+v2+v3.
+**Ya está hecho y verificado.** Play firma con la clave de DNNS, no con una suya,
+así que los dos canales quedan intercambiables y nadie va a perder una bóveda por
+cambiarse de uno a otro.
 
-**El problema:** al crear la app en Play, Google activa *Play App Signing* y por
-defecto **genera su propia clave**. Si se acepta eso:
+Cómo se comprobó, que en esto no vale fiarse del mensaje de «guardado»: se sacó la
+huella del certificado del keystore local con `keytool` y se cotejó con la que
+enseña la Consola en *Clave de firma de aplicación*. Coinciden las dos:
 
-- El APK que Play instala va firmado por Google.
-- El APK de `descargas.dnns.es` va firmado por ti.
-- Android **no deja instalar uno encima del otro**: firmas distintas.
+```
+SHA-1    AE:AE:6D:26:5E:A0:31:09:11:5E:6D:5B:52:84:64:F4:40:31:BC:A5
+SHA-256  75:19:4F:6A:46:4D:0E:58:72:72:9D:E5:E5:F3:FE:A9:A1:3E:27:D7:FD:04:2A:95:16:58:91:D3:12:3E:88:9B
+```
 
-O sea: quien tenga la versión de tu web instalada no podrá pasarse a la de Play
-sin desinstalar, y desinstalar **borra la bóveda**. Y al revés igual. Con los dos
-canales funcionando en paralelo, eso es un problema de verdad, no teórico.
+Detalle de cómo fue, por si hay que repetirlo en otra app: al crear la app, Google
+**ya había generado su propia clave** por defecto. Se cambió desde *Protegida con
+Play → Protección de Play Store → Gestiona la firma de aplicaciones de Play →
+Cambiar clave → Exportar y subir una clave del almacén de claves de Java*, con el
+ZIP de PEPK. Se pudo cambiar porque la base instalada era 0 %; con usuarios ya
+dentro, esto no se toca.
 
-**Qué hacer, al crear la app y no después** (esto no se puede cambiar luego):
+No se generó clave de subida aparte (paso 5 del asistente, opcional): se firma y se
+sube con la misma, que es lo que mantiene simple el canal directo.
 
-En la Consola, en **Configuración → Firma de aplicaciones**, elegir
-**«Exportar y subir una clave desde un almacén de claves Java»** y subir
-`koberlet-release.jks`. Así Google firma con TU clave y los dos canales quedan
-intercambiables.
+El keystore: `.keys/koberlet-release.jks`, RSA 4096, válido hasta **2056** (Play
+exige que pase de octubre de 2033). Firma v1+v2+v3.
 
-Se genera con la herramienta PEPK que la propia Consola te da:
+**Por qué importaba tanto:** si se hubiera aceptado la clave de Google, el APK que
+instala Play y el de `descargas.dnns.es` irían firmados por manos distintas, y
+Android **no deja instalar uno encima del otro**. Quien tuviera uno no podría
+pasarse al otro sin desinstalar, y desinstalar **borra la bóveda**. Con los dos
+canales vivos a la vez, eso no era un riesgo teórico.
+
+El comando de PEPK que se usó, para dejarlo escrito (la clave pública de cifrado
+la da la propia Consola y es de un solo uso, hay que volver a descargarla si se
+repite):
 
 ```bash
-java -jar pepk.jar --keystore=.keys/koberlet-release.jks --alias=koberlet --output=koberlet-play.zip --encryptionkey=<la_que_te_da_la_consola> --include-cert
+java -jar pepk.jar --keystore=.keys/koberlet-release.jks --alias=koberlet \
+  --output=koberlet-pepk-upload.zip --include-cert \
+  --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
 ```
 
 > Y lo de siempre, que en esto no hay red de seguridad: si se pierde
@@ -195,16 +212,14 @@ decide el revisor.
 que decidir si se manda así o si se hace una variante solo-monedero. La tubería
 de canales ya está montada, así que recortar es rápido si se decide eso.
 
-## 11. Cuenta de desarrollador ⏳
+## 11. Cuenta de desarrollador ✅ — hecha el 17/09/2026
 
-1. `https://play.google.com/console/signup` — **25 USD**, pago único.
-2. Elegir cuenta **personal**.
-3. **Verificación de identidad: hacerla el primer día.** DNI y tarjeta a nombre
-   legal. Hay 30 días de plazo y si se pasa, la cuenta se bloquea. No hay motivo
-   para dejarlo para después.
-4. El nombre que se ponga como desarrollador **sale público en la ficha**. Para
-   una cuenta personal eso puede ser el nombre real. Conviene pensarlo antes de
-   escribirlo.
+Cuenta **personal**, a nombre de Oberlus, con `oberdnns@gmail.com` como cuenta
+propietaria (ojo: eso no se puede cambiar después). Identidad ya verificada.
+
+La app está creada en la Consola como **`es.dnns.koberlet`**, que es el mismo
+`applicationId` del `build.gradle`. Tiene que serlo: si no coincide, Play rechaza
+el bundle sin más explicación.
 
 ## 12. Prueba cerrada ⏳
 
@@ -227,6 +242,47 @@ esto se han caído cuentas:
   cuentas de granja son detectables y el resultado es la baja de la cuenta.
 - Guarda constancia de lo que has contratado. Si Google pregunta, tiene que
   cuadrar.
+
+## 13. Publicar por API, sin abrir la Consola ✅
+
+Montado el 17/09/2026 en `herramientas/play-api.js`. Sirve para subir el bundle y
+mirar en qué anda cada canal sin pasar por la web.
+
+```bash
+node herramientas/play-api.js estado            # que hay publicado en cada canal
+node herramientas/play-api.js subir internal    # sube el .aab al canal que se diga
+node herramientas/play-api.js testers alpha     # lo que la API cuenta del canal
+```
+
+Canales: `internal` (probadores propios, llega en minutos, **no** cuenta para los
+14 días), `alpha` (prueba cerrada, la que **sí** cuenta), `beta`, `production`.
+
+Cómo está autenticado: cuenta de servicio `koberlet-publisher` del proyecto de
+Google Cloud `tactical-curve-160511`, con la *Google Play Android Developer API*
+habilitada. La clave privada está en **`.keys/play-service-account.json`**, que no
+se versiona (`.keys/` está en `.gitignore`). Los permisos se dieron a nivel de
+cuenta, no por app, así que valen también para apps futuras:
+
+- Crear, editar y eliminar borradores de aplicaciones
+- Lanzar a producción, excluir dispositivos y usar la firma de Play
+- Lanzar aplicaciones en canales de pruebas
+- Gestionar canales de pruebas y editar listas de testers
+- Gestionar presencia en Play Store
+
+**Deliberadamente NO tiene** ninguno de datos financieros ni de gestión de pedidos:
+si esa clave se filtrara algún día, no da acceso al dinero.
+
+Dos cosas que conviene saber antes de pelearse con ella:
+
+- **Los permisos tardan en propagarse.** Recién invitada la cuenta de servicio, la
+  API contesta `403 The caller does not have permission` aunque en la Consola se
+  vea «Activo». Suelen ser minutos; Google se reserva hasta 24 h. No es un fallo de
+  configuración y no hay nada que arreglar: es esperar.
+- **La API no puede crear la app.** Eso es a mano en la Consola, una vez. Todo lo
+  demás (subir, mover de canal, publicar) sí.
+
+Lo que el script **no** hace, y es a propósito: no toca la ficha ni las capturas.
+Eso se sube una vez y no compensa automatizarlo.
 
 ---
 
