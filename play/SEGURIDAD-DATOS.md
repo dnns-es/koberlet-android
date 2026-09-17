@@ -83,37 +83,39 @@ financieras** hay que declarar qué tipo de app financiera es.
 | ¿Ofrece productos o servicios financieros? | Sí — monedero de criptomonedas |
 | Tipo | **Monedero de software de criptomonedas (no custodial)** |
 | ¿Custodias fondos de los usuarios? | **NO** |
-| ¿Eres un exchange de criptomonedas? | Ver aviso de abajo ⚠️ |
+| ¿Eres un exchange de criptomonedas? | **NO** — ver el razonamiento de abajo |
 | ¿Minas criptomonedas en el dispositivo? | **NO** |
 
-### ⚠️ Lo que hay que decidir antes de enviar
+### Cómo se sostiene ese "NO", si preguntan
+
+Decidido el 17/09/2026: **se envía la app completa y se declara lo que es.** El
+detalle de por qué, y por qué no se recortó, está en `PUBLICAR.md` punto 10.
 
 La app incluye **intercambio (swap) vía DEX, puente entre redes y compras
-programadas (DCA)**. Google clasifica como *exchange de criptomonedas* las apps
-que permiten intercambiar criptomonedas, y a esas les exige acreditar registro
-ante la autoridad competente. En España eso es el registro de proveedores de
-servicios de criptoactivos (MiCA/CASP, Banco de España), que una cuenta
-personal sin sociedad no puede aportar.
+programadas (DCA)**, y eso hay que decirlo sin rodeos si sale el tema. Google
+clasifica como *exchange de criptomonedas* las apps que permiten intercambiar
+criptomonedas, y a esas les exige acreditar registro ante la autoridad
+competente. En España, el registro de proveedores de servicios de criptoactivos
+(MiCA/CASP, Banco de España), que una cuenta personal sin sociedad no puede
+aportar.
 
-Hay un argumento razonable para decir que Koberlet no es un exchange: no
-custodia fondos, no casa órdenes y el intercambio lo ejecuta un contrato
-público en la cadena; la app solo firma. Pero es zona gris y **la decide el
-revisor, no nosotros**.
+El argumento de por qué Koberlet no es eso, en tres puntos que son verificables
+en el código, no opiniones:
 
-Las dos salidas, sin adornos:
+1. **No custodia fondos.** Las claves privadas viven cifradas en la bóveda del
+   propio aparato y no salen de ahí, ni siquiera para firmar. No hay servidor
+   que pueda mover el dinero de nadie.
+2. **No casa órdenes.** No hay libro de órdenes, ni contrapartida, ni liquidez
+   propia. La app no es parte de la operación.
+3. **El intercambio lo ejecuta un contrato público de la cadena.** Koberlet monta
+   la transacción, la firma con la clave del usuario y la manda al nodo. Lo mismo
+   que hace al enviar KDA, solo que el destinatario es un contrato.
 
-1. **Enviar a Play una variante solo-monedero** (guardar, enviar, recibir), sin
-   swap, puente ni DCA, y dejar esas funciones en el APK de
-   `descargas.dnns.es`. Es lo que Google acepta sin discusión. La tubería de
-   canales ya está montada: añadir el recorte es media hora.
-2. **Enviarlo completo** y responder "no soy un exchange". Si el revisor no lo
-   ve igual, es rechazo; y si además considera que la declaración financiera era
-   incorrecta, puede ir contra la cuenta de desarrollador, no solo contra la
-   app.
+Es zona gris y **la decide el revisor**. Si dice que no, el plan es el APK de
+`descargas.dnns.es`, no forzar la máquina.
 
-**El bundle que hay ahora mismo en `play/bundle/` es el completo, con swaps.**
-No se ha recortado nada porque esa decisión no está tomada. Está anotado en
-`PUBLICAR.md` como bloqueo antes del envío.
+**El bundle de `play/bundle/` es el completo, con swaps**, que es lo que se
+manda.
 
 ---
 

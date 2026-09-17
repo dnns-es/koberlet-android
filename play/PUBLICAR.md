@@ -20,7 +20,7 @@ Estado a **17/09/2026** · versión **0.56.0** · bundle en `bundle/koberlet-0.5
 | 7 | Firma de la app | ✅ **hecho** — Play firma con la clave de DNNS (ver punto 7) |
 | 8 | Actualización OTA incompatible con Play | ✅ resuelto con dos canales |
 | 9 | Capturas de pantalla | ⏳ **faltan** — hay que hacerlas en el móvil |
-| 10 | Swaps / puente / DCA | 🛑 **decisión pendiente** — puede tumbar el envío |
+| 10 | Swaps / puente / DCA | ✅ **decidido**: se envía completo, con la verdad por delante |
 | 11 | Cuenta de desarrollador y verificación | ✅ **hecha y verificada** (oberdnns@gmail.com) |
 | 12 | Prueba cerrada, 12 testers, 14 días | ⏳ pendiente |
 | 13 | App creada en la Consola | ✅ `es.dnns.koberlet` |
@@ -196,21 +196,55 @@ un mensaje diciendo qué comando hay que usar.
 Mínimo 2. Hay que hacerlas en el móvil. Instrucciones y avisos en `CAPTURAS.md`
 — sobre todo el de no publicar direcciones reales con saldo.
 
-## 10. Swaps, puente y DCA 🛑 DECISIÓN PENDIENTE
+## 10. Swaps, puente y DCA ✅ — decidido el 17/09/2026
 
-Está explicado en `SEGURIDAD-DATOS.md`, apartado 3. En corto:
+**Se envía la app completa, con swap, puente y DCA, y se declara lo que es.**
+Decisión de Antonio: ir con la verdad por delante y, si Google no la quiere
+publicar, seguir repartiendo por APK desde `descargas.dnns.es`.
 
-Google clasifica como *exchange de criptomonedas* las apps que permiten
-intercambiar cripto, y a esas les pide acreditar registro ante la autoridad
-competente (en España, MiCA/CASP). Una cuenta personal no puede aportarlo.
+El fondo del asunto: Google clasifica como *exchange de criptomonedas* las apps
+que permiten intercambiar cripto, y a esas les pide acreditar registro ante la
+autoridad competente (en España, MiCA/CASP). Una cuenta personal no puede
+aportarlo.
 
-Koberlet no custodia fondos y el intercambio lo hace un contrato en la cadena,
-lo cual es un argumento razonable para decir que no es un exchange. Pero lo
-decide el revisor.
+Lo que se declara, que no es una postura de conveniencia sino lo que hace la app:
+**monedero no custodial, no exchange**. No custodia fondos, no casa órdenes, el
+intercambio lo ejecuta un contrato público de la cadena y la app solo firma. Es
+una lectura defendible, está razonada en `SEGURIDAD-DATOS.md` apartado 3, y si el
+revisor no la comparte el resultado es un rechazo — que se recurre o se acata,
+pero no es falsear una declaración.
 
-**El bundle que hay en `bundle/` lleva los swaps dentro.** Antes de enviarlo hay
-que decidir si se manda así o si se hace una variante solo-monedero. La tubería
-de canales ya está montada, así que recortar es rápido si se decide eso.
+### Por qué no se recortó, que el documento antes decía que era barato
+
+Lo era sobre el papel y no lo es en el código. Las funciones de intercambio no son
+un módulo que se desenchufe:
+
+- ~2.570 líneas de JS en siete módulos (`pantalla-mercado`, `pantalla-puente`,
+  `pantalla-dca`, `mercado-eth`, `mercado-red`, `lado-cambio`, `historial-puente`)
+- `SwapEvm.kt` entero
+- Y, lo que pesa de verdad: `cambioAmm`, `envioPuenteEvm`, `crearPlanDca` y
+  `gestionarPlanDca` viven **dentro de `FirmaKda.kt`**, mezclados con el resto de
+  la firma. Ese es el fichero de las plantillas fijas de Pact y las capabilities
+  acotadas, o sea la pieza que impide que el WebView cuele algo a firmar.
+
+Recortar bien obliga a operar ese fichero, y un fallo ahí no es un rechazo de
+Google: es dinero. Cambiar un riesgo de política por un riesgo de seguridad no
+sale a cuenta cuando el primero se recupera reenviando.
+
+Y esconder solo la interfaz **no vale**: las clases seguirían en el dex, y una
+función oculta pero presente es justo lo que Google llama comportamiento
+engañoso. O se quita de verdad, o se manda entera.
+
+### Si al final la rechazan
+
+El plan B sigue siendo el recorte, pero entonces se hará sabiendo **qué** molestó,
+en vez de adivinando. Y cuesta poco al usuario: como Play y `descargas.dnns.es`
+comparten clave de firma (punto 7), quien quiera el swap puede instalarse el APK
+de la web encima del de Play sin perder la bóveda.
+
+> Eso **no se anuncia en la ficha de Play**. Dirigir a los usuarios fuera de la
+> tienda para conseguir funciones que allí no están es incumplimiento, y sería
+> tropezar en la salida con algo que no hacía falta decir.
 
 ## 11. Cuenta de desarrollador ✅ — hecha el 17/09/2026
 
