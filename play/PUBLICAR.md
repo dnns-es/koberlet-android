@@ -23,7 +23,7 @@ Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.5
 | 9 | Capturas de pantalla | ✅ hechas y subidas (mejorables, ver punto 9) |
 | 10 | Swaps / puente / DCA | ✅ **decidido**: se envía completo, con la verdad por delante |
 | 11 | Cuenta de desarrollador y verificación | ✅ **hecha y verificada** (oberdnns@gmail.com) |
-| 12 | Prueba cerrada, 12 testers, 14 días | ⏳ **en marcha** — 0.56.1 en revisión, faltan testers |
+| 12 | Prueba cerrada, 12 testers, 14 días | ⏳ **12 dentro el 18/09** — se cumplen el 2/10 |
 | 13 | App creada en la Consola | ✅ `es.dnns.koberlet` |
 | 14 | Publicación por API sin abrir la Consola | ✅ montada (ver punto 13) |
 | 15 | Licencias de cripto país por país | ✅ **resuelto** con la exención de cartera sin custodia (punto 14) |
@@ -286,11 +286,19 @@ La app está creada en la Consola como **`es.dnns.koberlet`**, que es el mismo
 `applicationId` del `build.gradle`. Tiene que serlo: si no coincide, Play rechaza
 el bundle sin más explicación.
 
-## 12. Prueba cerrada ⏳ — arrancada el 17/09/2026
+## 12. Prueba cerrada ⏳ — los 12 dentro el 18/09/2026
 
-**Dónde está ahora:** la 0.56.1 (versionCode 5601) está **enviada a revisión** en
-el canal `alpha` («Prueba cerrada - Alpha»), con los 177 países marcados y la
-lista de correo creada. Falta que Google la apruebe y faltan testers.
+**Dónde está ahora:** la 0.56.1 (versionCode 5601) está **publicada y repartida al
+100 %** en el canal `alpha`, y los **12 testers han aceptado**. Google da por
+cumplidos los dos primeros requisitos; queda el tercero, que es solo esperar.
+
+> **El reloj arrancó el 18/09/2026.** Los 14 días se cumplen el **2 de octubre de
+> 2026**, y ese día se puede pulsar *Solicitar acceso a producción*.
+>
+> Lo único que lo puede estropear es que alguien **se salga o desinstale**: el
+> contador vuelve a cero y se empieza otra vez. Conviene avisarlo por escrito al
+> grupo, porque nadie se imagina que desinstalar una app de prueba tenga efecto
+> sobre los demás.
 
 Tres cosas que se aprendieron montándola y que no son evidentes:
 
