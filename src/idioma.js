@@ -1010,6 +1010,14 @@ const EN = {
     'Ahora mismo no hay ningún par con fondo suficiente en este mercado.':
         'Right now there is no pair with enough depth in this market.',
     'Mueves el precio': 'You move the price by',
+    'Comisión de red (gas)': 'Network fee (gas)',
+    'la paga Koberlet': 'paid by Koberlet',
+    'Esa acción sobre el plan no va por la gasolinera.':
+        'That action on the plan does not go through the gas station.',
+    'Esta operación no cabe en el gas que paga la gasolinera.':
+        'This operation does not fit within the gas the station pays.',
+    'La gasolinera solo paga un cambio si lleva la comisión del servicio.':
+        'The gas station only pays for a swap if it carries the service fee.',
     'Pasa por KDA: no hay par directo entre esos dos.':
         'It goes through KDA: there is no direct pair between those two.',
     'esta cuenta no tiene KDA en la chain 2, que es donde está el mercado y de donde sale el gas.':

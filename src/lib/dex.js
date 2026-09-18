@@ -40,6 +40,39 @@ export const CLAVE_KOBERLET = 'e5b947889c87fc5057ed35fa31302f57a248c33d0bbdb20a9
 export const FONDO_MIN = 1000;  // por debajo de esto es un charco y no se lista
 const CHAIN = '2';              // el AMM del fork vive en la chain 2
 
+// --- La gasolinera de KoberluSW ---------------------------------------------
+//
+// `free.ksw-gasolinera` paga el gas de las operaciones de KoberluSW. Lo usaba solo
+// la web; desde 0.57.0 tambien el movil.
+//
+// EL UMBRAL DE 5 kb-USDC LO DECIDE ESTA CAPA, no la cadena, y no es un descuido:
+// al comprar el gas, Chainweb no le pasa al contrato el `envData` del usuario, asi
+// que alli el minimo no se puede comprobar. Esta escrito en el propio contrato. Lo
+// peor que pasa si esta capa se equivoca es que se subvencione una operacion
+// pequeña -gasta gas de DNNS, no dinero de nadie-, y el freno duro contra
+// operaciones de polvo vive donde si se conoce el importe: los minimos por orden y
+// por plan dentro de `free.ksw2` y `free.ksw-dca2`.
+export const MIN_GRATIS_USDC = 5;
+export const GAS_TOPE_GRATIS = 8000;   // tope del contrato; por encima, rechaza
+const USDC = 'n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC';
+
+/**
+ * Lo que vale la operacion en kb-USDC, si se puede saber SIN preguntar un precio.
+ *
+ * Se mira la pata que ya esta en kb-USDC: si se compra, lo que entra; si se vende,
+ * el MINIMO garantizado que sale -no lo esperado-. Usar el minimo es lo prudente:
+ * es la unica cifra que la cadena promete, y de las dos es la que no puede caerse
+ * entre la cotizacion y el bloque.
+ *
+ * Si ninguna pata es kb-USDC, devuelve 0: no hay forma de valorarla aqui sin
+ * meter un precio de mercado en una decision que debe ser simple y comprobable.
+ */
+export function valorEnUsdc({ de, a, cantidad, minimo }) {
+    if (de === USDC) return Number(cantidad) || 0;
+    if (a === USDC) return Number(minimo) || 0;
+    return 0;
+}
+
 const num = (v) => (v && typeof v === 'object') ? Number(v.decimal != null ? v.decimal : v.int) : Number(v);
 
 // Todo el mercado en UNA sola llamada: el objeto del par ya trae las reservas
@@ -259,9 +292,17 @@ export async function simularCambio({ cuenta, red, m, de, a, cantidad, slippage 
     // Las dos cosas van juntas dentro de la misma transacción: si el cambio falla no
     // se cobra comisión, y al revés. `transfer-create` porque la cuenta que cobra
     // puede no existir todavía en el token que entra.
+    const cobro = `(${de}.transfer-create "${cuenta}" "${CUENTA_KOBERLET}"`
+        + ` (read-keyset "ks-koberlet") (read-decimal "comision"))`;
+    // ¿Puede pagar la gasolinera? Por importe se sabe ya; por gas, hasta después de
+    // simular no. Se simula con la forma que se va a firmar si toca —las dos
+    // llamadas sueltas— para que el gas medido sea el del comando de verdad.
+    const usdc = valorEnUsdc({ de, a, cantidad, minimo: q.minimoStr });
+    const cabePorImporte = q.comision > 0 && usdc >= MIN_GRATIS_USDC;
+    // Sueltas, no dentro de un `let`: la gasolinera comprueba que cada llamada
+    // EMPIECE por un módulo permitido, y `(let` no empieza por ninguno.
     const code = q.comision > 0
-        ? `(let ((r ${cambio})) (${de}.transfer-create "${cuenta}" "${CUENTA_KOBERLET}"`
-          + ` (read-keyset "ks-koberlet") (read-decimal "comision")) r)`
+        ? (cabePorImporte ? `${cambio} ${cobro}` : `(let ((r ${cambio})) ${cobro} r)`)
         : cambio;
     const data = {
         amountIn: { decimal: q.alPoolStr },
@@ -285,13 +326,22 @@ export async function simularCambio({ cuenta, red, m, de, a, cantidad, slippage 
         red.nodo, red.networkId, CHAIN, code, [{ pubKey, clist }], cuenta,
         { gasLimit, data },
     );
+    // Un 30 % de margen sobre lo medido: el gas de un swap cambia un poco según el
+    // estado del pool, y quedarse corto no es un aviso, es la transacción perdida.
+    const gasGratis = Math.ceil((gas || 0) * 1.3);
+    const bien = !!resultado && resultado.status === 'success';
     return {
         cotizacion: q,
         code,
-        bien: !!resultado && resultado.status === 'success',
+        bien,
         motivo: resultado && resultado.status !== 'success'
             ? JSON.stringify(resultado.error || resultado).slice(0, 300)
             : null,
         gas,
+        // Solo si la simulación salió bien: un gas medido sobre un cambio que falla
+        // no dice nada, y con él se firmaría un límite inventado.
+        gratis: bien && cabePorImporte && gasGratis > 0 && gasGratis <= GAS_TOPE_GRATIS,
+        gasGratis,
+        usdc,
     };
 }
