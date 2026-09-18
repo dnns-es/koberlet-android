@@ -130,8 +130,17 @@ export function cobroDeQr(texto) {
     }
     const cantidad = Number(String(parametros.get('amount') || '').replace(',', '.'));
     if (isFinite(cantidad) && cantidad > 0) salida.cantidad = cantidad;
-    const chain = Number(parametros.get('chain'));
-    if (Number.isInteger(chain) && chain >= 0 && chain <= 19) salida.chain = chain;
+    // El texto del parametro, ANTES de convertirlo. Cuando no viene, `get`
+    // devuelve null, y `Number(null)` es 0 -que es un entero entre 0 y 19 y
+    // colaba como chain buena-. Un QR con importe y sin chain se leia entonces
+    // como «chain 0», rellenando una casilla que el que cobra no habia dicho.
+    // Hasta la 0.58.0 no se notaba porque nadie generaba ese QR; el Koberlet de
+    // escritorio si lo genera desde su 2.10.0.
+    const textoChain = parametros.get('chain');
+    if (textoChain !== null && textoChain.trim() !== '') {
+        const chain = Number(textoChain);
+        if (Number.isInteger(chain) && chain >= 0 && chain <= 19) salida.chain = chain;
+    }
     return salida;
 }
 
