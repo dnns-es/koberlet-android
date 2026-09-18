@@ -540,6 +540,11 @@ class KoberletVault : Plugin() {
         // La comisión de servicio: la pantalla dice cuánto, `FirmaKda` dice a dónde
         // y comprueba que no pase del 0,5 %. Si no viene, no se cobra nada.
         val comision = call.getString("comision") ?: "0.0"
+        // Si la pantalla pide gasolinera, manda tambien el gas que MIDIO simulando
+        // el cambio: sin ese numero habria que inventarse un techo, y el contrato
+        // rechaza cualquier cosa por encima de 8000.
+        val gratis = call.getBoolean("gratis", false) ?: false
+        val gasPedido = call.getInt("gasLimit")
         val caminoJs = call.getArray("camino") ?: return call.reject("Falta el camino del cambio.")
         val horaNodo = call.getString("creationTime")?.toLongOrNull()
         if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
@@ -569,6 +574,8 @@ class KoberletVault : Plugin() {
                     publica = publica,
                     creationTime = creation,
                     comision = comision,
+                    gratis = gratis,
+                    gasLimit = if (gratis && gasPedido != null) gasPedido else 14000,
                 ).let { JSObject.fromJSONObject(it) }
             } finally {
                 privada.fill(0)
@@ -822,6 +829,8 @@ class KoberletVault : Plugin() {
         val cuota = call.getDouble("cuota") ?: return call.reject("Falta la cantidad.")
         val periodo = call.getString("periodo")?.toLongOrNull() ?: return call.reject("Falta cada cuánto se compra.")
         val deslizamiento = call.getDouble("deslizamiento") ?: return call.reject("Falta el deslizamiento.")
+        val gratis = call.getBoolean("gratis", false) ?: false
+        val gasPedido = call.getInt("gasLimit")
         val horaNodo = call.getString("creationTime")?.toLongOrNull()
         if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
 
@@ -850,6 +859,8 @@ class KoberletVault : Plugin() {
                     privada = privada,
                     publica = publica,
                     creationTime = creation,
+                    gratis = gratis,
+                    gasLimit = if (gratis && gasPedido != null) gasPedido else 20000,
                 ).let { JSObject.fromJSONObject(it) }
             } finally {
                 privada.fill(0)
@@ -873,6 +884,8 @@ class KoberletVault : Plugin() {
         val id = call.getString("id") ?: return call.reject("Falta el plan.")
         val cantidad = call.getDouble("cantidad") ?: 0.0
         val entraEsUsdc = call.getBoolean("entraEsUsdc") ?: false
+        val gratis = call.getBoolean("gratis", false) ?: false
+        val gasPedido = call.getInt("gasLimit")
         val horaNodo = call.getString("creationTime")?.toLongOrNull()
         if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
 
@@ -900,6 +913,8 @@ class KoberletVault : Plugin() {
                     privada = privada,
                     publica = publica,
                     creationTime = creation,
+                    gratis = gratis,
+                    gasLimit = if (gratis && gasPedido != null) gasPedido else 20000,
                 ).let { JSObject.fromJSONObject(it) }
             } finally {
                 privada.fill(0)

@@ -19,7 +19,10 @@
 // Ethereum-, y se enseña uno cada vez. Quien llega desde la tarjeta de una cartera
 // entra por el suyo (`mercado-red.js`).
 
-import { mercado, cotizar, simularCambio, saldoEnMercado, IMPACTO_MAX } from './lib/dex.js';
+import {
+    mercado, cotizar, simularCambio, saldoEnMercado, IMPACTO_MAX,
+    valorEnUsdc, MIN_GRATIS_USDC,
+} from './lib/dex.js';
 import { selectorCartera } from './cartera-activa.js';
 import { redMercado, fijarRedMercado } from './mercado-red.js';
 import { lado } from './lado-cambio.js';
@@ -230,6 +233,17 @@ function cambiador(ctx, m, lista, kda) {
                 t('Comisión de Koberlet ({0} %)', numero(q.comisionPct, 2)),
                 numero(q.comision, 8) + ' ' + simbolo(lista, doy.select.value)));
 
+            // El gas lo paga la gasolinera a partir de 5 kb-USDC. Se dice aquí, con
+            // la cotización delante, porque es justo cuando alguien decide si le
+            // compensa subir la cantidad.
+            const enUsdc = valorEnUsdc({
+                de: doy.select.value, a: recibo.select.value,
+                cantidad, minimo: q.minimoStr,
+            });
+            if (q.comision > 0 && enUsdc >= MIN_GRATIS_USDC) {
+                datos.append(fila(t('Comisión de red (gas)'), t('la paga Koberlet')));
+            }
+
             const impacto = fila(t('Mueves el precio'), numero(q.impacto, 2) + ' %');
             // Por encima del 3 % ya se paga de más lo suficiente para que se vea.
             if (q.impacto > 3) impacto.querySelector('.der').style.color = 'var(--mal)';
@@ -327,6 +341,11 @@ function cambiador(ctx, m, lista, kda) {
                     comision: q.comisionStr,
                     // El mínimo que se firma es EL QUE SE ENSEÑÓ.
                     minimo: q.minimoStr,
+                    // Gas gratis: lo decide la simulación, que es la que conoce el
+                    // importe y el gas medido. `gasLimit` va con ella porque el
+                    // contrato rechaza cualquier techo por encima de 8000.
+                    gratis: sim.gratis,
+                    gasLimit: sim.gratis ? sim.gasGratis : undefined,
                     creationTime: String(Math.floor(Date.now() / 1000) - 90),
                 });
 

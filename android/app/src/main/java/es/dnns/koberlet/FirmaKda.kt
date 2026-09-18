@@ -332,10 +332,16 @@ object FirmaKda {
         creationTime: Long,
         gasLimit: Int = 20000,
         gasPrice: String = "1e-8",
+        gratis: Boolean = false,
     ): JSONObject {
         if (owner != "k:$publica") {
             throw IllegalArgumentException("Un plan de compras solo se puede crear a nombre de la propia cartera.")
         }
+        // Una sola llamada, y empieza por `free.ksw-dca2.`: la gasolinera la acepta
+        // sin mas. Aqui no hace falta comision porque el codigo no toca el AMM de
+        // forma directa -que lo haga el contrato por dentro le da igual al filtro,
+        // que solo mira el texto de las llamadas de primer nivel.
+        if (gratis) exigirCabeEnGasolinera(gasLimit)
         if (deposito <= 0 || cuota <= 0) throw IllegalArgumentException("La cantidad tiene que ser mayor que cero.")
         if (cuota > deposito) throw IllegalArgumentException("La cuota no puede ser mayor que el bote.")
         if (periodo < 300 || periodo > 31536000) throw IllegalArgumentException("Entre compra y compra tienen que pasar de 5 minutos a un año.")
@@ -358,9 +364,10 @@ object FirmaKda {
         val datos = """{"ks":{"keys":["$publica"],"pred":"keys-all"}}"""
 
         val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":$datos}},""" +
-            """"signers":[{"pubKey":"$publica","clist":[{"name":"coin.GAS","args":[]},""" +
+            """"signers":[{"pubKey":"$publica","clist":[${capGas(gratis, owner, gasLimit)},""" +
             """{"name":"$entra.TRANSFER","args":["$owner","$DCA_CUSTODIA",{"decimal":"$dep"}]}]}],""" +
-            """"meta":{"chainId":"$DCA_CHAIN","sender":"$owner","gasLimit":$gasLimit,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
+            """"meta":{"chainId":"$DCA_CHAIN","sender":"${remitente(gratis, owner)}","gasLimit":$gasLimit,""" +
+            """"gasPrice":${if (gratis) GASOLINERA_GASPRICE else gasPrice},"ttl":600,"creationTime":$creationTime},""" +
             """"nonce":"koberlet-android:${System.currentTimeMillis()}"}"""
 
         val hash = hashComando(cmd)
@@ -415,10 +422,23 @@ object FirmaKda {
         creationTime: Long,
         gasLimit: Int = 20000,
         gasPrice: String = "1e-8",
+        gratis: Boolean = false,
     ): JSONObject {
         if (owner != "k:$publica") {
             throw IllegalArgumentException("Ese plan no es de esta cartera.")
         }
+        // SOLO `recargar` puede ir por la gasolinera, y no es por capricho.
+        //
+        // Pausar, reanudar y cerrar se firman SIN clist -firma sin acotar- porque
+        // el contrato hace `enforce-guard` directo sobre el guard del dueno. En
+        // Pact, una firma acotada a una lista de capabilities deja de valer para un
+        // `enforce-guard` suelto, asi que meterles la capability del gas les
+        // romperia la comprobacion de dueno. Ademas no mueven dinero y su gas son
+        // 668 unidades: 0,0000067 KDA. No compensa tocar esa firma.
+        if (gratis && accion != "recargar") {
+            throw IllegalArgumentException("Esa acción sobre el plan no va por la gasolinera.")
+        }
+        if (gratis) exigirCabeEnGasolinera(gasLimit)
         if (!idPlanValido(id, owner)) {
             throw IllegalArgumentException("El identificador del plan no vale.")
         }
@@ -443,7 +463,7 @@ object FirmaKda {
                 val entra = if (entraEsUsdc) DCA_USDC else DCA_KDA
                 val monto = decimalCanonico(cantidad)
                 codigo = """($DCA_MODULO.topup \"$id\" $monto)"""
-                clist = ""","clist":[{"name":"coin.GAS","args":[]},""" +
+                clist = ""","clist":[${capGas(gratis, owner, gasLimit)},""" +
                     """{"name":"$entra.TRANSFER","args":["$owner","$DCA_CUSTODIA",{"decimal":"$monto"}]}]"""
             }
             else -> throw IllegalArgumentException("Esa acción sobre el plan no existe.")
@@ -451,7 +471,8 @@ object FirmaKda {
 
         val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":{}}},""" +
             """"signers":[{"pubKey":"$publica"$clist}],""" +
-            """"meta":{"chainId":"$DCA_CHAIN","sender":"$owner","gasLimit":$gasLimit,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
+            """"meta":{"chainId":"$DCA_CHAIN","sender":"${remitente(gratis, owner)}","gasLimit":$gasLimit,""" +
+            """"gasPrice":${if (gratis) GASOLINERA_GASPRICE else gasPrice},"ttl":600,"creationTime":$creationTime},""" +
             """"nonce":"koberlet-android:${System.currentTimeMillis()}"}"""
 
         val hash = hashComando(cmd)
@@ -547,6 +568,77 @@ object FirmaKda {
     /** El AMM del fork. Como todo lo que decide donde va el dinero, constante. */
     private const val AMM = "kaddex.exchange"
 
+    // --- La gasolinera de KoberluSW ------------------------------------------
+    //
+    // `free.ksw-gasolinera` implementa `gas-payer-v1` y paga el gas de las
+    // operaciones de KoberluSW. Hasta ahora solo la usaba la web: en el movil el
+    // usuario pagaba siempre, aunque la operacion fuera identica.
+    //
+    // COMO FUNCIONA, que no es evidente: el `sender` de la transaccion pasa a ser
+    // la cuenta de la gasolinera -una cuenta sin llave, guardada por una capability
+    // guard- y el usuario firma `GAS_PAYER` en su clist. Chainweb compra el gas de
+    // esa cuenta si la capability se adquiere, y la capability mira el CODIGO que
+    // lleva la transaccion.
+    //
+    // LO QUE EL CONTRATO EXIGE, comprobado en `tests/test-ksw-gasolinera.repl` del
+    // proyecto de los contratos:
+    //
+    //   - `tx-type` exec, y de una a DOS llamadas de primer nivel.
+    //   - cada llamada EMPIEZA por un modulo permitido: los nuestros, el AMM, o un
+    //     `transfer` de comision. Empieza, no contiene: mencionar la cuenta de
+    //     comisiones no basta (hallazgo A-1 de su auditoria del 26/08).
+    //   - si se toca el AMM directamente, la comision TIENE que ir en la misma
+    //     transaccion.
+    //   - gasPrice <= 1e-8 y gasLimit <= 8000.
+    //
+    // Ese tope de 8000 es el que obliga a bajar los limites de aqui. No es un
+    // problema: medido sobre las 100 ultimas operaciones que pago la gasolinera en
+    // cadena, el gas real va de 668 a 2312. Los 14000-20000 que se declaraban eran
+    // techo de sobra, no consumo.
+    const val GASOLINERA = "free.ksw-gasolinera"
+    const val GASOLINERA_CUENTA = "c:Mq0gKlGBdjKvkBJLr4ECCu3_OxQ4_GJOzlYS0Ems-CY"
+    const val GASOLINERA_GASLIMIT = 8000
+    const val GASOLINERA_GASPRICE = "0.00000001"
+
+    /**
+     * El `sender` y la capability de gas, segun quien pague.
+     *
+     * Van juntos a proposito: son las dos mitades de la misma decision, y si una se
+     * cambia sin la otra la transaccion falla con «Failed to buy gas», que es un
+     * mensaje que no dice nada de lo que pasa de verdad.
+     */
+    private fun remitente(gratis: Boolean, cuenta: String): String =
+        if (gratis) GASOLINERA_CUENTA else cuenta
+
+    private fun capGas(gratis: Boolean, cuenta: String, gasLimit: Int): String =
+        if (gratis) {
+            """{"name":"$GASOLINERA.GAS_PAYER","args":["$cuenta",$gasLimit,{"decimal":"$GASOLINERA_GASPRICE"}]}"""
+        } else {
+            """{"name":"coin.GAS","args":[]}"""
+        }
+
+    /**
+     * Comprueba lo que protege al USUARIO y al presupuesto de gas, antes de firmar.
+     *
+     * El umbral comercial de 5 kb-USDC NO se comprueba aqui, y es deliberado: lo
+     * decide la pantalla, igual que en la web. El motivo esta escrito en el propio
+     * contrato -al comprar el gas, Chainweb no pasa el `envData` del usuario, asi
+     * que el minimo no se puede validar en cadena- y la consecuencia de que la
+     * pantalla mienta es que se subvencione una operacion pequeña: gasta gas de
+     * DNNS, no dinero del usuario. La defensa dura contra operaciones de polvo vive
+     * donde se conoce el importe: los minimos por orden y por plan de `free.ksw2` y
+     * `free.ksw-dca2`.
+     *
+     * Lo que si se exige aqui es el tope de gas, porque pasarse es un fallo seguro.
+     */
+    private fun exigirCabeEnGasolinera(gasLimit: Int) {
+        if (gasLimit > GASOLINERA_GASLIMIT) {
+            throw IllegalArgumentException(
+                "Esta operación no cabe en el gas que paga la gasolinera."
+            )
+        }
+    }
+
     /** El AMM vive en la chain 2. */
     const val AMM_CHAIN = "2"
 
@@ -592,6 +684,7 @@ object FirmaKda {
         comision: String = "0.0",
         gasLimit: Int = 14000,
         gasPrice: String = "1e-8",
+        gratis: Boolean = false,
     ): JSONObject {
         if (camino.size < 2 || camino.size > 3) {
             throw IllegalArgumentException("Ese camino de cambio no tiene sentido.")
@@ -634,11 +727,24 @@ object FirmaKda {
         // El cambio y el cobro, atados: si el cambio revierte no se cobra nada, y si
         // la comision no se puede pagar no hay cambio. `transfer-create` porque la
         // cuenta que cobra puede no existir todavia en el token que entra.
-        val codigo = if (hayComision) {
-            """(let ((r $cambio)) (${camino[0]}.transfer-create \"$cuenta\" \"$COMISION_CUENTA\"""" +
-                """ (read-keyset \"ks-koberlet\") (read-decimal \"comision\")) r)"""
-        } else {
-            cambio
+        val cobro = """(${camino[0]}.transfer-create \"$cuenta\" \"$COMISION_CUENTA\"""" +
+            """ (read-keyset \"ks-koberlet\") (read-decimal \"comision\"))"""
+        val codigo = when {
+            !hayComision -> cambio
+            // CON GASOLINERA VAN SUELTAS, no dentro de un `let`.
+            //
+            // La gasolinera comprueba que cada llamada de primer nivel EMPIECE por
+            // un modulo permitido. `(let ((r (kaddex...` empieza por `(let`, que no
+            // esta en la lista, asi que la transaccion entera se rechaza -y el
+            // mensaje que le llega al usuario es «Failed to buy gas», que no ayuda.
+            //
+            // Sueltas se pierde el valor de retorno del cambio, que pasa a ser el
+            // del cobro. No importa: nadie lee ese resultado, la pantalla refresca
+            // saldos. Y la garantia que si importa se mantiene, porque es de la
+            // transaccion y no del `let`: las dos van en el mismo bloque o no va
+            // ninguna.
+            gratis -> "$cambio $cobro"
+            else -> """(let ((r $cambio)) $cobro r)"""
         }
         val extraDatos = if (hayComision) {
             ""","comision":{"decimal":"$cuota"},"ks-koberlet":{"keys":["$COMISION_CLAVE"],"pred":"keys-all"}"""
@@ -654,13 +760,27 @@ object FirmaKda {
         } else {
             ""
         }
-        // Una transferencia mas = mas gas.
-        val gas = if (hayComision) gasLimit + 4000 else gasLimit
+        // Una transferencia mas = mas gas. Con gasolinera NO se suma nada: ahi el
+        // `gasLimit` que llega es el total que la pantalla midio simulando el
+        // cambio, y sumarle 4000 a ciegas es lo que lo sacaria del tope de 8000.
+        val gas = if (hayComision && !gratis) gasLimit + 4000 else gasLimit
+        if (gratis) {
+            // El contrato lo exige: un swap directo contra el AMM solo se
+            // subvenciona si paga la comision del servicio. Sin ella, la capability
+            // no se adquiere y la transaccion muere comprando el gas.
+            if (!hayComision) {
+                throw IllegalArgumentException(
+                    "La gasolinera solo paga un cambio si lleva la comisión del servicio."
+                )
+            }
+            exigirCabeEnGasolinera(gas)
+        }
+        val precio = if (gratis) GASOLINERA_GASPRICE else gasPrice
 
         val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":$datos}},""" +
-            """"signers":[{"pubKey":"$publica","clist":[{"name":"coin.GAS","args":[]},""" +
+            """"signers":[{"pubKey":"$publica","clist":[${capGas(gratis, cuenta, gas)},""" +
             """{"name":"${camino[0]}.TRANSFER","args":["$cuenta","$poolPrimerSalto",{"decimal":"$entra"}]}$extraClist]}],""" +
-            """"meta":{"chainId":"$AMM_CHAIN","sender":"$cuenta","gasLimit":$gas,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
+            """"meta":{"chainId":"$AMM_CHAIN","sender":"${remitente(gratis, cuenta)}","gasLimit":$gas,"gasPrice":$precio,"ttl":600,"creationTime":$creationTime},""" +
             """"nonce":"koberlet-android-swap:${System.currentTimeMillis()}"}"""
 
         val hash = hashComando(cmd)
