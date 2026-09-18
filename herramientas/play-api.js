@@ -188,11 +188,14 @@ function explicar(error) {
 
     if (codigo === 403) {
         console.error('\nPlay dice que esta cuenta de servicio no tiene permiso.');
-        console.error('Si los permisos se acaban de dar en la Consola, es NORMAL: tardan en');
-        console.error('propagarse. Suelen ser minutos y Google se reserva hasta 24 h. Espera y');
-        console.error('vuelve a probar; no hay nada que arreglar.');
-        console.error('\nSi lleva asi mas de un dia, mirar en la Consola > Usuarios y permisos que');
-        console.error('koberlet-publisher@... siga activo y con los permisos de versiones.');
+        console.error('\nNO te quedes esperando a que "propague": eso costo un dia entero y no era.');
+        console.error('Mira esto ANTES, que es lo que fallaba de verdad:');
+        console.error('\n  Consola > Usuarios y permisos > koberlet-publisher@... > flecha >');
+        console.error('  pestaña PERMISOS DE LA APLICACION');
+        console.error('\nTiene que aparecer Koberlet con "Ver informacion de la aplicacion (solo');
+        console.error('lectura)" marcado. Los permisos de CUENTA no bastan: cada operacion empieza');
+        console.error('abriendo una edicion sobre la app, y para eso hay que poder leerla.');
+        console.error('\nSi eso ya esta bien, entonces si: espera unos minutos y reintenta.');
     } else if (codigo === 401) {
         console.error('\nLa clave de .keys/play-service-account.json no vale (401).');
         console.error('Puede estar caducada, revocada o ser de otro proyecto. Se saca una nueva en');
