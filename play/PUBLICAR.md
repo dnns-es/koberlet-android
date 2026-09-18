@@ -3,8 +3,9 @@
 Todo lo que hay que hacer, en orden, con lo que ya está resuelto marcado. Pensado
 para cuenta **personal** (sin empresa), que es lo decidido.
 
-Estado a **17/09/2026** · versión **0.56.1** · bundle en `bundle/koberlet-0.56.1-play.aab`,
-**enviado a revisión** en el canal `alpha`
+Estado a **18/09/2026** · en Play la **0.56.1** (5601), publicada en el canal
+`alpha` · en `descargas.dnns.es` la **0.57.0** (5700) · los 12 testers dentro
+desde el 18/09, **se cumplen los 14 días el 2 de octubre**
 
 ---
 
