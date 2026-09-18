@@ -1,6 +1,10 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-17 · Versión publicada: **0.56.1** (hash cotejado por HTTPS y mismo certificado que la 0.56.0) · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-18 · En `descargas.dnns.es`: **0.57.0** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+
+> **Los dos canales van por versiones distintas y eso es normal.** El directo es
+> donde se estrena; Play va detrás. Antes de mirar nada, comprobar cuál es cuál:
+> `node herramientas/play-api.js estado` dice lo que hay en la tienda.
 
 Proyecto: `F:\APP\koberlet-android`
 APK y `latest.json`: `https://descargas.dnns.es/kob7t2m9x4/koberlet-android/`
@@ -20,7 +24,7 @@ Maqueta web (misma compilación, bóveda simulada): `https://descargas.dnns.es/k
 | 5 | Resto de funciones | Empezada: precio, historial, copias, navegación por secciones |
 | 6 | Distribución y actualización | **Adelantada y hecha** |
 | 7 | Auditoría | Empezada: repaso de la checklist propia; falta la externa |
-| 8 | Google Play | Empezada: preparado todo lo técnico — ver `play/` |
+| 8 | Google Play | **La app está publicada en prueba cerrada.** Los 12 testers dentro desde el 18/09; se cumplen los 14 días el **2 de octubre** y ese día se pide producción — ver `play/PUBLICAR.md` |
 
 ---
 
@@ -136,6 +140,118 @@ El navegador es para la primera instalación.
     versión aceptada. Y con la 1.1 se vio funcionar el mecanismo: el aparato tenía
     aceptada la 1.0 y **la puerta volvió a salir sola**.
 
+
+## Decidido el 18/09/2026: una sola numeración para todos los sistemas
+
+Hoy cada sistema va por su cuenta —escritorio 2.9.1, Android 0.57.0, iOS
+0.56.0— y mirando el panel de control no se sabe de un vistazo qué es más nuevo
+que qué. Es el mismo producto, con las mismas políticas y los mismos contratos,
+así que lleva un solo número.
+
+**Solo se puede unificar hacia arriba**, y esto no es una preferencia:
+
+- El actualizador del escritorio **no aplica nada menor que lo instalado**, así
+  que 2.9.1 no puede bajar a 0.x.
+- El `versionCode` de Play **no se puede repetir ni bajar, nunca**.
+
+Así que el móvil sube al tramo del escritorio: **3.0.0 en los cinco sistemas**.
+El `versionCode` sale solo de la fórmula de siempre
+(`mayor*10000 + menor*100 + parche`), o sea **30000**, que es mayor que el 5700
+de ahora. No hay que tocar el cálculo.
+
+**Cuándo: el 2 de octubre de 2026**, al pedir acceso a producción. No antes, y
+por un motivo concreto: hasta ese día corren los 14 días de la prueba cerrada, y
+cambiar el esquema de versiones en mitad de eso mete una variable más en un
+proceso que ya ha dado bastantes sustos. Saliendo a producción directamente como
+3.0.0, no hay ningún salto raro que explicarle a nadie.
+
+**Lo que se pierde, dicho por delante:** el `0.x` del móvil está diciendo algo
+cierto —que es una app de dos semanas que aún no ha salido de pruebas— y llamarla
+3.0.0 la iguala con un escritorio de 87 versiones. En un monedero esa señal no es
+decoración. Se acepta porque a partir de producción el `0.57.0` engaña en el otro
+sentido: la infravalora.
+
+## 0.57.0 (18/09/2026) — el gas lo paga Koberlet, y la semilla no se fotografía
+
+### El gas del Mercado y del DCA, a partir de 5 kb-USDC
+
+`free.ksw-gasolinera` es un contrato de KoberluSW que implementa `gas-payer-v1` y
+paga el gas de las operaciones del servicio. **La web lo usaba desde agosto y el
+móvil no**, así que el mismo cambio salía gratis en el ordenador y de pago en el
+teléfono. Nadie lo había notado porque nadie compara las dos cosas a la vez.
+
+Cómo funciona, que no es evidente: el `sender` de la transacción pasa a ser la
+cuenta de la gasolinera —una cuenta sin llave, guardada por una capability guard—
+y el usuario firma `GAS_PAYER` en su clist en lugar de `coin.GAS`.
+
+Tres cosas había que acertar, y ninguna avisa al fallar. El contrato no dice qué
+le pasa: la transacción muere comprando el gas y al usuario le llega **«Failed to
+buy gas»**, que no se parece a ninguna de las causas.
+
+1. **El tope de gas.** El contrato rechaza por encima de **8000** y aquí se
+   declaraban 14000 para el cambio y 20000 para el DCA. No era consumo, era techo
+   de sobra. Se midió lo que gasta de verdad, leyendo en `kdaindex` los 100
+   últimos pagos que hizo la gasolinera en cadena: **de 668 a 2312**. Ahora se
+   firma el gas **medido en la simulación** más un 30 % —un número que
+   `simularCambio` ya devolvía y que no usaba nadie.
+2. **La forma del código.** El cambio iba envuelto en `(let ((r ...)) ... r)`, y
+   la gasolinera comprueba que cada llamada **empiece** por un módulo permitido.
+   `(let` no empieza por ninguno, así que lo rechazaba entero. Con gasolinera van
+   las **dos llamadas sueltas**. No se pierde la garantía de que van juntas: esa
+   es de la transacción, no del `let`.
+3. **La comisión.** Un cambio directo contra el AMM solo se subvenciona si lleva
+   la comisión del servicio en la misma transacción.
+
+**El umbral de 5 kb-USDC lo decide la pantalla, no la cadena**, y es a propósito:
+al comprar el gas, Chainweb no le pasa al contrato el `envData` del usuario, así
+que allí el mínimo no se puede comprobar. Está explicado dentro del propio
+contrato. Si esta capa se equivocara, lo que pasa es que se subvenciona una
+operación pequeña —gasta gas de DNNS, no dinero de nadie—, y el freno duro contra
+operaciones de polvo vive donde sí se conoce el importe: los mínimos por orden y
+por plan de `free.ksw2` y `free.ksw-dca2`.
+
+Se mide sobre **la pata que está en kb-USDC**: al comprar, lo que se entrega; al
+vender KDA, el **mínimo garantizado** que sale, nunca lo esperado. Es la única
+cifra que la cadena promete.
+
+**Pausar, reanudar y cerrar un plan se quedan fuera**, y no por pereza: se firman
+**sin clist** porque el contrato hace `enforce-guard` directo sobre el guard del
+dueño, y en Pact una firma acotada a capabilities deja de valer para eso. Meterles
+la capability del gas les rompería la comprobación de dueño. Además no mueven
+dinero y su gas son 668 unidades.
+
+Las **órdenes límite** (`free.ksw2`) no existen todavía en el móvil. Cuando entren,
+esto ya las admite: la gasolinera acepta las tres familias igual.
+
+En la cotización sale ahora una línea, *«Comisión de red (gas): la paga
+Koberlet»*, cuando toca. Se enseña ahí y no al confirmar porque es justo cuando
+alguien decide si le compensa subir la cantidad.
+
+### La semilla ya no se puede fotografiar
+
+Lo reportó un probador de la prueba cerrada: la pantalla de las 12 palabras
+admitía captura. Se pone **`FLAG_SECURE` en toda la ventana**, que tapa tres cosas
+de golpe: la captura, la grabación de vídeo y **la miniatura que Android guarda en
+la lista de aplicaciones recientes**. Esa última es la peor, porque si sales de la
+app con la semilla delante se queda ahí hasta que la cierres.
+
+Va en toda la app y no pantalla por pantalla a propósito. Encenderlo y apagarlo
+según la vista obliga a acordarse en cada pantalla nueva que enseñe algo sensible,
+y el día que se olvide **la fuga no avisa**: se descubre cuando ya está la captura
+hecha. El precio, que es real: tampoco se puede fotografiar un saldo. En un
+monedero compensa.
+
+En **debug se deja fuera**, que es la única forma de hacer las capturas de la ficha
+de la tienda. Se mira `ApplicationInfo.FLAG_DEBUGGABLE` y no `BuildConfig`, porque
+AGP 8 no genera esa clase si no se le pide aparte.
+
+### Lo que falta de esto
+
+**El gas gratis no se ha probado en la cadena.** Compila, pasa las pruebas y la
+forma del comando está cotejada contra `test-ksw-gasolinera.repl` del proyecto de
+los contratos, pero hasta que un cambio de 5 kb-USDC entre en un bloque no está
+confirmado. Si sale «Failed to buy gas», la referencia de la transacción dice en
+qué se atascó.
 
 ## 0.56.1 (17/09/2026) — el saldo tardaba diez segundos por culpa nuestra
 
