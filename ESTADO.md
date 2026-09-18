@@ -154,7 +154,10 @@ así que lleva un solo número.
   que 2.9.1 no puede bajar a 0.x.
 - El `versionCode` de Play **no se puede repetir ni bajar, nunca**.
 
-Así que el móvil sube al tramo del escritorio: **3.0.0 en los cinco sistemas**.
+Así que el móvil sube al tramo del escritorio: **3.0.0 en los cuatro sistemas
+publicados** —Windows, Mac, Android e iPhone—. (Aquí puso «cinco» hasta el
+18/09/2026: se contaba Linux, que **no existe**; no hay script de compilación ni
+se nombra en el código.)
 El `versionCode` sale solo de la fórmula de siempre
 (`mayor*10000 + menor*100 + parche`), o sea **30000**, que es mayor que el 5700
 de ahora. No hay que tocar el cálculo.
@@ -170,6 +173,13 @@ cierto —que es una app de dos semanas que aún no ha salido de pruebas— y ll
 3.0.0 la iguala con un escritorio de 87 versiones. En un monedero esa señal no es
 decoración. Se acepta porque a partir de producción el `0.57.0` engaña en el otro
 sentido: la infravalora.
+
+**Y con el número viene una obligación:** un solo número promete que los tres
+sistemas son lo mismo, y hoy no lo son —se diferencian en catorce cosas, algunas
+que cuestan dinero. El inventario y la norma de nivelarlas están en
+[`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
+ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
+que se escriba por qué no debe estarlo.
 
 ## 0.57.0 (18/09/2026) — el gas lo paga Koberlet, y la semilla no se fotografía
 
