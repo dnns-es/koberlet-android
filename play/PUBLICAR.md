@@ -361,10 +361,32 @@ si esa clave se filtrara algún día, no da acceso al dinero.
 
 Dos cosas que conviene saber antes de pelearse con ella:
 
-- **Los permisos tardan en propagarse.** Recién invitada la cuenta de servicio, la
-  API contesta `403 The caller does not have permission` aunque en la Consola se
-  vea «Activo». Suelen ser minutos; Google se reserva hasta 24 h. No es un fallo de
-  configuración y no hay nada que arreglar: es esperar.
+- **El `403` casi nunca es propagación, aunque lo parezca.** Esto costó un día
+  entero de espera inútil el 17/09/2026. La cuenta de servicio salía **Activo** en
+  *Usuarios y permisos*, tenía todos los permisos **de cuenta** (incluido «Lanzar
+  aplicaciones en canales de pruebas»), y aun así contestaba
+  `403 The caller does not have permission`.
+
+  La causa: en la ficha del usuario, la pestaña **«Permisos de la aplicación»
+  estaba vacía**. Faltaba marcar, para Koberlet, **«Ver información de la
+  aplicación (solo lectura)»**. Los permisos de cuenta conceden en gris casi todo
+  lo demás, y ese hueco no salta a la vista.
+
+  Tiene sentido: cada operación de la API empieza con `edits.insert`, que es abrir
+  una edición sobre la app, y para eso hace falta poder **leerla**. Sin ese
+  permiso, no hay subida posible por muchos permisos de publicación que haya.
+
+  **Cómo diagnosticarlo sin adivinar.** El mensaje del script no distingue causas;
+  el error crudo sí. Un `403 PERMISSION_DENIED` **sin `details`** es denegación de
+  la Consola de Play. Si fuera la API de Cloud sin habilitar, el mensaje diría que
+  la API «has not been used in project … or it is disabled». Para verlo:
+
+  ```js
+  catch (e) { console.log(e.code, JSON.stringify(e.response?.data, null, 2)); }
+  ```
+
+  Así que, ante un 403: **mirar primero los permisos de la aplicación**, no
+  esperar. Si de verdad fuera propagación, se resolvería en minutos, no en días.
 - **La API no puede crear la app.** Eso es a mano en la Consola, una vez. Todo lo
   demás (subir, mover de canal, publicar) sí.
 
