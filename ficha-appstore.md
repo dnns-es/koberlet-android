@@ -8,7 +8,7 @@ casillas, y varias dependen de cosas de fuera (páginas web publicadas, capturas
 reales). Se deja escrito aquí para que el día que toque no haya que averiguarlo otra vez.
 
 El protocolo común de publicación —el orden, las trampas de Apple, qué se pierde si se pierde
-cada llave— está en `_control/PROTOCOLO.md`.
+cada llave— está en `_protocolos/apps.md`.
 
 ---
 
