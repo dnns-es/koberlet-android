@@ -185,3 +185,21 @@ acepta. Hasta entonces no se toca ninguno de los dos.
 `src/info.js:33-40` (la lista "por llegar", que se le pinta al usuario) dice que
 todavía no se puede firmar un cambio en el Mercado ni enviar desde una cartera
 EVM. Las dos cosas están hechas desde la 0.53.0 y la 0.54.0.
+
+## Aviso: la política declara una conexión que dos de los tres canales no hacen
+
+19/09/2026. `src/politicas-texto.js` tiene un renglón que dice «comprobación de
+actualizaciones a descargas.dnns.es» (y su equivalente en inglés). Es cierto solo
+en el canal **directo**: `src/actualizar.js` está limitado a la compilación
+`directa`, y así lo dice su propio comentario de cabecera.
+
+El texto, en cambio, **no se filtra por canal**. Al usuario de Google Play y al de
+iOS se le declara una conexión que su app no hace.
+
+Declarar de más suena inofensivo y no lo es: en la ficha de la App Store la
+declaración de privacidad tiene que cuadrar con lo que hace el binario, y ahí no
+cuadra. Hay que condicionar ese renglón al canal **antes** de enviar Koberlet a
+revisión en Apple.
+
+No se toca todavía porque el mismo fichero sirve al escritorio, donde la frase sí
+es cierta: el arreglo es condicionar, no borrar.
