@@ -9,7 +9,7 @@ entrar. Aquí sí, y además el cambio queda en el historial de git junto al có
 
 Idioma principal: **es-ES**. Es el único que hay: no hay ficha en inglés.
 
-El protocolo común de publicación está en `_control/PROTOCOLO.md`.
+El protocolo común de publicación está en `_protocolos/apps.md`.
 
 ---
 
@@ -92,4 +92,4 @@ Estas casillas se rellenan en la Play Console y tienen consecuencias que no se d
 - **Exención de restricción geográfica**: **no se marca nunca**.
 - El **`versionCode`** no puede bajar jamás. Un número puesto por error se queda puesto.
 
-El razonamiento completo está en `_control/PROTOCOLO.md`.
+El razonamiento completo está en `_protocolos/apps.md`.
