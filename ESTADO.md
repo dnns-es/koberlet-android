@@ -1,6 +1,10 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-18 · En `descargas.dnns.es`: **0.57.0** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-22 · En `descargas.dnns.es`: **0.58.0** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+
+> **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
+> testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
+> No se toca Play hasta entonces.
 
 > **Los dos canales van por versiones distintas y eso es normal.** El directo es
 > donde se estrena; Play va detrás. Antes de mirar nada, comprobar cuál es cuál:
@@ -215,6 +219,12 @@ ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hast
 que se escriba por qué no debe estarlo.
 
 ## 0.58.0 (22/09/2026) — la app elige sola el nodo de Kadena
+
+Publicada en `descargas.dnns.es` el 22/09 a las 18:18. `versionCode` 5800,
+SHA-256 `258f56b6988595d09d5308b735ad11ba27fd6a4d407f36721506fdca52a38cc0`,
+firmada con el certificado de siempre (`75194f6a…`). Comprobado bajándola por
+HTTPS: la huella del APK servido cuadra con la del compilado, y `latest.json`
+anuncia esa misma huella. **Solo canal directo**, no Play.
 
 ### De qué venía
 
