@@ -236,9 +236,13 @@ function cambiador(ctx, m, lista, kda) {
             // El gas lo paga la gasolinera a partir de 5 kb-USDC. Se dice aquí, con
             // la cotización delante, porque es justo cuando alguien decide si le
             // compensa subir la cantidad.
+            // `n` es lo que se teclea arriba. Aquí decía `cantidad`, que no existe
+            // en esta función -vive dentro de `mandar()`-, así que la cotización
+            // reventaba justo después de calcularla: se veía el resultado y debajo
+            // «Can't find variable: cantidad» (visto en un iPhone el 22/09/2026).
             const enUsdc = valorEnUsdc({
                 de: doy.select.value, a: recibo.select.value,
-                cantidad, minimo: q.minimoStr,
+                cantidad: n, minimo: q.minimoStr,
             });
             if (q.comision > 0 && enUsdc >= MIN_GRATIS_USDC) {
                 datos.append(fila(t('Comisión de red (gas)'), t('la paga Koberlet')));

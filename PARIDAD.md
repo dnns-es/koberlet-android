@@ -52,6 +52,7 @@ cambio**, no después.
 | Modo visor / direcciones observadas | Sí | **Falta** | **Falta** | |
 | Cross-chain juntando varias chains | Sí | **Falta** | **Falta** | |
 | Volver a ver la semilla | **No deja** | Sí | Sí | **Decisión de seguridad sin tomar**: uno de los dos criterios está mal y hay que elegir cuál. Es la diferencia con más consecuencias de la lista. |
+| Sin linter que cace variables inexistentes | **Falta** | **Falta** | **Falta** | Abierto el 22/09/2026 por el fallo de la 0.58.1: `cantidad` no existía en `cotizarYa()` y el Mercado de Kadena estuvo cuatro días sin poder firmar. Ningún código de los dos tiene `eslint`; con `no-undef` bastaba. La llamada gemela del escritorio (`lib/dex.js:439`) sí estaba bien, por suerte, no por tenerlo vigilado. |
 | La versión sale del `package.json` | Sí | Sí (`build.gradle:9`) | **No** | En el `.pbxproj` pone `MARKETING_VERSION = 1.0`, que no coincide con nada: el número se teclea a mano en el Mac. Mientras siga así, iOS se volverá a descolgar en cada versión. |
 
 ## Para una actualización futura (decidido el 18/09/2026)

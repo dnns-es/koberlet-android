@@ -218,6 +218,40 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.58.1 (22/09/2026) — el Mercado de Kadena llevaba cuatro días sin poder firmar
+
+Publicada en `descargas.dnns.es` el 22/09 a las 19:40. `versionCode` 5801,
+SHA-256 `e00531172ccaacc34022f288351b50b97184739a60f2641649229b3562afe75b`,
+firmada con el certificado de siempre (`75194f6a…`). Comprobado bajándola por
+HTTPS: la huella del APK servido cuadra con la del compilado. **Solo canal
+directo**, no Play.
+
+Antonio lo vio en su iPhone: pedía cotización en el Mercado, salía el precio y
+justo debajo, en rojo, **«Can't find variable: cantidad»**. Y ahí se quedaba.
+
+Era un fallo de una línea, de los que no duelen al escribirlos. En `cotizarYa()`
+la cifra que se teclea se llama `n`; el aviso de quién paga el gas que se añadió
+en la 0.57.0 (`a870484`) pedía el valor en dólares pasando `cantidad`, que en esa
+función no existe —vive dentro de `mandar()`—. Resultado: `ReferenceError` en
+mitad del bloque que pinta la cotización, **antes** de la línea que enseña el
+botón de firmar. La pantalla calculaba bien y se moría al enseñarlo.
+
+Lo que importa de esto no es la errata:
+
+- **El cambio KDA ↔ kb-USDC no se podía completar desde el 18/09**, es decir en
+  la 0.57.0 y en la 0.58.0, las dos publicadas. Cuatro días.
+- **No lo detectó nadie**, ni las 48 pruebas. Son de lectura de fuentes: miran
+  que existan textos, traducciones y llamadas, no ejecutan la pantalla. Un
+  identificador que no existe es invisible para ellas.
+- **El escritorio no estaba afectado**: `lib/dex.js:439` hace la misma llamada
+  con el nombre correcto. Mismo producto, dos códigos, y el fallo solo cayó de un
+  lado.
+
+Pendiente, y apuntado aquí para no perderlo: no hay ningún linter en el proyecto
+(las dependencias de desarrollo son `@capacitor/cli`, `googleapis` y `vite`). Un
+`eslint` con `no-undef` —y nada más— habría cazado esto al escribirlo, y caza
+toda esa familia entera. Es la prueba que falta.
+
 ## 0.58.0 (22/09/2026) — la app elige sola el nodo de Kadena
 
 Publicada en `descargas.dnns.es` el 22/09 a las 18:18. `versionCode` 5800,
