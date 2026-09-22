@@ -19,21 +19,24 @@ import './polyfill-buffer.js';
 import nacl from 'tweetnacl';
 import * as blake from 'blakejs';
 import { ethers } from 'ethers';
+import { NODOS_KDA } from './config.js';
 
 // Semilla BIP-39 de JUGUETE, la de los vectores de prueba publicos del estandar.
 // No es de nadie y no custodia nada: sirve para comprobar que la derivacion da
 // siempre el mismo resultado, que es lo unico que queremos verificar aqui.
 const SEMILLA_PRUEBA = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-// Nodo por defecto de Koberlet: el fork de la comunidad (main.js lo trae con
-// enabled:true; 'Kadena (Inc)' viene desactivado). La prueba va contra mainnet
-// en SOLO LECTURA: /local es una consulta, no firma ni gasta.
+// Nodo por defecto de Koberlet. La prueba va contra mainnet en SOLO LECTURA:
+// /local es una consulta, no firma ni gasta.
 //
-// Comprobado el 11/09/2026: este nodo responde al preflight con
+// 22-09-2026: era api.chainweb-community.org a fuego. Ahora se coge el primero
+// de la lista del codigo, para que esta pagina pruebe el mismo nodo con el que
+// arranca la app de verdad y no uno suyo aparte.
+//
+// Comprobado el 11/09/2026 sobre el de la comunidad: responde al preflight con
 // Access-Control-Allow-Origin: * — es decir, el WebView podra llamarlo
 // directamente y CapacitorHttp queda como plan B, no como necesidad.
-// (Apunte del mismo dia: api.chainweb.com, el nodo de Kadena Inc, NO resuelve en DNS.)
-const NODO = 'https://api.chainweb-community.org';
+const NODO = NODOS_KDA[0];
 const RED = 'mainnet01';
 const CHAIN = '2';
 

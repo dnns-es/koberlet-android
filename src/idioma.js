@@ -602,6 +602,34 @@ const EN = {
 
     // --- Red
     'Red a la que se conecta la app': 'Network the app connects to',
+    // Los nodos de Kadena: la app los mide sola y usa el mejor de los que van al dia.
+    'Nodos de Kadena': 'Kadena nodes',
+    'La app los mide sola cada diez minutos y usa el más rápido DE LOS QUE VAN AL DÍA. No hay nada que hacer aquí, salvo que quieras poner el tuyo o mandar sobre uno concreto.':
+        'The app measures them on its own every ten minutes and uses the fastest ONE THAT IS UP TO DATE. There is nothing to do here, unless you want to add your own or force a particular one.',
+    'Todavía sin medir.': 'Not measured yet.',
+    'en uso': 'in use',
+    'no contesta': 'no answer',
+    'Va {0} bloques atrasado: se aparta aunque sea rápido.':
+        'It is {0} blocks behind: set aside even if it is fast.',
+    'Al día ({0} bloque(s) del más adelantado).': 'Up to date ({0} block(s) from the most advanced one).',
+    'Al día.': 'Up to date.',
+    'Usar siempre este': 'Always use this one',
+    'Volver al automático': 'Back to automatic',
+    'Quitar': 'Remove',
+    'Hay un nodo fijado a mano: se sigue midiendo, pero no se cambia solo aunque otro vaya mejor.':
+        'A node is pinned by hand: it is still measured, but it will not change on its own even if another one does better.',
+    'Medido hace {0} s.': 'Measured {0} s ago.',
+    'Medir ahora': 'Measure now',
+    'Midiendo…': 'Measuring…',
+    'Añadir un nodo tuyo': 'Add a node of your own',
+    'Añadir el nodo': 'Add the node',
+    'Solo https: por http cualquiera en la misma wifi podría cambiarte un saldo o un precio por el camino. Un nodo ve las direcciones que consultas y puede mentirte, pero no puede sacarte las claves: la firma se hace dentro del móvil.':
+        'https only: over http anyone on the same wifi could change a balance or a price on the way. A node sees the addresses you look up and can lie to you, but it cannot take your keys: signing happens inside the phone.',
+    'sin altura en la respuesta': 'no block height in the answer',
+    'La dirección del nodo tiene que empezar por https:// y no llevar usuario, ? ni #.':
+        'The node address has to start with https:// and carry no username, ? or #.',
+    'Ese nodo ya está en la lista.': 'That node is already on the list.',
+    'Los nodos de fábrica no se quitan.': 'Factory nodes cannot be removed.',
     '(desactivada por defecto)': '(off by default)',
     // Redes puestas a mano (una devnet de pruebas, por ejemplo).
     '(puesta a mano)': '(added by hand)',

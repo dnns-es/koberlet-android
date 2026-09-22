@@ -109,6 +109,39 @@ El navegador es para la primera instalación.
 
 ## Sin publicar todavía (para la próxima)
 
+- **PENDIENTE 20-09-2026 · el móvil firma con el reloj del móvil.** Encontrado el
+  19-09 mirando por qué las órdenes de KDA Móvil aparecen en la mempool con ~98 s
+  de antigüedad declarada (medido: 98,3 · 97,5 · 93,5 · 97,4 · 104,5 s, desviación
+  3,5 s — demasiado fijo para ser deriva de reloj). Análisis completo en
+  `F:\Claude\projects\monedero-dnns\HALLAZGO_reloj_movil_20260919.md`.
+  - **Qué pasa**: el escritorio sincroniza con el nodo (`lib/kdatime.js`, cabecera
+    HTTP `Date` de `/cut`, offset cacheado 2 min, margen −45 s). El móvil **no**:
+    `KoberletVault.kt` usa `System.currentTimeMillis()` con un **−90 s** fijo,
+    repetido siete veces (y una en `KoberletVault.swift`).
+  - **El comentario nativo miente**: dice «La hora la pone el nodo, no el móvil»,
+    pero ningún camino de firma del JS manda `creationTime`. El único que lo manda
+    es `src/pantalla-mercado.js:349`, y manda el reloj del móvil otra vez.
+  - **Riesgo real**: con `ttl 600` y −90 s la ventana efectiva es de ~510 s. Un
+    teléfono adelantado más de ~90 s firma transacciones del futuro (Chainweb las
+    rechaza); atrasado más de ~510 s, transacciones ya caducadas. El usuario ve un
+    fallo sin explicación y el escritorio, con la misma cuenta, funciona.
+  - **El arreglo es barato y no toca Kotlin ni Swift**: el plugin nativo ya acepta
+    un `creationTime` desde JS y lo prefiere al suyo. Basta con portar
+    `kdatime.js` al móvil y usarlo en `src/enviar.js` y demás caminos de firma.
+    Después: estrechar la comprobación nativa de ±24 h a ±5 min (hoy no protege de
+    nada) y unificar el margen, que es 45 en escritorio y 90 en móvil sin motivo.
+  - Mirar también `src/lib/kda.js:290` (paso 2 del cross-chain con gasolinera):
+    usa `Date.now()/1000 − 90` y **eso sí se manda a `/send`**, no es simulación.
+  - **Cómo se reparte**: no hay actualización de solo-JS, así que hay que compilar.
+    Va a `descargas.dnns.es` y a Play en el bundle que se suba hacia el **2 de
+    octubre**, cuando toque pedir producción. Subir al canal de prueba cerrada
+    **no** reinicia los 14 días; eso solo lo reinicia que se salga un tester.
+  - **22-09-2026: NO entra en la 0.58.0.** Iba a entrar, pero la 0.58.0 se llevó
+    el cambio de nodos y esto toca el camino de firma, que aquí no se puede probar
+    de verdad (hace falta un móvil con saldo). No se junta un cambio probado con
+    otro sin probar: va en la siguiente, sola, para que si algo falla se sepa qué
+    fue.
+
 - **Políticas de uso, y hay que aceptarlas** (`src/politicas.js`). Lo pidió Antonio: se
   aceptan al instalar y tras cada actualización que las cambie, se pueden releer dentro
   de la app cuando se quiera, y se pueden leer antes de instalar nada.
@@ -180,6 +213,85 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 [`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
+
+## 0.58.0 (22/09/2026) — la app elige sola el nodo de Kadena
+
+### De qué venía
+
+Antonio, esa tarde: «tarda mucho en refrescar la página», y Koberlet de
+escritorio colgado en «Cargando saldos…». Se midió el nodo público de la
+comunidad, `api.chainweb-community.org`, que era **el único que la app conocía**
+y estaba escrito a fuego en `src/config.js`:
+
+| nodo | mediana | peor | 25 lecturas de reservas |
+|---|---:|---:|---|
+| **chainweb.eckowallet.com** | **81 ms** | 102 ms | 0 fallos |
+| chainweb.chaddex.com | 90 ms | 778 ms | 0 fallos |
+| api.chainweb-community.org | 1.625 ms | **12.343 ms** | + un plantón de 8 s |
+
+**Y lo grave no era la lentitud: servía datos viejos.** Su balanceador tiene al
+menos un nodo pegado detrás, y en 1 de cada 10 peticiones contestaba con una
+altura **19 bloques atrasada**, unos diez minutos. Eso no da ningún error: te
+pinta saldos que ya no son.
+
+El mismo día, el keeper del DCA de KoberluSW estuvo media tarde sin poder
+comprar porque ese nodo, 24 bloques por detrás, rechazaba transacciones bien
+fechadas con «Transaction creation time too far in the future». El nodo deriva su
+«ahora» de su último bloque: si va atrasado, lo válido le parece del futuro.
+
+### Qué hace ahora la app
+
+`src/lib/nodo.js`, puerto del `lib/kdanodo.js` del escritorio (2.11.0). Conoce
+tres nodos, los mide **cada diez minutos** y usa el mejor. No mide solo
+velocidad: mide también **frescura**, comparando la altura de la cadena 2 entre
+todos, y **aparta al que vaya más de 3 bloques atrasado aunque sea el más
+rápido**. Esa es la regla que protege el test `test/nodo-kda.test.js`, porque es
+justo la que se rompe sin querer al «simplificar a ordenar por latencia».
+
+Si todos van atrasados coge el más adelantado: quedarse sin nodo es peor.
+
+En **Red → Nodos de Kadena** se ve cada nodo con su latencia medida y su retraso,
+se puede añadir uno propio (solo `https://`), fijar uno a mano o pedir que los
+mida en ese momento. Lo que añade el dueño se guarda en `koberlet.nodos`; los de
+fábrica viven en el código y no se guardan, para que una lista vieja no pueda
+dejar la app sin nodos.
+
+### Se quita la red «Kadena (Inc)»
+
+Apuntaba a `api.chainweb.com`, que **no existe** (`nslookup` → «Non-existent
+domain»). Venía desactivada, así que lo único que podía hacer era dar errores a
+quien la encendiera. Fuera también en el escritorio, en la 2.11.0.
+
+### Lo de CORS, que parece una avería y no lo es
+
+`chainweb.eckowallet.com` **no manda `Access-Control-Allow-Origin`** (comprobado
+el 22-09; chaddex y el de la comunidad mandan `*`). En el APK da igual, porque
+las peticiones salen por `CapacitorHttp`, que es HTTP nativo y no pasa por el
+CORS del WebView. Pero en `npm run dev`, en el navegador, eckowallet falla con
+«Failed to fetch» y la sonda se pasa sola a chaddex. Está anotado en
+`src/config.js` para que nadie lo tome por un fallo.
+
+### Qué se probó, y qué no
+
+Probado **en el navegador, contra los nodos de verdad** (22-09, 19:0x):
+
+- La sonda midió los tres, apartó al de la comunidad por ir **21 bloques
+  atrasado** y dejó chaddex en uso a **56 ms** (antes: 723-777 ms).
+- «Usar siempre este» sobre el nodo atrasado: pasa a usarlo, lo dice en pantalla
+  y lo guarda. «Volver al automático»: vuelve a chaddex y lo borra.
+- Añadir `http://…` → lo rechaza con su motivo. Añadir un `https://` que no
+  existe → sale en la lista como «no contesta», no se elige, y «Quitar» lo saca.
+- 48/48 tests en verde, 12 de ellos nuevos.
+
+**No probado todavía**: el APK en un móvil de verdad. Lo único que cambia ahí es
+que eckowallet sí responderá (sin CORS de por medio). Si no respondiera, la sonda
+se pasaría sola a chaddex, que es el peor caso y es el de ahora.
+
+### Sigue pendiente
+
+El reloj del móvil al firmar (ver más arriba, «Sin publicar todavía»). Va aparte,
+en su propia versión: no se mete un cambio sin probar en el camino de firma junto
+a otro que sí está probado.
 
 ## 0.57.0 (18/09/2026) — el gas lo paga Koberlet, y la semilla no se fotografía
 

@@ -36,6 +36,7 @@ import { nombreCartera } from './nombres.js';
 import { vigilarCerrojo, vigilarAtras, alFondo, TIEMPOS, minutosCerrojo, fijarMinutosCerrojo } from './salir.js';
 import { contactos, borrarContacto } from './agenda.js';
 import { vigilarEnlaces, recogerEnlace } from './enlace.js';
+import * as nodos from './lib/nodo.js';
 
 const $ = (id) => document.getElementById(id);
 const app = () => $('app');
@@ -1557,6 +1558,7 @@ function pintarRed() {
         }
     })();
 
+    app().append(bloqueNodos());
     app().append(bloqueRedesPropias(propias));
     app().append(bloqueAnadirRed());
     app().append(bloqueTokensPropios());
@@ -1594,6 +1596,101 @@ function bloqueAgenda() {
         }, 'peligro'));
     });
     return c;
+}
+
+/**
+ * Los nodos de Kadena, con lo que tardó cada uno y si va al día.
+ *
+ * Se enseña la ULTIMA MEDIDA, no una etiqueta fija: «va bien» sin un número
+ * detrás no dice nada. Y se enseña el retraso además de la latencia porque es lo
+ * que no se ve: un nodo rápido con datos viejos te pinta saldos que ya no son
+ * sin dar un solo error, y eso es justo lo que pasó el 22-09-2026 con el nodo
+ * público de la comunidad.
+ */
+function bloqueNodos() {
+    const c = caja();
+    c.append(texto('h3', t('Nodos de Kadena')));
+    c.append(texto('p', t('La app los mide sola cada diez minutos y usa el más rápido DE LOS QUE VAN AL DÍA. No hay nada que hacer aquí, salvo que quieras poner el tuyo o mandar sobre uno concreto.'), 'nota'));
+
+    const e = nodos.verEstado();
+    if (!e.medidas.length) {
+        c.append(texto('p', t('Todavía sin medir.'), 'nota'));
+    }
+
+    e.medidas.forEach((m) => {
+        const host = m.url.replace(/^https:\/\//, '');
+        const marca = m.url === e.elegido ? ' · ' + t('en uso') : '';
+        c.append(fila(host + marca, m.ok ? m.ms + ' ms' : t('no contesta')));
+        if (!m.ok) {
+            c.append(texto('p', t(String(m.error || '')), 'malo'));
+        } else if (m.atrasado) {
+            c.append(texto('p', t('Va {0} bloques atrasado: se aparta aunque sea rápido.', m.retraso), 'malo'));
+        } else if (m.retraso > 0) {
+            c.append(texto('p', t('Al día ({0} bloque(s) del más adelantado).', m.retraso), 'nota'));
+        } else {
+            c.append(texto('p', t('Al día.'), 'nota'));
+        }
+
+        const botonera = document.createElement('div');
+        botonera.className = 'botonera';
+        if (e.fijo === m.url) {
+            botonera.append(boton(t('Volver al automático'), () => accionNodo(() => nodos.fijarNodo(null))));
+        } else {
+            botonera.append(boton(t('Usar siempre este'), () => accionNodo(() => nodos.fijarNodo(m.url))));
+        }
+        if (!e.deFabrica.includes(m.url)) {
+            botonera.append(boton(t('Quitar'), () => accionNodo(() => nodos.quitarNodo(m.url)), 'peligro'));
+        }
+        c.append(botonera);
+    });
+
+    if (e.fijo) {
+        c.append(texto('p', t('Hay un nodo fijado a mano: se sigue midiendo, pero no se cambia solo aunque otro vaya mejor.'), 'nota'));
+    }
+    if (e.cuando) {
+        c.append(texto('p', t('Medido hace {0} s.', Math.round((Date.now() - e.cuando) / 1000)), 'nota'));
+    }
+
+    const salida = document.createElement('div');
+    c.append(boton(t('Medir ahora'), async () => {
+        salida.innerHTML = '';
+        salida.append(texto('p', t('Midiendo…'), 'nota'));
+        await nodos.sondear();
+        aplicarNodo(nodos.mejor());
+        pintarRed();
+    }));
+
+    // Poner un nodo propio. Solo la direccion: aqui no se configura ningun
+    // contrato, igual que en las redes puestas a mano (hallazgo #4 de Alex).
+    const campo = document.createElement('div');
+    campo.className = 'campo';
+    const l = document.createElement('label');
+    l.setAttribute('for', 'nodo-nuevo');
+    l.textContent = t('Añadir un nodo tuyo');
+    const i = document.createElement('input');
+    i.id = 'nodo-nuevo';
+    i.spellcheck = false;
+    i.placeholder = 'https://mi-nodo.ejemplo.com';
+    campo.append(l, i);
+    c.append(campo);
+    c.append(boton(t('Añadir el nodo'), () => accionNodo(() => nodos.anadirNodo(i.value), salida)));
+    c.append(salida);
+    c.append(texto('p', t('Solo https: por http cualquiera en la misma wifi podría cambiarte un saldo o un precio por el camino. Un nodo ve las direcciones que consultas y puede mentirte, pero no puede sacarte las claves: la firma se hace dentro del móvil.'), 'nota'));
+    return c;
+}
+
+/** Hace algo con los nodos, repinta, y si falla lo dice en vez de tragárselo. */
+async function accionNodo(hacer, salida = null) {
+    try {
+        await hacer();
+        aplicarNodo(nodos.mejor());
+        pintarRed();
+    } catch (err) {
+        if (salida) {
+            salida.innerHTML = '';
+            salida.append(texto('p', t(String(err.message || err)), 'malo'));
+        }
+    }
 }
 
 /** Las redes que ha puesto el dueño, con su botón de quitar. */
@@ -1924,6 +2021,24 @@ function pintarAjustes() {
     // mas, no una comodidad.
 }
 
+/**
+ * Pone el nodo que haya elegido la sonda en la red de Kadena.
+ *
+ * Se cambia el campo `nodo` de la red en sitio, que es lo que leen los 25
+ * lugares que hablan con la cadena: asi ninguno de ellos tiene que enterarse de
+ * que existe una sonda. Las redes puestas a mano NO se tocan: quien apunta a su
+ * devnet quiere ir a su devnet.
+ */
+function aplicarNodo(url) {
+    if (!url || REDES_KDA[0].nodo === url) return;
+    REDES_KDA[0].nodo = url;
+    if (redActiva.clave === REDES_KDA[0].clave) {
+        redActiva.nodo = url;
+        comprobarNodo();
+        if (seccionActual() === 'red') pintarRed();
+    }
+}
+
 // --- Sonda del nodo ---------------------------------------------------------
 // Dice a que cadena estamos conectados de verdad, y de paso deja probado el
 // camino GET de la capa de red.
@@ -2026,6 +2141,15 @@ async function arrancar() {
         `red: ${caminoRed()}\n` +
         `bóveda: ${motor}\n` +
         `${navigator.userAgent}`;
+
+    // La sonda de nodos. Arranca aqui, una sola vez, y a partir de ahora es ella
+    // quien decide a que nodo se pregunta: mide los de la lista cada diez
+    // minutos y se queda con el mas rapido DE LOS QUE VAN AL DIA. No se la
+    // espera: la app abre con el primero de fabrica y la sonda lo corrige a los
+    // pocos segundos si hay otro mejor.
+    nodos.arrancar(aplicarNodo, { networkId: REDES_KDA[0].networkId })
+        .then(() => aplicarNodo(nodos.mejor()))
+        .catch(() => { /* sin sonda se sigue con el de fabrica */ });
 
     comprobarNodo();
 
