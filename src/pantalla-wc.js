@@ -88,19 +88,35 @@ export function pintarWalletConnect(raiz, ctx) {
     c.append(boton(t('Pegar enlace'), () => conectar(campo.value), 'secundario'));
     c.append(estado, listaSesiones, zonaPeticion);
 
+    // Los fallos que se pueden explicar sin jerga. Los tres primeros son los que
+    // antes salian todos como un «Conectando…» que no acababa nunca.
+    const EXPLICACION = {
+        WC_URI_MALA: () => t('Eso no es un enlace de conexión. Tiene que empezar por «wc:» y lo da la propia web junto al código QR.'),
+        WC_SIN_RELE: () => t('No se ha podido abrir la conexión con el servidor de enlace. Comprueba que tienes internet y vuelve a intentarlo; si estás en una wifi de hotel o de oficina, prueba con los datos del móvil.'),
+        WC_SIN_RESPUESTA: () => t('El enlace no ha respondido. Suele ser que el código QR ya había caducado: vuelve a sacarlo en la web, que cambia cada vez, y léelo otra vez.'),
+    };
+
+    function explica(e) {
+        const m = String((e && e.message) || e);
+        const codigo = Object.keys(EXPLICACION).find((k) => m.includes(k));
+        return codigo ? EXPLICACION[codigo]() : t(m);
+    }
+
     async function conectar(uri) {
         estado.className = 'nota';
-        estado.textContent = t('Conectando…');
         try {
+            // Se dice en qué paso va y no un «Conectando…» para todo: cuando algo
+            // se atasca, saber si fue al abrir la conexión o al leer el enlace es
+            // la diferencia entre arreglarlo y volver a probar a ciegas.
+            estado.textContent = t('Abriendo la conexión…');
             await arrancarSiHaceFalta();
+            estado.textContent = t('Leyendo el enlace…');
             await wc.emparejar(uri);
             campo.value = '';
             estado.textContent = t('Enlace aceptado. Esperando a que la web pida la conexión…');
         } catch (e) {
             estado.className = 'malo';
-            estado.textContent = /WC_URI_MALA/.test(String(e.message || e))
-                ? t('Eso no es un enlace de conexión. Tiene que empezar por «wc:» y lo da la propia web junto al código QR.')
-                : t(String(e.message || e));
+            estado.textContent = explica(e);
         }
     }
 
@@ -242,9 +258,16 @@ export function pintarWalletConnect(raiz, ctx) {
         zonaPeticion.append(k);
     }
 
-    // Se arranca al entrar: si quedaba una sesion viva de antes, se ve enseguida.
-    arrancarSiHaceFalta().then(pintarSesiones).catch((e) => {
+    // Se arranca al entrar: si quedaba una sesion viva de antes, se ve enseguida,
+    // y sobre todo el socket ya esta abierto cuando se lee el QR, que es cuando
+    // corre prisa -el codigo caduca-.
+    estado.textContent = t('Abriendo la conexión…');
+    arrancarSiHaceFalta().then(() => {
+        pintarSesiones();
+        estado.className = 'nota';
+        estado.textContent = wc.conectadoAlRele() ? t('Listo para leer el código.') : '';
+    }).catch((e) => {
         estado.className = 'malo';
-        estado.textContent = t(String(e.message || e));
+        estado.textContent = explica(e);
     });
 }

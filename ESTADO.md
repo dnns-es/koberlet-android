@@ -218,6 +218,35 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.59.1 (24/09/2026) — «Conectando…» que no acababa nunca
+
+Antonio probó la 0.59.0 en el iPhone, leyó el QR de la web y la pantalla se
+quedó en **«Conectando…»** para siempre. Ni conectaba ni fallaba.
+
+Lo primero que se comprobó es que el fallo NO estaba en el enlace ni en el relé:
+con el mismo enlace que él usó, el mismo código emparejó en el navegador del PC
+y la propuesta de Smart Pacts llegó **en un segundo** (`herramientas/wc-prueba.html`, que se
+añade para esto). Así que era cosa del WebView del iPhone.
+
+**La causa más probable, y lo que se cambia:** el WebView de iOS servía la app
+desde `capacitor://localhost`. Ese origen no es una URL normal y hay servicios
+que lo rechazan de plano, entre ellos el relé por el que habla WalletConnect.
+Android no lo sufría porque ya iba con `androidScheme: https`; iOS no tenía nada
+puesto y se quedaba con el de fábrica. Ahora también va con `iosScheme: https`.
+
+**Efecto secundario que hay que saber:** cambiar el esquema cambia el origen del
+WebView, así que iOS empieza con las preferencias de pantalla en blanco (idioma,
+cartera elegida, nodos añadidos a mano). **Las carteras no se tocan**: viven en
+un fichero cifrado del sistema, no en el navegador.
+
+**Y pase lo que pase, ya no se queda mudo.** «Conectando…» tapaba tres pasos
+distintos —arrancar el SDK, abrir el socket con el relé y leer el enlace— y
+cualquiera de ellos podía colgarse sin decir nada, porque ninguno tenía límite de
+tiempo. Ahora se dice en qué paso va, hay un tope de 25 segundos y cada fallo
+tiene su frase: sin conexión con el relé se sugiere cambiar de red, y un enlace
+que no responde avisa de que el QR caduca y hay que sacarlo otra vez. De paso,
+entrar y pulsar enseguida ya no monta dos transportes a la vez.
+
 ## 0.59.0 (24/09/2026) — firmar en webs de Kadena leyendo su QR
 
 Sin publicar todavía. Es la funcionalidad que Antonio pidió con estas palabras:

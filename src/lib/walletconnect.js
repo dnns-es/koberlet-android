@@ -40,16 +40,53 @@ const METADATOS = {
 };
 
 let kit = null;
+let arrancando = null;
+
+/**
+ * Cuanto se espera a cada cosa antes de decir que no va.
+ *
+ * Sin esto, cuando el socket con el rele no llega a abrirse -cobertura mala, una
+ * wifi con portal cautivo, el rele caido- NADA falla: el SDK se queda esperando
+ * para siempre y la pantalla se queda con un «Conectando…» eterno que no dice
+ * nada. Un limite convierte eso en una frase que se puede leer y actuar.
+ */
+const ESPERA_MS = 25000;
+
+function conLimite(promesa, codigo) {
+    let reloj;
+    return Promise.race([
+        promesa.finally(() => clearTimeout(reloj)),
+        new Promise((_, no) => { reloj = setTimeout(() => no(new Error(codigo)), ESPERA_MS); }),
+    ]);
+}
+
+/** ¿Hay socket abierto con el relé ahora mismo? Para poder decirlo en pantalla. */
+export function conectadoAlRele() {
+    try { return !!(kit && kit.core && kit.core.relayer && kit.core.relayer.connected); }
+    catch (_) { return false; }
+}
 
 /**
  * Arranca el transporte. Se llama cuando el dueño entra en la seccion, no al abrir
  * la app: mantener un socket abierto todo el rato gasta bateria y no sirve de nada
  * mientras no haya ninguna web conectada.
+ *
+ * La promesa se guarda mientras arranca: si se entra y se pulsa enseguida, la
+ * segunda llamada espera a la primera en vez de montar OTRO transporte a la vez.
+ * Dos `init` en paralelo dejaban dos juegos de manejadores sobre el mismo
+ * almacen y la pantalla podia quedarse esperando a la que no era.
  */
 export async function arrancar({ alProponer, alPedirFirma, alCerrar }) {
     if (kit) return kit;
+    if (arrancando) return arrancando;
+    arrancando = arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar })
+        .finally(() => { arrancando = null; });
+    return arrancando;
+}
+
+async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
     const core = new Core({ projectId: PROJECT_ID });
-    kit = await WalletKit.init({ core, metadata: METADATOS });
+    kit = await conLimite(WalletKit.init({ core, metadata: METADATOS }), 'WC_SIN_RELE');
 
     kit.on('session_proposal', (p) => {
         const m = (p.params && p.params.proposer && p.params.proposer.metadata) || {};
@@ -112,7 +149,10 @@ export async function emparejar(uri) {
     // Se valida antes de dársela al SDK para poder decir algo util: casi todos los
     // fallos aqui son haber leido otro QR cualquiera, no un problema de red.
     if (!/^wc:[0-9a-f]{64}@2\?/i.test(limpia)) throw new Error('WC_URI_MALA');
-    return kit.pair({ uri: limpia });
+    // Con limite por lo mismo que el arranque: sin socket, `pair` no falla, se
+    // queda esperando. Y un enlace caducado tampoco se queja: la web ya no esta
+    // escuchando al otro lado, asi que el aviso tiene que decir las dos cosas.
+    return conLimite(kit.pair({ uri: limpia }), 'WC_SIN_RESPUESTA');
 }
 
 export async function aprobarSesion(id, claves) {

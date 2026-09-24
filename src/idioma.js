@@ -884,10 +884,16 @@ const EN = {
         'Scan the QR code the website shows you and sign here whatever it asks for. Koberlet listens while this screen is open.',
     'Leer código QR': 'Scan QR code',
     'Pegar enlace': 'Paste link',
-    'Conectando…': 'Connecting…',
     'Enlace aceptado. Esperando a que la web pida la conexión…': 'Link accepted. Waiting for the website to request the connection…',
     'Eso no es un enlace de conexión. Tiene que empezar por «wc:» y lo da la propia web junto al código QR.':
         'That is not a connection link. It must start with "wc:" and the website gives it to you next to the QR code.',
+    'Abriendo la conexión…': 'Opening the connection…',
+    'Leyendo el enlace…': 'Reading the link…',
+    'Listo para leer el código.': 'Ready to scan the code.',
+    'No se ha podido abrir la conexión con el servidor de enlace. Comprueba que tienes internet y vuelve a intentarlo; si estás en una wifi de hotel o de oficina, prueba con los datos del móvil.':
+        'The connection to the relay server could not be opened. Check that you have internet and try again; if you are on a hotel or office wifi, try your mobile data.',
+    'El enlace no ha respondido. Suele ser que el código QR ya había caducado: vuelve a sacarlo en la web, que cambia cada vez, y léelo otra vez.':
+        'The link did not respond. Usually the QR code had already expired: show it again on the website —it changes every time— and scan it again.',
     'Webs conectadas': 'Connected websites',
     'Desconectar': 'Disconnect',
     'Una web quiere conectarse': 'A website wants to connect',

@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- Koberlet Android - Copyright 2026 DNNS.es (Oberluss) -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!--
+  BANCO DE PRUEBAS DEL TRANSPORTE DE WALLETCONNECT.
+
+  Solo el transporte: ni boveda, ni carteras, ni contrasenas. Sirve para saber
+  DONDE se queda cuando la pantalla «Conectar» dice «Conectando…» y no pasa nada,
+  que es justo lo que no se puede averiguar dentro de la app: alli ese mensaje
+  tapa tres pasos distintos (arrancar el SDK, abrir el socket con el rele y
+  emparejar) y cualquiera de los tres puede ser el que cuelga.
+
+  Se abre con `npm run dev` en /herramientas/wc-prueba.html y se le pega un enlace wc: recien
+  sacado de una web. Cada paso se apunta con su hora.
+-->
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Koberlet · prueba de WalletConnect</title>
+    <style>
+        body { font: 14px/1.5 system-ui, sans-serif; margin: 16px; max-width: 720px; }
+        input { width: 100%; padding: 8px; font: inherit; }
+        button { padding: 8px 14px; font: inherit; margin: 6px 6px 6px 0; }
+        pre { background: #f4f5f7; padding: 10px; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>Prueba del transporte</h1>
+    <p>Pega aquí el enlace <code>wc:</code> que da la web junto al código QR.</p>
+    <input id="uri" placeholder="wc:…" autocapitalize="off" spellcheck="false">
+    <div>
+        <button id="arrancar">1. Arrancar</button>
+        <button id="emparejar">2. Emparejar</button>
+    </div>
+    <pre id="log">esperando…</pre>
+
+    <script type="module">
+        import * as wc from '/src/lib/walletconnect.js';
+
+        const log = document.getElementById('log');
+        const di = (t) => {
+            const h = new Date().toTimeString().slice(0, 8);
+            log.textContent += `\n${h}  ${t}`;
+            console.log(h, t);
+        };
+        log.textContent = 'listo';
+        window.addEventListener('unhandledrejection', (e) => di('PROMESA ROTA: ' + (e.reason?.message || e.reason)));
+
+        document.getElementById('arrancar').onclick = async () => {
+            di('arrancando el SDK…');
+            try {
+                await wc.arrancar({
+                    alProponer: (p) => di('PROPUESTA de ' + p.nombre + ' (' + p.url + ')'),
+                    alPedirFirma: (f) => di('PIDE FIRMA: ' + JSON.stringify(f).slice(0, 300)),
+                    alCerrar: () => di('sesión cerrada'),
+                });
+                di('arrancado. sesiones: ' + (wc.sesiones().length || 'ninguna'));
+            } catch (e) { di('FALLO al arrancar: ' + (e.message || e)); }
+        };
+
+        document.getElementById('emparejar').onclick = async () => {
+            di('emparejando…');
+            try {
+                await wc.emparejar(document.getElementById('uri').value);
+                di('emparejado; esperando la propuesta de la web');
+            } catch (e) { di('FALLO al emparejar: ' + (e.message || e)); }
+        };
+    </script>
+</body>
+</html>
