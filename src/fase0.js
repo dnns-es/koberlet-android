@@ -217,6 +217,62 @@ async function pruebaRed(cuenta) {
     }
 }
 
+// --- 6. El socket del rele de WalletConnect --------------------------------
+//
+// Se añade el 25/09/2026 por el «Conectando…» eterno del iPhone: la pantalla
+// Conectar se quedaba leyendo el enlace sin conectar ni fallar, y desde fuera no
+// habia forma de saber si el aparato podia siquiera ABRIR el socket. Desde Safari
+// del mismo iPhone abria en 0,3 s, asi que el sospechoso era el WebView, y esa
+// diferencia solo se puede medir DENTRO de la app. Para eso existe esta pagina.
+//
+// Aqui no se empareja ni se firma nada: solo se abre el socket y se cierra. El
+// rele pide un testigo firmado, que lo genera la propia libreria de WalletConnect
+// en el momento, con un par de claves de usar y tirar.
+async function pruebaRele() {
+    const fila = apunta('WalletConnect: abrir el socket del rele', null, 'conectando…');
+    const t0 = Date.now();
+    try {
+        const [{ generateKeyPair, signJWT }] = await Promise.all([import('@walletconnect/relay-auth')]);
+        const par = generateKeyPair(crypto.getRandomValues(new Uint8Array(32)));
+        const sub = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
+        const jwt = await signJWT(sub, 'wss://relay.walletconnect.org', 3600, par);
+        const url = 'wss://relay.walletconnect.org/?auth=' + jwt
+            + '&projectId=b0e3e11cc9ca4e31921e2ff7228a0f44&ua=koberlet-fase0';
+
+        const q = await new Promise((acaba) => {
+            let hecho = false;
+            const fin = (t) => { if (!hecho) { hecho = true; acaba(t); try { ws.close(); } catch (_) { /* ya estaba */ } } };
+            const ws = new WebSocket(url);
+            ws.onopen = () => fin('ABRE');
+            ws.onerror = () => fin('FALLA');
+            ws.onclose = (e) => fin('SE CIERRA, codigo ' + e.code);
+            setTimeout(() => fin('SE QUEDA COLGADO'), 20000);
+        });
+
+        const ms = Date.now() - t0;
+        const bien = q === 'ABRE';
+        fila.className = 'prueba ' + (bien ? 'bien' : 'mal');
+        fila.querySelector('h3').textContent = (bien ? '✓ ' : '✗ ') + 'WalletConnect: abrir el socket del rele';
+        fila.querySelector('pre').textContent =
+            `resultado: ${q} en ${ms} ms\n` +
+            `origen de esta pagina: ${location.origin}\n` +
+            `contexto seguro: ${window.isSecureContext ? 'si' : 'NO'} · cifrado del navegador: ${(window.crypto && window.crypto.subtle) ? 'si' : 'NO'}\n\n` +
+            (bien
+                ? 'El aparato puede hablar con el rele. Si aun asi «Conectar» se queda\ncolgado, el problema no es la red ni el WebView: es el codigo de la pantalla.'
+                : 'El aparato NO puede abrir el socket desde dentro de la app.\n\n'
+                  + 'Lo primero que hay que mirar es la CSP de index.html: si `connect-src`\n'
+                  + 'no nombra `wss://relay.walletconnect.org`, el socket se cae aqui mismo,\n'
+                  + 'sin salir del aparato y sin decir nada. Un fallo en menos de 50 ms es\n'
+                  + 'justo eso; uno de varios segundos es la red.');
+        return bien;
+    } catch (e) {
+        fila.className = 'prueba mal';
+        fila.querySelector('h3').textContent = '✗ WalletConnect: abrir el socket del rele';
+        fila.querySelector('pre').textContent = String(e);
+        return false;
+    }
+}
+
 // --- Orquestacion ----------------------------------------------------------
 async function lanzar() {
     salida.innerHTML = '';
@@ -228,6 +284,7 @@ async function lanzar() {
     r.push(pruebaEthers());
     r.push(await pruebaHdWallet());
     r.push(await pruebaRed(cuenta));
+    r.push(await pruebaRele());
 
     const bien = r.filter(Boolean).length;
     const res = document.createElement('div');

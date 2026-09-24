@@ -32,11 +32,13 @@
     <div>
         <button id="arrancar">1. Arrancar</button>
         <button id="emparejar">2. Emparejar</button>
+        <button id="socket">3. Solo el socket</button>
     </div>
     <pre id="log">esperando…</pre>
 
     <script type="module">
         import * as wc from '/src/lib/walletconnect.js';
+        import { generateKeyPair, signJWT } from '@walletconnect/relay-auth';
 
         const log = document.getElementById('log');
         const di = (t) => {
@@ -57,6 +59,29 @@
                 });
                 di('arrancado. sesiones: ' + (wc.sesiones().length || 'ninguna'));
             } catch (e) { di('FALLO al arrancar: ' + (e.message || e)); }
+        };
+
+        // El socket a pelo, sin el SDK: se firma el testigo que pide el rele y se
+        // abre. Sirve para separar «este aparato no puede hablar con el rele» de
+        // «el testigo que firmamos no le vale», que desde fuera se ven igual.
+        document.getElementById('socket').onclick = async () => {
+            di('firmando el testigo…');
+            try {
+                const par = generateKeyPair(crypto.getRandomValues(new Uint8Array(32)));
+                const sub = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
+                const jwt = await signJWT(sub, 'wss://relay.walletconnect.org', 3600, par);
+                di('testigo de ' + jwt.length + ' caracteres; abriendo socket…');
+                const t0 = Date.now();
+                const url = 'wss://relay.walletconnect.org/?auth=' + jwt
+                    + '&projectId=b0e3e11cc9ca4e31921e2ff7228a0f44&ua=koberlet-prueba';
+                const ws = new WebSocket(url);
+                let hecho = false;
+                const fin = (q) => { if (!hecho) { hecho = true; di(q + ' en ' + (Date.now() - t0) + ' ms'); try { ws.close(); } catch (_) {} } };
+                ws.onopen = () => fin('ABRE');
+                ws.onerror = () => fin('FALLA');
+                ws.onclose = (e) => fin('SE CIERRA, código ' + e.code);
+                setTimeout(() => fin('SE QUEDA COLGADO'), 20000);
+            } catch (e) { di('FALLO al firmar el testigo: ' + (e.message || e)); }
         };
 
         document.getElementById('emparejar').onclick = async () => {

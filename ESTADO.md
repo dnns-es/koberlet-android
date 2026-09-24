@@ -218,6 +218,44 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.59.2 (25/09/2026) — era la propia app la que se cortaba la conexión
+
+**La causa del «Conectando…» eterno era nuestra CSP.** La línea de
+`index.html` decía `connect-src https: http://localhost:*`, y en CSP el esquema
+`https:` **no cubre `wss:`**: los WebSockets van por su propio esquema. Así que
+el navegador tiraba al suelo el socket de WalletConnect antes de que saliera del
+aparato, sin aviso, sin error y sin tardar: el fallo llegaba en 1 ms.
+
+Cómo se acorraló, que es lo que vale para la próxima:
+
+1. Con el enlace que dio Antonio, el mismo código emparejó en el PC **en un
+   segundo**. No era el QR ni el relé.
+2. Desde **Safari del iPhone** —que no lleva nuestra CSP— el mismo teléfono abrió
+   el socket **en 0,3 s**. No era el aparato ni la red móvil.
+3. El mismo código **compilado** falló en el PC en 26 ms, y sin compilar abrió en
+   200. La diferencia no era el empaquetado: era que la página compilada es la de
+   la app, con su CSP, y la de pruebas no la tenía.
+4. Con `wss://relay.walletconnect.org` añadido, el bundle de producción abre en
+   206 ms.
+
+Se nombra el relé entero en vez de abrir `wss:` de par en par: es el único
+WebSocket que esta app necesita, y si algún día cambia de dirección vale más que
+falle a la vista que dejar la puerta abierta.
+
+**Por qué el escritorio nunca lo sufrió**, aunque su CSP es todavía más cerrada
+(`connect-src 'self'`): allí WalletConnect vive en el proceso principal de
+Electron, que es Node y no pasa por ninguna CSP. Mismo producto, dos sitios
+distintos donde corre lo mismo.
+
+**Y Android lo tenía igual de roto**, aunque no se había probado: la CSP es la
+misma `index.html` para los tres canales.
+
+**La prueba que faltaba.** `fase0.html` —el banco de pruebas que viaja dentro de
+la app— lleva ahora una prueba más: abre el socket del relé y dice cuánto tardó.
+Un fallo en menos de 50 ms es la CSP; uno de varios segundos es la red. Eso es
+exactamente lo que no se podía saber desde fuera y por lo que esta noche hicieron
+falta tres compilaciones.
+
 ## 0.59.1 (24/09/2026) — «Conectando…» que no acababa nunca
 
 Antonio probó la 0.59.0 en el iPhone, leyó el QR de la web y la pantalla se

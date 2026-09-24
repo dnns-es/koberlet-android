@@ -6,9 +6,18 @@
     <!-- CSP estricta desde el primer dia, como en el Koberlet de escritorio.
          'wasm-unsafe-eval' hace falta para @kadena/hd-wallet, que lleva WebAssembly.
          connect-src queda abierto a https: porque el nodo es configurable; en el
-         movil las consultas ni siquiera pasan por aqui (van por CapacitorHttp). -->
+         movil las consultas ni siquiera pasan por aqui (van por CapacitorHttp).
+
+         `wss://relay.walletconnect.org` va APARTE y a proposito: en CSP el esquema
+         `https:` NO cubre `wss:`, asi que hasta el 25/09/2026 esta misma linea
+         estaba tirando al suelo el socket de WalletConnect sin decir nada. La
+         pantalla Conectar se quedaba «leyendo el enlace» para siempre, y desde
+         Safari -que no lleva esta CSP- el mismo aparato abria en 0,3 s. Se nombra
+         el rele entero en vez de abrir `wss:` de par en par: el unico WebSocket
+         que esta app necesita es ese, y si algun dia cambia de direccion vale mas
+         que falle aqui, a la vista, que dejar la puerta abierta a cualquiera. -->
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http://localhost:*">
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: wss://relay.walletconnect.org http://localhost:* ws://localhost:*">
     <title>Koberlet</title>
     <style>
         /* Tema claro: el de siempre y el de por defecto.

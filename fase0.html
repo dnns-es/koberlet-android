@@ -6,7 +6,7 @@
     <!-- CSP estricta desde el primer dia, como en el Koberlet de escritorio.
          'wasm-unsafe-eval' es necesario para @kadena/hd-wallet, que lleva WebAssembly. -->
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http://localhost:*">
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: wss://relay.walletconnect.org http://localhost:* ws://localhost:*">
     <title>Koberlet Android — Fase 0</title>
     <style>
         :root {
