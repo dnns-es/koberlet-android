@@ -23,6 +23,7 @@ import { t } from './idioma.js';
 import { escanear } from './qr.js';
 import { boveda } from './boveda/contrato.js';
 import { nombreCartera } from './nombres.js';
+import { nombreBio } from './biometria.js';
 import { corta } from './direccion.js';
 import * as wc from './lib/walletconnect.js';
 
@@ -222,9 +223,39 @@ export function pintarWalletConnect(raiz, ctx) {
             if (otros.length) k.append(elemento('p', t('Otros permisos: {0}', otros.join(', ')), 'nota'));
         }
 
+        // La contraseña se pide aquí igual que en un envío: firmar para una web
+        // mueve dinero de verdad, así que no vale con tener el móvil en la mano.
+        const campoClave = elemento('div', null, 'campo');
+        const etiqueta = document.createElement('label');
+        etiqueta.setAttribute('for', 'wc-clave');
+        etiqueta.textContent = t('Contraseña de la cartera');
+        const filaClave = elemento('div', null, 'pwd');
+        const clave = document.createElement('input');
+        clave.type = 'password';
+        clave.id = 'wc-clave';
+        clave.autocomplete = 'off';
+        const ojo = document.createElement('button');
+        ojo.type = 'button';
+        ojo.className = 'ojo';
+        ojo.textContent = '👁';
+        ojo.addEventListener('click', () => {
+            clave.type = clave.type === 'password' ? 'text' : 'password';
+            ojo.textContent = clave.type === 'password' ? '👁' : '🙈';
+        });
+        filaClave.append(clave, ojo);
+        campoClave.append(etiqueta, filaClave);
+        k.append(campoClave);
+
         const aviso = elemento('p', '', 'nota');
         k.append(aviso);
-        k.append(boton(t('Firmar'), async () => {
+
+        let firmando = false;
+        async function firmar(comoFirmar) {
+            // Dos toques seguidos no son dos firmas: la web pidió una.
+            if (firmando) return;
+            firmando = true;
+            botonFirmar.hidden = true;
+            if (botonBio) botonBio.hidden = true;
             aviso.className = 'nota';
             aviso.textContent = t('Firmando…');
             try {
@@ -236,7 +267,7 @@ export function pintarWalletConnect(raiz, ctx) {
                     const pedida = String((d.firmantes || [])[0] || '').toLowerCase();
                     const mia = cuentasKadena().find((x) => String(x.cuenta).slice(2).toLowerCase() === pedida);
                     if (!mia) throw new Error('La web pide firmar con una cuenta que no está en este aparato.');
-                    const r = await boveda.firmarComandoExterno({ carteraId: mia.carteraId, cmd: comando.cmd });
+                    const r = await boveda.firmarComandoExterno({ carteraId: mia.carteraId, cmd: comando.cmd, ...comoFirmar });
                     respuestas.push({
                         commandSigData: { cmd: comando.cmd, sigs: [{ pubKey: r.pubKey, sig: r.sig }] },
                         outcome: { result: 'success', hash: r.hash },
@@ -247,10 +278,29 @@ export function pintarWalletConnect(raiz, ctx) {
                 estado.className = 'bueno';
                 estado.textContent = t('Firmado y devuelto a la web.');
             } catch (e) {
+                // Aquí no ha salido nada: se puede volver a intentar con la
+                // contraseña bien escrita, así que vuelven los botones.
+                firmando = false;
+                botonFirmar.hidden = false;
+                if (botonBio) botonBio.hidden = false;
                 aviso.className = 'malo';
-                aviso.textContent = t(String(e.message || e));
+                aviso.textContent = explica(e);
             }
-        }, 'principal'));
+        }
+
+        const botonFirmar = boton(t('Firmar'), () => firmar({ contrasena: clave.value }), 'principal');
+        k.append(botonFirmar);
+
+        // Con la identificación activada la contraseña queda de respaldo: el chip
+        // la desenvuelve tras el dedo o la cara, como en cualquier envío.
+        let botonBio = null;
+        boveda.bioEstado().then((bio) => {
+            if (!bio || !bio.activada) return;
+            botonBio = boton(t('Firmar con {0}', nombreBio(bio)), () => firmar({ huella: true }), 'secundario');
+            botonBio.hidden = firmando;
+            botonFirmar.after(botonBio);
+            etiqueta.textContent = t('Contraseña de la cartera (o firma con {0})', nombreBio(bio));
+        }).catch(() => { /* sin identificación, todo sigue igual */ });
         k.append(boton(t('Rechazar'), async () => {
             try { await wc.fallar(f.topic, f.id, 'rechazado en el monedero'); } catch (_) { /* la sesion pudo caerse */ }
             zonaPeticion.innerHTML = '';

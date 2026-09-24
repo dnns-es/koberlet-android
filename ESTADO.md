@@ -218,6 +218,22 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.59.3 (25/09/2026) — la tarjeta de firma pedía una contraseña que no tenía dónde escribirse
+
+Con la 0.59.2 el camino entero funcionó por fin en el iPhone: se leyó el QR, se
+apostó en la web y llegó la petición de firma con su desglose —0,1 KDA al pote de
+la ruleta, chain 2, gas máximo—. Al darle a **Firmar** salía en rojo «Falta la
+contraseña», y con razón: **no había ningún sitio donde escribirla**. La pantalla
+llamaba a la bóveda sin ella, y la bóveda, que exige contraseña o huella para
+cada firma, la rechazaba. La única de las cinco pantallas que firman a la que se
+le olvidó el campo.
+
+Ahora la tarjeta lleva lo mismo que un envío: campo de contraseña con su ojo y,
+si está activada la identificación, botón de Face ID o huella, con la contraseña
+de respaldo. Y, como en el envío, dos toques seguidos no son dos firmas: los
+botones se esconden mientras la firma está en el aire y vuelven si falla, que
+ahí todavía no ha salido nada.
+
 ## 0.59.2 (25/09/2026) — era la propia app la que se cortaba la conexión
 
 **La causa del «Conectando…» eterno era nuestra CSP.** La línea de
