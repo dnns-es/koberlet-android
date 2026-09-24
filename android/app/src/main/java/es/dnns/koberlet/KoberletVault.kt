@@ -923,6 +923,82 @@ class KoberletVault : Plugin() {
         }
     }
 
+
+    /**
+     * Firma un comando que ha montado OTRO: una pagina web, por WalletConnect.
+     *
+     * ES EL UNICO METODO DE ESTA CLASE QUE NO CONSTRUYE LO QUE FIRMA, y por eso
+     * lleva mas comprobaciones que los demas, no menos. Los otros arman el comando
+     * aqui dentro -envio, cambio, DCA- y el WebView solo elige los numeros; este
+     * recibe el texto hecho y lo firma tal cual.
+     *
+     * Por que se firma el TEXTO literal y no un objeto reconstruido: el hash de
+     * Pact es el blake2b del texto. Si esto volviera a serializar el JSON, el hash
+     * cambiaria y la firma valdria para un comando DISTINTO del que se le enseño
+     * al dueño en pantalla. Se firma exactamente lo que se enseño, byte a byte.
+     *
+     * Lo que SI se comprueba aqui, pase lo que pase en el WebView:
+     *   - que sea un comando Pact con sus partes (payload, signers, meta, red);
+     *   - que la clave que se pide este entre los firmantes del propio comando;
+     *   - que esa clave sea la de la cartera elegida en ESTE aparato.
+     * Y la contrasena o la huella, como en cualquier firma.
+     *
+     * El desglose -cuanto se mueve, a quien, que contrato- lo enseña la pantalla
+     * antes de llegar aqui. Es donde lo enseñan los demas monederos: el WebView de
+     * Koberlet es codigo propio, empaquetado y firmado en el APK, y NO carga webs
+     * de fuera; la dApp entra por el rele como datos, nunca como pagina.
+     */
+    @PluginMethod
+    fun firmarComandoExterno(call: PluginCall) {
+        val carteraId = call.getString("carteraId") ?: return call.reject("Falta la cartera.")
+        val cmd = call.getString("cmd") ?: return call.reject("Falta el comando.")
+        if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
+
+        // Estructura minima. Un comando al que le falte una de estas partes no es un
+        // comando de Pact: no se firma y se dice por que.
+        val objeto = try {
+            org.json.JSONObject(cmd)
+        } catch (e: Exception) {
+            return call.reject("Lo que manda la web no es un comando válido.")
+        }
+        if (!objeto.has("payload") || !objeto.has("signers") || !objeto.has("meta") || !objeto.has("networkId")) {
+            return call.reject("Lo que manda la web no parece un comando de Kadena.")
+        }
+        val firmantes = objeto.optJSONArray("signers")
+        if (firmantes == null || firmantes.length() == 0) {
+            return call.reject("La web no dice con qué clave hay que firmar.")
+        }
+        val pedidas = mutableListOf<String>()
+        for (i in 0 until firmantes.length()) {
+            val p = firmantes.optJSONObject(i)?.optString("pubKey").orEmpty().lowercase()
+            if (p.isNotEmpty()) pedidas.add(p)
+        }
+        if (pedidas.isEmpty()) return call.reject("La web no dice con qué clave hay que firmar.")
+
+        conContrasena(call, "Firma lo que te pide la web") { contrasena ->
+        hilo(call) {
+            val datos = abrirFichero(contrasena)
+            val cartera = Carteras.buscar(datos, carteraId)
+                ?: throw IllegalArgumentException("Esa cartera no existe.")
+            val privada = Carteras.privadaDe(cartera)
+            try {
+                val publica = Derivacion.publicaKadena(privada)
+                if (!pedidas.contains(publica.lowercase())) {
+                    throw IllegalArgumentException("La web pide firmar con otra cuenta distinta de la elegida.")
+                }
+                val hash = FirmaKda.hashComando(cmd)
+                JSObject().apply {
+                    put("hash", FirmaKda.aBase64Url(hash))
+                    put("pubKey", publica)
+                    put("sig", FirmaKda.firmar(privada, hash))
+                }
+            } finally {
+                privada.fill(0)
+            }
+        }
+        }
+    }
+
     // --- Huella o cara en lugar de teclear la contraseña ---------------------
     //
     // El detalle que decide si esto es serio o es teatro esta en `Huella.kt`: la

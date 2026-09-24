@@ -148,6 +148,23 @@ export function pasos(nombres) {
             enCurso = -1;
         },
 
+        /**
+         * Ni salió ni falló: va en camino y no se sabe cuándo entrará.
+         *
+         * Existe porque marcar esto como fallo es exactamente lo que hizo que la
+         * gente reenviara KDA que ya estaba viajando: el envío iba bien, solo que
+         * el bloque tardaba más que la espera. Un reloj naranja no es un ✗.
+         */
+        enCamino() {
+            paraReloj();
+            limpiaPie();
+            if (enCurso < 0) return;
+            filas[enCurso].f.className = 'paso camino';
+            filas[enCurso].marca.textContent = '⏳';
+            filas[enCurso].det.textContent = '';
+            enCurso = -1;
+        },
+
         /** Se torció en el paso que estuviera en marcha. */
         falla() {
             paraReloj();

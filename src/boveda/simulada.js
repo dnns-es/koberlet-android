@@ -467,6 +467,10 @@ export const bovedaSimulada = {
         throw new Error('Tocar un plan de compras solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
     },
 
+    async firmarComandoExterno() {
+        throw new Error('Firmar para una web solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
+    },
+
     // La copia se baja como fichero. OJO: aqui el cifrado es PBKDF2 y en el movil
     // scrypt, asi que las copias no son intercambiables. Se avisa al importar.
     async exportarBoveda(contrasena) {

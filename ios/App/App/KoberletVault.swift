@@ -26,7 +26,7 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         "estado", "crear", "importar", "importarClave", "renombrarCartera", "borrarCartera",
         "abrir", "cerrar", "cuentas", "exportar", "borrarTodo", "exportarBoveda", "importarBoveda",
         "firmarEnvioKda", "firmarEnvioCrossKda", "firmarPuenteEvm", "firmarEnvioToken", "firmarCambioAmm",
-        "firmarCrearDca", "firmarGestionDca",
+        "firmarCrearDca", "firmarGestionDca", "firmarComandoExterno",
         "firmarPermisoEvm", "firmarEnvioEvm", "firmarCambioEvm", "firmarPuenteHaciaKadena",
         "bioEstado", "bioActivar", "bioBorrar",
     ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
@@ -437,6 +437,45 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
                 defer { for i in privada.indices { privada[i] = 0 } }
                 return ["raw": try montar(privada, sobre)]
             }
+        }
+    }
+
+    /// Firma un comando que ha montado OTRO: una pagina web, por WalletConnect.
+    ///
+    /// ES EL UNICO METODO DE ESTA CLASE QUE NO CONSTRUYE LO QUE FIRMA, y por eso
+    /// lleva mas comprobaciones que los demas, no menos. Gemelo exacto del de
+    /// Kotlin: si uno cambia, el otro tambien (PARIDAD.md).
+    ///
+    /// Se firma el TEXTO literal recibido, sin volver a serializarlo: el hash de
+    /// Pact es el blake2b del texto, asi que reconstruir el JSON cambiaria el hash
+    /// y la firma valdria para un comando DISTINTO del que se enseño en pantalla.
+    @objc func firmarComandoExterno(_ call: CAPPluginCall) {
+        guard let cmd = call.getString("cmd") else { return call.reject("Falta el comando.") }
+
+        // Estructura minima. Lo que no traiga estas partes no es un comando de Pact.
+        guard let crudo = cmd.data(using: .utf8),
+              let objeto = (try? JSONSerialization.jsonObject(with: crudo)) as? [String: Any] else {
+            return call.reject("Lo que manda la web no es un comando válido.")
+        }
+        guard objeto["payload"] != nil, objeto["meta"] != nil, objeto["networkId"] != nil,
+              let firmantes = objeto["signers"] as? [[String: Any]], !firmantes.isEmpty else {
+            return call.reject("Lo que manda la web no parece un comando de Kadena.")
+        }
+        let pedidas = firmantes.compactMap { ($0["pubKey"] as? String)?.lowercased() }.filter { !$0.isEmpty }
+        if pedidas.isEmpty { return call.reject("La web no dice con qué clave hay que firmar.") }
+
+        // A partir de aqui es el camino de siempre: abrir, sacar la clave y borrarla
+        // al terminar. Lo unico propio es negarse si la web pide otra cuenta.
+        firmaKda(call, "Firma lo que te pide la web") { privada, publica, _, _ in
+            guard pedidas.contains(publica.lowercased()) else {
+                throw FalloBoveda.argumento("La web pide firmar con otra cuenta distinta de la elegida.")
+            }
+            let hash = FirmaKda.hashComando(cmd)
+            return [
+                "hash": Base64Url.codificar(hash),
+                "pubKey": publica,
+                "sig": try FirmaKda.firmar(privada, hash),
+            ]
         }
     }
 

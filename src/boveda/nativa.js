@@ -47,6 +47,7 @@ const MOTIVOS = {
     firmarCambioEvm: () => t('Firma el cambio'),
     firmarCrearDca: () => t('Firma el plan de compras'),
     firmarGestionDca: () => t('Firma el cambio en el plan'),
+    firmarComandoExterno: () => t('Firma lo que te pide la web'),
 };
 
 // Los errores del plugin llegan como excepciones con `message`; se reenvian tal
@@ -101,6 +102,10 @@ export const bovedaNativa = {
     async firmarCambioAmm(datos) { return llamar('firmarCambioAmm', datos); },
     async firmarCrearDca(datos) { return llamar('firmarCrearDca', datos); },
     async firmarGestionDca(datos) { return llamar('firmarGestionDca', datos); },
+    // WalletConnect: firma un comando que llega de una web. El unico que no monta
+    // la boveda; por eso el nativo comprueba aparte que la clave pedida sea la de
+    // la cartera elegida, y la pantalla enseña antes que se autoriza.
+    async firmarComandoExterno(datos) { return llamar('firmarComandoExterno', datos); },
     async exportarBoveda(contrasena) { return llamar('exportarBoveda', { contrasena }); },
     async importarBoveda(contrasena, contenido) { return llamar('importarBoveda', { contrasena, contenido }); },
     async borrarTodo(contrasena) { await llamar('borrarTodo', { contrasena }); },

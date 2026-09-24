@@ -535,12 +535,18 @@ function pintarConfirmacion(raiz, ctx, envio) {
                 t('Con ella se mira luego en qué quedó, aquí o en el explorador.')));
             p.empieza(2);
 
-            const r = await esperarResultado(ctx.red.nodo, ctx.red.networkId, String(envio.chain), requestKey, { alMirar: parteDelNodo(p) });
+            // Entre chains se espera 5 minutos y no 90 segundos. Un bloque de
+            // Kadena son unos 30 s, y con la red cargada el primer paso puede
+            // tardar varios: con la espera corta la app cantaba un fallo que no
+            // existía y la gente volvía a enviar. Dentro de una misma chain la
+            // espera se queda como estaba, que ahí sí es rápido.
+            const r = await esperarResultado(ctx.red.nodo, ctx.red.networkId, String(envio.chain), requestKey,
+                { alMirar: parteDelNodo(p), ...(entreChains ? { intentos: 60 } : {}) });
             if (!r) {
                 // Importante no mentir aqui: que no aparezca a tiempo no quiere
                 // decir que haya fallado.
-                p.falla();
-                detras.append(elemento('p', t('Sigue sin aparecer en un bloque. No significa que haya fallado: apunta la referencia y míralo en un rato.'), 'malo'));
+                p.enCamino();
+                detras.append(elemento('p', '⏳ ' + t('Sigue sin aparecer en un bloque. No significa que haya fallado: apunta la referencia y míralo en un rato.'), 'avisa'));
             } else if (r.result && r.result.status === 'success') {
                 if (entreChains) {
                     await segundoPaso(requestKey, p, detras);
@@ -592,18 +598,20 @@ function pintarConfirmacion(raiz, ctx, envio) {
             const prueba = await pruebaSpv(ctx.red.nodo, ctx.red.networkId, String(envio.chain), pactId, destino);
             p.empieza(4);
             const rk2 = await rematarEntreChains(ctx.red.nodo, ctx.red.networkId, destino, pactId, prueba);
-            const r2 = await esperarResultado(ctx.red.nodo, ctx.red.networkId, destino, rk2, { alMirar: parteDelNodo(p) });
+            const r2 = await esperarResultado(ctx.red.nodo, ctx.red.networkId, destino, rk2, { alMirar: parteDelNodo(p), intentos: 60 });
             if (r2 && r2.result && r2.result.status === 'success') {
                 p.acaba();
                 detras.append(elemento('p', t('✓ Ha llegado a la chain {0}.', destino)));
             } else {
-                p.falla();
-                detras.append(elemento('p', t('El dinero salió de la chain {0} pero el segundo paso no ha entrado todavía. No se ha perdido: se queda a medio camino y se puede rematar con esta referencia, desde aquí o desde el escritorio.', envio.chain), 'malo'));
+                // Tampoco esto es un fallo: el dinero está a medio camino, que es
+                // justo lo que dice el texto. En rojo, nadie lo lee así.
+                p.enCamino();
+                detras.append(elemento('p', '⏳ ' + t('El dinero salió de la chain {0} pero el segundo paso no ha entrado todavía. No se ha perdido: se queda a medio camino y se puede rematar con esta referencia, desde aquí o desde el escritorio.', envio.chain), 'avisa'));
             }
         } catch (e) {
-            p.falla();
+            p.enCamino();
             detras.append(elemento('p', t(String(e.message || e)), 'malo'));
-            detras.append(elemento('p', t('El dinero salió de la chain {0} pero el segundo paso no ha entrado todavía. No se ha perdido: se queda a medio camino y se puede rematar con esta referencia, desde aquí o desde el escritorio.', envio.chain), 'malo'));
+            detras.append(elemento('p', '⏳ ' + t('El dinero salió de la chain {0} pero el segundo paso no ha entrado todavía. No se ha perdido: se queda a medio camino y se puede rematar con esta referencia, desde aquí o desde el escritorio.', envio.chain), 'avisa'));
         }
     }
 

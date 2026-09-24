@@ -29,3 +29,18 @@ export const CANAL = __CANAL__;
 
 /** Cierto solo en la compilacion que se cuelga en descargas.dnns.es. */
 export const HAY_ACTUALIZACION_PROPIA = __CANAL__ === 'directa';
+
+/**
+ * Conectar con paginas web (WalletConnect). Fuera de Google Play a proposito.
+ *
+ * No es un problema de WalletConnect en si, sino de a donde lleva: buena parte de
+ * las dApps de Kadena que lo usan son de apuestas, y Play mete las apps que dan
+ * acceso a juego con dinero real en una politica aparte -con licencia por pais y
+ * declaracion previa- que Koberlet no tiene. Una app financiera tumbada por eso
+ * se lleva por delante la cuenta entera, no solo la funcion.
+ *
+ * Como la comparacion es constante, en la compilacion de Play NO VIAJA el codigo:
+ * ni la seccion, ni el SDK del rele (unos 700 kB). En la de iPhone si va: Apple
+ * revisa a mano y las demas billeteras de la App Store lo llevan.
+ */
+export const HAY_WALLETCONNECT = __CANAL__ !== 'play';

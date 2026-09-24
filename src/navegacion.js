@@ -16,6 +16,7 @@
 // Los nombres se declaran en español y se traducen AL PINTAR, nunca aquí: si se
 // tradujeran al declararlos, cambiar de idioma no cambiaría la barra.
 import { t } from './idioma.js';
+import { HAY_WALLETCONNECT } from './canal.js';
 
 // El catalogo de secciones. `barra:true` = va abajo siempre; el resto vive
 // detras del boton "Más". Añadir NFT, Mercado, Puente, DCA, Ordenes, Launch o
@@ -55,6 +56,8 @@ const SECCIONES = [
     { id: 'carteras', nombre: 'Carteras', barra: true, icono: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h3' },
     { id: 'mercado', nombre: 'Mercado', icono: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
     { id: 'puente', nombre: 'Puente', icono: 'M3 16c0-5 4-8 9-8s9 3 9 8M3 16h18M7 16v-3M17 16v-3M12 16V9' },
+    // Conectar solo existe fuera de Google Play; el porque esta en `canal.js`.
+    ...(HAY_WALLETCONNECT ? [{ id: 'conectar', nombre: 'Conectar', icono: 'M9 15l6-6M8.5 6.5l1.8-1.8a4.2 4.2 0 0 1 6 6l-1.8 1.8M9.5 17.5l-1.8 1.8a4.2 4.2 0 0 1-6-6l1.8-1.8' }] : []),
     { id: 'seguridad', nombre: 'Seguridad', icono: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z' },
     { id: 'info', nombre: 'Info', icono: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 7.5v.5' },
     { id: 'ajustes', nombre: 'Ajustes', icono: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z' },

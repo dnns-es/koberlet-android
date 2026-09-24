@@ -435,6 +435,9 @@
         }
         .paso.hecho { color: var(--activo); }
         .paso.mal { color: var(--mal); }
+        /* Va en camino, que NO es haber fallado: el paso se queda en naranja y con
+           reloj. Pintar de rojo una espera hace que la gente reenvíe el dinero. */
+        .paso.camino { color: var(--aviso); }
 
         .activos { margin-top: 14px; }
         /* Con muchos tokens la lista empujaba el resto de la tarjeta fuera de la

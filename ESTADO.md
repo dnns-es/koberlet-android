@@ -218,6 +218,50 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.59.0 (24/09/2026) — firmar en webs de Kadena leyendo su QR
+
+Sin publicar todavía. Es la funcionalidad que Antonio pidió con estas palabras:
+«quiero leer el qr, marcar mi apuesta en web y firmar con móvil».
+
+**Sección «Conectar».** Se lee con la cámara el código QR que enseña la web en el
+ordenador, se elige en la web lo que sea, y cuando toca firmar la petición llega
+al móvil. Por debajo es WalletConnect v2 con el perfil de Kadena (KIP-017), el
+mismo que hablan las demás billeteras: `kadena:mainnet01`, las cuentas como
+`kadena:mainnet01:<clave pública>` y los métodos `kadena_getAccounts_v1` y
+`kadena_quicksign_v1`.
+
+**Lo que importa no es conectar, es lo que se ve antes de firmar.** En grande,
+cuánto se autoriza mover y a quién; debajo, qué se ejecuta, en qué red y chain y
+cuánto gas como máximo. Si el comando no se entiende, se dice y se pide que no se
+firme, en vez de adornarlo con un resumen bonito. Un monedero que enseña un churro
+hexadecimal y un botón verde no está pidiendo permiso: está pidiendo un clic.
+
+**La clave no sale de la bóveda.** El comando llega al método nativo nuevo
+`firmarComandoExterno` (gemelo exacto en Kotlin y Swift), que pide contraseña o
+huella, comprueba que la clave que pide la web es la de esta cartera, firma el
+**texto literal** recibido —el hash de Pact es del texto: volver a serializarlo
+firmaría un comando distinto del que se enseñó— y borra la privada al salir. Es el
+único método de la bóveda que no construye lo que firma, y por eso lleva más
+comprobaciones que los demás, no menos.
+
+**Fuera de Google Play a propósito.** La comparación `HAY_WALLETCONNECT` de
+`src/canal.js` es constante al compilar, así que en el `.aab` de Play no viaja ni
+la sección ni el SDK del relé (unos 700 kB): no es que el botón esté escondido, es
+que el código no está. El motivo no es WalletConnect sino a dónde lleva —buena
+parte de las dApps de Kadena que lo usan son de apuestas, y Play exige para eso
+licencia por país—, y una app financiera tumbada por esa política se lleva la
+cuenta entera por delante. En el canal directo y en iPhone sí va.
+
+**De paso, el cross-chain.** Bajaba de `PARIDAD.md`: la espera del envío entre
+chains pasa de 90 s a 5 minutos y lo que va en camino deja de pintarse de rojo
+(paso nuevo `enCamino()`, ⏳ naranja). Pintar de fallo una espera es lo que hacía
+que la gente volviera a enviar dinero que ya estaba viajando.
+
+Probado: las 48 pruebas siguen pasando y el APK del canal directo compila. El
+camino completo —leer QR, apostar en la web y firmar— se validó antes en el
+Koberlet de escritorio contra una dApp real, con la transacción entrando en la
+cadena.
+
 ## 0.58.1 (22/09/2026) — el Mercado de Kadena llevaba cuatro días sin poder firmar
 
 Publicada en `descargas.dnns.es` el 22/09 a las 19:40. `versionCode` 5801,

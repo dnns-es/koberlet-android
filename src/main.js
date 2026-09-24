@@ -29,7 +29,7 @@ import { bioConArticulo, tituloBio } from './biometria.js';
 import { carteraActiva, fijarCarteraActiva, agrupaCarteras } from './cartera-activa.js';
 import { corta } from './direccion.js';
 import { hayQueAceptar, pintarPoliticas } from './politicas.js';
-import { CANAL } from './canal.js';
+import { CANAL, HAY_WALLETCONNECT } from './canal.js';
 import { fijarRedMercado } from './mercado-red.js';
 import { formatea, recorta } from './cifras.js';
 import { nombreCartera } from './nombres.js';
@@ -218,6 +218,15 @@ async function pintarSeccion(id) {
             const { pintarPuente } = await import('./pantalla-puente.js');
             $('sub').textContent = t('Puente');
             pintarPuente(app(), { cuentas, red: redActiva });
+            return;
+        }
+        case 'conectar': {
+            // El `if` es constante al compilar: en el canal de Play este import
+            // desaparece con la pantalla y con el SDK del rele. Ver `canal.js`.
+            if (!HAY_WALLETCONNECT) return pintarSeccion('panel');
+            const { pintarWalletConnect } = await import('./pantalla-wc.js');
+            $('sub').textContent = t('Conectar');
+            pintarWalletConnect(app(), { cuentas, red: redActiva });
             return;
         }
         case 'nft': {
