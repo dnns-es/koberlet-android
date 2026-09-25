@@ -815,16 +815,18 @@ class KoberletVault : Plugin() {
     /**
      * Firma la creacion de un plan de compras periodicas (DCA).
      *
-     * Mismo reparto que en el envio: la pantalla dice cuanto, cada cuanto y en que
-     * sentido; el contrato, la chain, la cuenta de custodia y los dos tokens los
-     * pone `FirmaKda` desde el codigo. Y la contrasena se pide igual, porque esto
-     * mueve el bote entero de una vez.
+     * Mismo reparto que en el envio: la pantalla dice cuanto, cada cuanto, en que
+     * sentido y con que token -una CLAVE corta, "kb-USDC", "kb-ETH", "FLUX" o
+     * "bro"-; el contrato, la chain, la cuenta de custodia y los modulos los pone
+     * `FirmaKda` desde el codigo, y una clave que no conozca la rechaza. Y la
+     * contrasena se pide igual, porque esto mueve el bote entero de una vez.
      */
     @PluginMethod
     fun firmarCrearDca(call: PluginCall) {
         val carteraId = call.getString("carteraId") ?: return call.reject("Falta la cartera.")
         val networkId = call.getString("networkId") ?: return call.reject("Falta la red.")
-        val haciaUsdc = call.getBoolean("haciaUsdc") ?: return call.reject("Falta el sentido de la compra.")
+        val token = call.getString("token") ?: return call.reject("Falta el token del plan.")
+        val haciaToken = call.getBoolean("haciaToken") ?: return call.reject("Falta el sentido de la compra.")
         val deposito = call.getDouble("deposito") ?: return call.reject("Falta la cantidad.")
         val cuota = call.getDouble("cuota") ?: return call.reject("Falta la cantidad.")
         val periodo = call.getString("periodo")?.toLongOrNull() ?: return call.reject("Falta cada cuánto se compra.")
@@ -851,7 +853,8 @@ class KoberletVault : Plugin() {
                 FirmaKda.crearPlanDca(
                     networkId = networkId,
                     owner = "k:$publica",
-                    haciaUsdc = haciaUsdc,
+                    token = token,
+                    haciaToken = haciaToken,
                     deposito = deposito,
                     cuota = cuota,
                     periodo = periodo,
@@ -875,6 +878,10 @@ class KoberletVault : Plugin() {
      * Se pide la contraseña igual que para crearlo: cerrar mueve el bote que
      * quede y recargar mete más dinero. Parar y reanudar no mueven nada, pero van
      * por el mismo camino porque también hay que abrir la bóveda para firmar.
+     *
+     * De la pantalla llegan dos CLAVES, no modulos ni cuentas: la del contrato
+     * donde vive el plan ("dca2" o "dca3") y la del token de su bote ("KDA",
+     * "kb-USDC", "kb-ETH", "FLUX" o "bro"). `FirmaKda` las traduce con sus mapas.
      */
     @PluginMethod
     fun firmarGestionDca(call: PluginCall) {
@@ -883,7 +890,8 @@ class KoberletVault : Plugin() {
         val accion = call.getString("accion") ?: return call.reject("Falta la acción.")
         val id = call.getString("id") ?: return call.reject("Falta el plan.")
         val cantidad = call.getDouble("cantidad") ?: 0.0
-        val entraEsUsdc = call.getBoolean("entraEsUsdc") ?: false
+        val contrato = call.getString("contrato") ?: return call.reject("Falta el contrato del plan.")
+        val entra = call.getString("entra") ?: ""
         val gratis = call.getBoolean("gratis", false) ?: false
         val gasPedido = call.getInt("gasLimit")
         val horaNodo = call.getString("creationTime")?.toLongOrNull()
@@ -909,7 +917,8 @@ class KoberletVault : Plugin() {
                     id = id,
                     owner = "k:$publica",
                     cantidad = cantidad,
-                    entraEsUsdc = entraEsUsdc,
+                    contrato = contrato,
+                    entra = entra,
                     privada = privada,
                     publica = publica,
                     creationTime = creation,

@@ -311,11 +311,101 @@ final class FirmaKdaTests: XCTestCase {
     }
 
     func testUnPlanDcaSoloANombreDeLaPropiaCartera() {
-        XCTAssertThrowsError(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: de, haciaUsdc: true, deposito: 10, cuota: 1,
+        XCTAssertThrowsError(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: de, token: "kb-USDC", haciaToken: true, deposito: 1000, cuota: 100,
                                                         periodo: 3600, deslizamiento: 0.01, privada: privada, publica: publica, creationTime: 1))
-        XCTAssertNoThrow(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: "k:\(publica)", haciaUsdc: true, deposito: 10, cuota: 1,
+        XCTAssertNoThrow(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: "k:\(publica)", token: "kb-USDC", haciaToken: true, deposito: 1000, cuota: 100,
                                                    periodo: 3600, deslizamiento: 0.01, privada: privada, publica: publica, creationTime: 1))
         XCTAssertTrue(FirmaKda.idPlanValido("k:\(publica.prefix(8))-123", "k:\(publica)"))
         XCTAssertFalse(FirmaKda.idPlanValido("otro-123", "k:\(publica)"))
+    }
+
+    // --- DCA con kb-ETH, FLUX y bro: los mismos casos que FirmaKdaTest.kt -------
+
+    private let custodiaDca2 = "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"
+    private let custodiaDca3 = "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8"
+    private let kbEth = "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-ETH"
+    private var idDca: String { String("k:\(publica)".prefix(10)) + "-1789016588825" }
+
+    private func crearDca(_ token: String, _ haciaToken: Bool, _ deposito: Double, _ cuota: Double) throws -> JSON {
+        cmdDe(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: "k:\(publica)", token: token, haciaToken: haciaToken,
+                                        deposito: deposito, cuota: cuota, periodo: 3600, deslizamiento: 0.05,
+                                        privada: privada, publica: publica, creationTime: 1))
+    }
+    private func gestionDca(_ accion: String, _ contrato: String, _ entra: String = "", _ cantidad: Double = 0) throws -> JSON {
+        cmdDe(try FirmaKda.gestionarPlanDca(networkId: "mainnet01", accion: accion, id: idDca, owner: "k:\(publica)",
+                                            cantidad: cantidad, contrato: contrato, entra: entra,
+                                            privada: privada, publica: publica, creationTime: 1))
+    }
+    private func transfer(_ cmd: JSON) -> JSON { clist(cmd)[1] }
+    private func custodia(_ cmd: JSON) -> String { (transfer(cmd)["args"] as! [Any])[1] as! String }
+    private func monto(_ cmd: JSON) -> String { ((transfer(cmd)["args"] as! [Any])[2] as! JSON)["decimal"] as! String }
+
+    func testUnPlanDeKbEthVaAlDca3ConSuCustodia() throws {
+        let o = try crearDca("kb-ETH", false, 0.004, 0.0004)
+        XCTAssertTrue(code(o).hasPrefix("(free.ksw-dca3.create-plan"))
+        XCTAssertTrue(code(o).contains(" \(kbEth) coin "))
+        XCTAssertEqual("\(kbEth).TRANSFER", transfer(o)["name"] as? String)
+        XCTAssertEqual(custodiaDca3, custodia(o))
+        XCTAssertEqual("0.004000000000", monto(o))
+        // El mismo texto en el codigo y en la capability.
+        XCTAssertTrue(code(o).contains(" 0.004000000000 0.000400000000 "))
+        XCTAssertEqual("k:\(publica)", (o["meta"] as! JSON)["sender"] as? String)
+    }
+
+    func testFluxYBroVanAlDca3YKbUsdcSigueEnElDca2() throws {
+        let flux = try crearDca("FLUX", true, 1000, 100)
+        XCTAssertTrue(code(flux).hasPrefix("(free.ksw-dca3.create-plan"))
+        XCTAssertEqual("coin.TRANSFER", transfer(flux)["name"] as? String)
+        XCTAssertEqual(custodiaDca3, custodia(flux))
+        let bro = try crearDca("bro", false, 0.002, 0.0002)
+        XCTAssertEqual("n_582fed11af00dc626812cd7890bb88e72067f28c.bro.TRANSFER", transfer(bro)["name"] as? String)
+        XCTAssertEqual(custodiaDca3, custodia(bro))
+        let usdc = try crearDca("kb-USDC", false, 10, 1)
+        XCTAssertTrue(code(usdc).hasPrefix("(free.ksw-dca2.create-plan"))
+        XCTAssertEqual(custodiaDca2, custodia(usdc))
+        XCTAssertEqual("10.000000", monto(usdc))
+    }
+
+    func testUnTokenOUnContratoFueraDelMapaNoSeFirman() {
+        XCTAssertThrowsError(try crearDca("PCO", true, 1000, 100))
+        XCTAssertThrowsError(try crearDca(kbEth, true, 1000, 100))
+        XCTAssertThrowsError(try crearDca("KDA", true, 1000, 100))
+        XCTAssertThrowsError(try gestionDca("pausar", "free.ksw-dca3"))
+        XCTAssertThrowsError(try gestionDca("cerrar", "dca4"))
+        XCTAssertThrowsError(try gestionDca("recargar", "dca3", "PCO", 1))
+        XCTAssertThrowsError(try gestionDca("recargar", "dca2", "kb-ETH", 1))
+        XCTAssertThrowsError(try gestionDca("recargar", "dca3", "kb-USDC", 1))
+    }
+
+    func testPausarReanudarYCerrarDca3VanSinClistASuModulo() throws {
+        for (accion, fn) in [("pausar", "pause-plan"), ("reanudar", "resume-plan"), ("cerrar", "close-plan")] {
+            let o = try gestionDca(accion, "dca3")
+            XCTAssertEqual("(free.ksw-dca3.\(fn) \"\(idDca)\")", code(o))
+            XCTAssertNil((o["signers"] as! [JSON])[0]["clist"])
+        }
+    }
+
+    func testRecargarDca3LlevaElTransferDeSuTokenASuCustodia() throws {
+        let o = try gestionDca("recargar", "dca3", "kb-ETH", 0.0004)
+        XCTAssertEqual("(free.ksw-dca3.topup \"\(idDca)\" 0.000400000000)", code(o))
+        XCTAssertEqual("\(kbEth).TRANSFER", transfer(o)["name"] as? String)
+        XCTAssertEqual(custodiaDca3, custodia(o))
+        XCTAssertEqual("15.50000000", monto(try gestionDca("recargar", "dca3", "FLUX", 15.5)))
+        let kda = try gestionDca("recargar", "dca3", "KDA", 100)
+        XCTAssertEqual("coin.TRANSFER", transfer(kda)["name"] as? String)
+        XCTAssertEqual(custodiaDca3, custodia(kda))
+        let dca2 = try gestionDca("recargar", "dca2", "KDA", 2.5)
+        XCTAssertEqual(custodiaDca2, custodia(dca2))
+        XCTAssertEqual("2.500000000000", monto(dca2))
+    }
+
+    func testUnaCuotaPorDebajoDelMinimoNoSeFirma() {
+        XCTAssertThrowsError(try crearDca("kb-ETH", false, 0.003, 0.0003))
+        XCTAssertThrowsError(try crearDca("FLUX", false, 140, 14))
+        XCTAssertThrowsError(try crearDca("bro", false, 0.001, 0.0001))
+        XCTAssertThrowsError(try crearDca("FLUX", true, 990, 99))
+        XCTAssertThrowsError(try crearDca("kb-USDC", false, 5, 0.5))
+        XCTAssertNoThrow(try crearDca("FLUX", false, 150, 15))
+        XCTAssertNoThrow(try crearDca("bro", false, 0.002, 0.0002))
     }
 }

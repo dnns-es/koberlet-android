@@ -375,7 +375,9 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
 
     @objc func firmarCrearDca(_ call: CAPPluginCall) {
         guard let networkId = call.getString("networkId") else { return call.reject("Falta la red.") }
-        guard let haciaUsdc = call.getBool("haciaUsdc") else { return call.reject("Falta el sentido de la compra.") }
+        // Una CLAVE de token, no un modulo: FirmaKda la traduce o la rechaza.
+        guard let token = call.getString("token") else { return call.reject("Falta el token del plan.") }
+        guard let haciaToken = call.getBool("haciaToken") else { return call.reject("Falta el sentido de la compra.") }
         guard let deposito = call.getDouble("deposito") else { return call.reject("Falta la cantidad.") }
         guard let cuota = call.getDouble("cuota") else { return call.reject("Falta la cantidad.") }
         guard let periodo = call.getString("periodo").flatMap({ Int64($0) }) else { return call.reject("Falta cada cuánto se compra.") }
@@ -384,7 +386,7 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
             if Carteras.redDe(cartera) != "kda" {
                 throw FalloBoveda.argumento("Los planes de compra son de Kadena: elige una cartera de Kadena.")
             }
-            return try FirmaKda.crearPlanDca(networkId: networkId, owner: "k:\(publica)", haciaUsdc: haciaUsdc, deposito: deposito,
+            return try FirmaKda.crearPlanDca(networkId: networkId, owner: "k:\(publica)", token: token, haciaToken: haciaToken, deposito: deposito,
                                              cuota: cuota, periodo: periodo, deslizamiento: deslizamiento,
                                              privada: privada, publica: publica, creationTime: creation)
         }
@@ -395,13 +397,15 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         guard let accion = call.getString("accion") else { return call.reject("Falta la acción.") }
         guard let id = call.getString("id") else { return call.reject("Falta el plan.") }
         let cantidad = call.getDouble("cantidad") ?? 0.0
-        let entraEsUsdc = call.getBool("entraEsUsdc") ?? false
+        // Claves del contrato ("dca2"/"dca3") y del token del bote, nunca modulos.
+        guard let contrato = call.getString("contrato") else { return call.reject("Falta el contrato del plan.") }
+        let entra = call.getString("entra") ?? ""
         firmaKda(call, "Firma el cambio en el plan") { privada, publica, creation, cartera in
             if Carteras.redDe(cartera) != "kda" {
                 throw FalloBoveda.argumento("Los planes de compra son de Kadena: elige una cartera de Kadena.")
             }
             return try FirmaKda.gestionarPlanDca(networkId: networkId, accion: accion, id: id, owner: "k:\(publica)",
-                                                 cantidad: cantidad, entraEsUsdc: entraEsUsdc,
+                                                 cantidad: cantidad, contrato: contrato, entra: entra,
                                                  privada: privada, publica: publica, creationTime: creation)
         }
     }

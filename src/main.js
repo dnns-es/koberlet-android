@@ -23,7 +23,7 @@ import { precioKda, movimientos } from './lib/mercado.js';
 import { montarBarra, quitarBarra, seccionActual, ir } from './navegacion.js';
 import { arrancarTema, fijarTema, temaElegido } from './tema.js';
 import { MONEDAS, CODIGOS, monedaElegida, fijarMoneda, formateaDinero, formateaPrecio, aKda } from './moneda.js';
-import { valorDeToken, precioPuestoAMano, PRECIO_EN_KDA } from './valor.js';
+import { valorDeToken, valorPorPool, precioPuestoAMano, PRECIO_EN_KDA } from './valor.js';
 import { arrancarIdioma, fijarIdioma, idiomaElegido, t, locale } from './idioma.js';
 import { bioConArticulo, tituloBio } from './biometria.js';
 import { carteraActiva, fijarCarteraActiva, agrupaCarteras } from './cartera-activa.js';
@@ -1008,11 +1008,15 @@ function tarjetaCartera(grupo) {
             // «no se sabe» y ya nadie volvía a mirarlo. 22 kb-USDC sin valor al lado
             // y fuera del total. Calcular al final es lo único que aguanta que las
             // piezas lleguen en cualquier orden.
-            const enDinero = { precio: null, kdaCantidad: null, activos: new Map() };
+            // `pool`: los tokens que se descubren en el Mercado, con su precio en KDA
+            // sacado del pool. Solo se usa si no hay otro precio mejor para ellos.
+            const enDinero = { precio: null, kdaCantidad: null, activos: new Map(), pool: new Map() };
             const lineaDinero = texto('div', null, 'pie');
             let lineaPuesta = false;
             const lineaAMano = texto('div', null, 'pie');
             let notaPuesta = false;
+            const lineaPool = texto('div', null, 'pie');
+            let poolPuesta = false;
 
             const pintarDinero = () => {
                 const p = enDinero.precio;
@@ -1025,6 +1029,7 @@ function tarjetaCartera(grupo) {
 
                 let suma = 0;
                 let sinPrecio = false;
+                let alPool = false;             // alguno va al precio de su pool
                 const aMano = [];               // los que van a precio puesto por nosotros
 
                 if (enDinero.kdaCantidad !== null) {
@@ -1033,7 +1038,10 @@ function tarjetaCartera(grupo) {
                     ponValor('KDA', formateaDinero(v, locale()));
                 }
                 for (const [sim, cant] of enDinero.activos) {
-                    const v = valorDeToken(sim, cant, p);
+                    let v = valorDeToken(sim, cant, p);
+                    // Un token del Mercado sin otro precio se cuenta al de su pool.
+                    const dePool = v === null && enDinero.pool.has(sim);
+                    if (dePool) v = valorPorPool(cant, enDinero.pool.get(sim), p);
                     // Lo que no se puede valorar se pinta en cero, que es lo que pidió
                     // Antonio al verlo: un hueco en blanco en una columna de dinero se
                     // lee como que falta por cargar. Va en cero Y fuera de la suma, y
@@ -1042,6 +1050,7 @@ function tarjetaCartera(grupo) {
                     if (v === null) sinPrecio = true;
                     else {
                         suma += v;
+                        if (dePool) alPool = true;
                         if (precioPuestoAMano(sim)) aMano.push([sim, PRECIO_EN_KDA[sim]]);
                     }
                 }
@@ -1085,6 +1094,13 @@ function tarjetaCartera(grupo) {
                     }
                     if (!notaPuesta) { bloqueTotal.append(lineaAMano); notaPuesta = true; }
                 }
+                // Lo mismo con el precio de un pool: es lo que dice el Mercado de
+                // Kadena, no lo que valga ese token en ningún otro sitio.
+                if (alPool && !poolPuesta) {
+                    lineaPool.textContent = t('Los tokens del Mercado se cuentan al precio de su pool contra KDA.');
+                    bloqueTotal.append(lineaPool);
+                    poolPuesta = true;
+                }
             };
 
             precioKda().then((p) => {
@@ -1101,7 +1117,17 @@ function tarjetaCartera(grupo) {
             // Todo activo entra por aqui: asi cada linea queda marcada con su
             // simbolo -que es como se le encuentra luego para ponerle el valor- y
             // el total se entera de que existe, sepa o no lo que vale.
+            // Lo que ya tiene línea, por módulo y por símbolo. Los activos llegan de
+            // varios sitios -la red, el puente, el historial, el Mercado- y cada uno
+            // por su cuenta: sin esto, un token que sale en dos fuentes se pintaba
+            // dos veces y se sumaba dos veces al total.
+            const pintados = new Set(['kda']);
             const añadirActivo = (simbolo, sub, cantidad, porChain = null, envio = null) => {
+                if (envio && envio.modulo) {
+                    if (pintados.has(envio.modulo)) return null;
+                    pintados.add(envio.modulo);
+                }
+                pintados.add(String(simbolo).toLowerCase());
                 if (envio && envio.modulo && porChain && Object.keys(porChain).length) {
                     enviables.push({ simbolo, modulo: envio.modulo, precision: envio.precision || 12, porChain });
                 }
@@ -1196,6 +1222,32 @@ function tarjetaCartera(grupo) {
                         { modulo: pnt2.NS + '.' + r.modulo, precision: 12 });
                 });
             }).catch(() => { /* el puente no es el saldo: si falla, el panel sigue */ });
+
+            // LOS TOKENS DEL MERCADO con saldo: pools de la chain 2 con al menos
+            // 1.000 KDA de fondo en los que esta cuenta tenga algo. Es lo que compra
+            // un plan de DCA (kb-ETH, FLUX, bro) o lo que se cambia en el Mercado, que
+            // no tiene por qué estar en la lista de la red. Se valoran al precio de
+            // su pool (ver `valorPorPool`). Va el último y sin esperar a nadie: si el
+            // mercado no se puede leer, la tarjeta sale igual sin estas líneas.
+            // Fuera desde el principio lo que ya pintan la red y el puente, que
+            // tienen su propia línea con su propio nombre.
+            const yaTienenLinea = new Set(tokensDeRed(redActiva).map((tk) => tk.modulo)
+                .concat(pnt2.RUTAS.map((r) => pnt2.NS + '.' + r.modulo)));
+            import('./lib/dex.js').then(async (dex) => {
+                const m = await dex.mercadoReciente(redActiva);
+                const candidatos = m.tokens.filter((tk) => !yaTienenLinea.has(tk.modulo));
+                const saldos = await dex.saldosMercado(redActiva, kda.cuenta, candidatos.map((tk) => tk.modulo));
+                candidatos.forEach((tk) => {
+                    const v = saldos[tk.modulo];
+                    if (!(v > 0)) return;
+                    // Mismo símbolo que algo ya pintado (otro módulo que se llama
+                    // igual): no se mezcla, que la línea y su valor van por símbolo.
+                    if (pintados.has(tk.modulo) || pintados.has(String(tk.simbolo).toLowerCase())) return;
+                    enDinero.pool.set(tk.simbolo, tk.precioKda);
+                    añadirActivo(tk.simbolo, redActiva.nombre + ' · ' + t('Mercado'), v, { 2: v },
+                        { modulo: tk.modulo, precision: 12 });
+                });
+            }).catch(() => { /* sin mercado: solo las líneas de siempre */ });
 
             detalle.append(bloqueDetalle(kda, evm, saldo, chs));
         } catch (e) {

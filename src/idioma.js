@@ -1068,8 +1068,23 @@ const EN = {
     'Crear un plan de compras solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.':
         'Creating a buying plan only works in the installed app: here the vault is a development stand-in and does not sign.',
     'Compras periódicas': 'Recurring buys',
-    'El contrato está parado: ahora mismo no compra ningún plan.':
-        'The contract is paused: no plan is buying right now.',
+    'El contrato {0} está parado: ahora mismo no compra ninguno de sus planes.':
+        'The {0} contract is paused: none of its plans is buying right now.',
+    'No se pudieron leer los planes de {0}: puede que tengas más de los que se ven.':
+        'The plans in {0} could not be read: you may have more than the ones shown.',
+    'Contrato': 'Contract',
+    'Los tokens del Mercado se cuentan al precio de su pool contra KDA.':
+        'Market tokens are counted at their pool price against KDA.',
+    'Token del plan': 'Plan token',
+    'Falta el token del plan.': 'The plan token is missing.',
+    'Falta el contrato del plan.': 'The plan contract is missing.',
+    'Ese token no está en los planes de compra.': 'That token is not available for buying plans.',
+    'Ese contrato de compras no existe.': 'That buying-plan contract does not exist.',
+    'Ese token no va en ese contrato de compras.': 'That token does not belong to that buying-plan contract.',
+    'La gasolinera solo paga los planes de kb-USDC: en este el gas lo pagas tú.':
+        'The gas station only pays for kb-USDC plans: on this one you pay the gas.',
+    'La cuota por compra está por debajo del mínimo del contrato.':
+        'The amount per buy is below the contract minimum.',
     'No tienes ningún plan de compras.': 'You have no buying plans.',
     'No se pudieron leer tus planes de compra.': 'Your buying plans could not be read.',
     'Queda en el bote': 'Left in the pot',

@@ -632,6 +632,9 @@
             color: var(--texto); font-size: 13.5px; font-weight: 700;
         }
         .par-fila .circulo-vuelta { flex: none; }
+        /* El lado que no es KDA es un desplegable (kb-USDC, kb-ETH, FLUX, bro) con
+           la misma pinta de pastilla que el KDA de enfrente. */
+        .par-fila select.pastilla { width: auto; max-width: 100%; height: auto; cursor: pointer; }
 
         /* Titulillo que separa las carteras de Kadena de las de Ethereum. */
         .grupo-hoja {

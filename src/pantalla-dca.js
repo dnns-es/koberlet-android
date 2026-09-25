@@ -8,7 +8,7 @@
 // en el plugin, con la contrasena o la huella; esta pantalla solo junta numeros y
 // reenvia al nodo el comando ya firmado.
 
-import { planesDe, enPausa, TOKENS, PERIODOS, LIMITES, COMISION, cuentasDelPlan } from './lib/dca.js';
+import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan } from './lib/dca.js';
 import { saldoEnMercado } from './lib/dex.js';
 import { enviarComando, esperarResultado } from './lib/kda.js';
 import { boveda } from './boveda/contrato.js';
@@ -97,11 +97,15 @@ export function pintarDca(raiz, ctx, opciones = {}) {
     // Que el contrato esté parado SÍ se dice sin pedirlo: un plan «activo» no
     // compra nada mientras lo esté, y uno nuevo tampoco. Ese aviso no puede
     // quedarse dentro del historial, porque hace falta justo al crear el plan.
-    enPausa(ctx.red).then((pausa) => {
-        if (pausa === true) {
-            avisoPausa.append(elemento('p', t('El contrato está parado: ahora mismo no compra ningún plan.'), 'malo'));
-        }
-    }).catch(() => { /* si no se puede preguntar, no se inventa un aviso */ });
+    // Son dos contratos y se paran por separado: se pregunta a los dos y se dice
+    // cuál, porque parado el dca3 los planes de kb-USDC siguen comprando.
+    Object.keys(CONTRATOS).forEach((k) => {
+        enPausa(ctx.red, k).then((pausa) => {
+            if (pausa === true) {
+                avisoPausa.append(elemento('p', t('El contrato {0} está parado: ahora mismo no compra ninguno de sus planes.', CONTRATOS[k].modulo), 'malo'));
+            }
+        }).catch(() => { /* si no se puede preguntar, no se inventa un aviso */ });
+    });
 
     let abierto = false;
     verPlanes.addEventListener('click', () => {
@@ -112,11 +116,16 @@ export function pintarDca(raiz, ctx, opciones = {}) {
         donde.append(elemento('p', t('Preguntando a la cadena…'), 'nota'));
         planesDe(kda.cuenta, ctx.red).then((planes) => {
             donde.innerHTML = '';
-            if (!planes.length) {
+            if (!planes.length && !(planes.fallidos || []).length) {
                 donde.append(elemento('p', t('No tienes ningún plan de compras.'), 'nota'));
                 return;
             }
             planes.forEach((p) => donde.append(tarjetaPlan(p, raiz, ctx, kda)));
+            // Si uno de los dos contratos no ha contestado, se dice: la lista que
+            // se ve puede no ser toda.
+            (planes.fallidos || []).forEach((m) => {
+                donde.append(elemento('p', t('No se pudieron leer los planes de {0}: puede que tengas más de los que se ven.', m), 'malo'));
+            });
         }).catch((e) => {
             donde.innerHTML = '';
             donde.append(elemento('p', t(String(e.message || e)), 'malo'));
@@ -137,6 +146,8 @@ function tarjetaPlan(p, raiz, ctx, kda) {
     d.append(elemento('p', numero(p.cuota) + ' ' + p.simboloEntra + ' ' + cadaCuanto(p.periodo), 'nota'));
 
     d.append(fila(t('Estado'), estadoEnClaro(p.estado)));
+    // En qué contrato vive: parar, recargar o cerrar van a ese y no a otro.
+    d.append(fila(t('Contrato'), CONTRATOS[p.contrato] ? CONTRATOS[p.contrato].modulo : p.contrato));
     d.append(fila(t('Queda en el bote'), numero(p.bote) + ' ' + p.simboloEntra));
     d.append(fila(t('Compras que quedan'), String(p.quedan)));
     d.append(fila(t('Compras hechas'), String(p.compras)));
@@ -181,7 +192,9 @@ function botonesPlan(p, raiz, ctx, kda) {
     } else if (p.estado === 'paused') {
         fila.append(boton(t('Reanudar'), 'secundario', () => confirmar('reanudar')));
     }
-    fila.append(boton(t('Recargar'), 'secundario', () => pedirRecarga()));
+    // Recargar necesita saber de qué token es el bote. Si la cadena devuelve uno
+    // que la app no conoce, la bóveda no lo firmaría: mejor no ofrecerlo.
+    if (p.claveEntra) fila.append(boton(t('Recargar'), 'secundario', () => pedirRecarga()));
     fila.append(boton(t('Cerrar'), 'peligro', () => confirmar('cerrar')));
     c.append(fila, salida);
     return c;
@@ -279,9 +292,11 @@ function botonesPlan(p, raiz, ctx, kda) {
                 accion,
                 id: p.id,
                 cantidad,
-                // De que token es el bote lo dice la cadena, pero al plugin va como
-                // un si/no: los nombres de los modulos viven en el codigo.
-                entraEsUsdc: p.simboloEntra !== 'KDA',
+                // En que contrato vive el plan y de que token es el bote, los dos
+                // como CLAVES cortas ("dca3", "kb-ETH"): los modulos y las cuentas
+                // de custodia viven en el codigo nativo, que rechaza cualquier otra.
+                contrato: p.contrato,
+                entra: p.claveEntra || '',
             });
             esc.empieza(1);
             const rk = await enviarComando(ctx.red.nodo, ctx.red.networkId, '2', firmado);
@@ -331,8 +346,9 @@ function botonesPlan(p, raiz, ctx, kda) {
 // dura el plan y cuánto se lleva el servicio en total.
 //
 // Lo que se firma no lo decide esta pantalla. El contrato, la chain, la cuenta de
-// custodia y los dos tokens viven en `FirmaKda.kt`; de aquí solo salen números y
-// el sentido de la compra.
+// custodia y los módulos de los tokens viven en `FirmaKda.kt`; de aquí solo salen
+// números, el sentido de la compra y la CLAVE del token («kb-ETH»). El contrato
+// (dca2 o dca3) lo elige el código nativo a partir del token, no esta pantalla.
 
 function campoNumero(id, etiqueta) {
     const c = elemento('div', null, 'campo');
@@ -393,11 +409,13 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
     const c = caja();
     c.append(elemento('h3', t('Plan nuevo')));
 
-    // El sentido: qué entregas y qué compras. Girarlo cambia las dos cosas y los
-    // mínimos, así que se repinta entero.
-    let haciaUsdc = true;
-    const entra = () => (haciaUsdc ? TOKENS.kda : TOKENS.usdc);
-    const sale = () => (haciaUsdc ? TOKENS.usdc : TOKENS.kda);
+    // El sentido: qué entregas y qué compras. Un lado es SIEMPRE KDA; el otro se
+    // elige en un desplegable (kb-USDC, kb-ETH, FLUX o bro), igual que en el
+    // escritorio. Girar o cambiar el token cambia los mínimos, así que se repinta.
+    let otro = 'kb-USDC';
+    let haciaToken = true;
+    const entra = () => (haciaToken ? TOKENS.KDA : TOKENS[otro]);
+    const sale = () => (haciaToken ? TOKENS[otro] : TOKENS.KDA);
 
     // Aquí no se escriben cantidades -eso va abajo, en el bote y la cuota-, así
     // que el par cabe en UNA fila: lo que entregas a la izquierda, lo que compras
@@ -414,13 +432,27 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
 
     const disponible = elemento('div', null, 'nota');
 
-    const unLado = (donde, que, simbolo) => {
+    // El lado que no es KDA lleva el desplegable. Es el MISMO elemento en los dos
+    // sentidos -se mueve de un lado a otro al girar-, así no se pierde lo elegido.
+    const eligeToken = document.createElement('select');
+    eligeToken.className = 'pastilla';
+    eligeToken.setAttribute('aria-label', t('Token del plan'));
+    OTROS.forEach((k) => {
+        const o = document.createElement('option');
+        o.value = k;
+        o.textContent = TOKENS[k].simbolo;
+        eligeToken.append(o);
+    });
+    eligeToken.value = otro;
+
+    const unLado = (donde, que, token) => {
         donde.innerHTML = '';
-        donde.append(elemento('span', que, 'lado-que'), elemento('b', simbolo, 'pastilla'));
+        donde.append(elemento('span', que, 'lado-que'),
+            token.clave === 'KDA' ? elemento('b', token.simbolo, 'pastilla') : eligeToken);
     };
     const pintaPar = () => {
-        unLado(izq, t('Entregas'), entra().simbolo);
-        unLado(der, t('Compras'), sale().simbolo);
+        unLado(izq, t('Entregas'), entra());
+        unLado(der, t('Compras'), sale());
     };
     pintaPar();
     par.append(izq, girar, der);
@@ -482,8 +514,18 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
 
     girar.addEventListener('click', () => {
         if (enMarcha) return;          // con una firma en marcha, el plan no cambia
-        haciaUsdc = !haciaUsdc;
+        haciaToken = !haciaToken;
         pintaPar();
+        olvidarAviso();
+        resumir();
+        pintaSaldo();
+    });
+
+    eligeToken.addEventListener('change', () => {
+        // Con una firma en marcha el desplegable está apagado; esto es por si acaso.
+        if (enMarcha) { eligeToken.value = otro; return; }
+        if (!OTROS.includes(eligeToken.value)) return;
+        otro = eligeToken.value;
         olvidarAviso();
         resumir();
         pintaSaldo();
@@ -538,6 +580,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         enMarcha = true;
         crear.disabled = true;
         girar.disabled = true;
+        eligeToken.disabled = true;
         salida.innerHTML = '';
         // La escalera de pasos: con el dinero en el aire hay que ver por dónde va.
         // Ver `pasos.js` para el porqué.
@@ -555,7 +598,9 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
                 ...comoFirmar,
                 carteraId: kda.carteraId,
                 networkId: ctx.red.networkId,
-                haciaUsdc,
+                // La CLAVE del token y el sentido. Nada de módulos ni contratos.
+                token: otro,
+                haciaToken,
                 deposito: dep,
                 cuota: cuo,
                 periodo: String(cada.sel.value),
@@ -596,6 +641,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
             enMarcha = false;
             crear.disabled = false;
             girar.disabled = false;
+            eligeToken.disabled = false;
         }
     }
 

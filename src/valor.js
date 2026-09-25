@@ -107,3 +107,27 @@ export function cambioDesdeDolar(precio) {
     if (!Number.isFinite(enLaSuya) || enLaSuya <= 0) return null;
     return enLaSuya / enUsd;
 }
+
+/**
+ * Lo que vale un token del Mercado AL PRECIO DE SU POOL contra KDA:
+ * `cantidad × (reservaKDA / reservaToken) × precio del KDA`.
+ *
+ * Va aparte de `valorDeToken` a proposito, y solo se usa para los tokens que la
+ * tarjeta descubre en el Mercado (pools con 1.000 KDA de fondo o mas). Arriba se
+ * dice por que el precio de un pool no es un precio de verdad -cBTC cotiza a 104
+ * KDA-, y eso sigue siendo cierto; pero un token comprado con un plan de DCA que
+ * no suma nada al total esconde dinero que si esta ahi. El escritorio lo cuenta
+ * asi desde la 2.13.0, y el Panel dice con todas las letras que esas lineas van
+ * al precio del pool.
+ *
+ * Devuelve null cuando no se sabe, igual que `valorDeToken`.
+ */
+export function valorPorPool(cantidad, precioEnKda, precio) {
+    const n = Number(cantidad);
+    const p = Number(precioEnKda);
+    const unidad = precio && Number(precio.unidad);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    if (!Number.isFinite(p) || p <= 0) return null;
+    if (!Number.isFinite(unidad) || unidad <= 0) return null;
+    return n * p * unidad;
+}

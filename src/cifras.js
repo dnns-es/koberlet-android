@@ -28,7 +28,10 @@ export function recorta(n, decimales = 5) {
     const x = Number(n);
     if (!isFinite(x)) return formatea(x);
     const paso = Math.pow(10, decimales);
-    const cortado = Math.floor(Math.abs(x) * paso) / paso;
+    // El `toPrecision(15)` quita el ruido de la coma flotante antes de cortar:
+    // 0,0003 × 100000 da 29,999999999999996 y, sin esto, 0,0003 kb-ETH se pintaba
+    // «0,00029». Con los importes del DCA de kb-ETH (mínimo 0,0004) se veía.
+    const cortado = Math.floor(Number((Math.abs(x) * paso).toPrecision(15))) / paso;
     if (x > 0 && cortado === 0) return '< ' + formatea(1 / paso, decimales);
     return formatea(x < 0 ? -cortado : cortado, decimales);
 }

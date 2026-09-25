@@ -288,32 +288,103 @@ object FirmaKda {
     //
     // TODO LO QUE PUEDE DECIDIR DONDE VA EL DINERO ESTA AQUI, EN EL CODIGO.
     //
-    // El modulo, la chain, la cuenta de custodia y los dos tokens son constantes
+    // Los modulos, la chain, las cuentas de custodia y los tokens son constantes
     // de este fichero. De la pantalla solo llegan numeros -cuanto, cada cuanto,
-    // cuanto deslizamiento- y el sentido de la compra. Aunque alguien lograra
+    // cuanto deslizamiento-, el sentido de la compra y una CLAVE corta: la del
+    // token ("kb-USDC", "kb-ETH", "FLUX", "bro") y, para tocar un plan que ya
+    // existe, la del contrato ("dca2", "dca3"). Esas claves se traducen con los
+    // mapas de abajo y cualquier otra cosa se rechaza. Aunque alguien lograra
     // ejecutar codigo en el WebView, no puede hacer que la app firme un ingreso a
     // otra cuenta ni contra otro contrato: no hay hueco donde meterlo.
-    private const val DCA_MODULO = "free.ksw-dca2"
     const val DCA_CHAIN = "2"
+    private const val DCA_KDA = "coin"
 
     /**
-     * La cuenta unica del modulo que custodia todos los botes. Es
-     * `(create-principal (create-capability-guard (CUSTODY)))`, leida de la cadena
-     * el 12/09/2026; sale del hash de la capability, asi que no cambia mientras el
-     * modulo sea el mismo. Va fija a proposito: es EL destinatario del deposito.
+     * Un contrato de compras periodicas.
+     *
+     * `custodia` es la cuenta unica del modulo que guarda todos sus botes:
+     * `(create-principal (create-capability-guard (CUSTODY)))`. Sale del hash de la
+     * capability, asi que no cambia mientras el modulo sea el mismo, y va fija a
+     * proposito: es EL destinatario del deposito.
+     *
+     * `gasolinera` dice si `free.ksw-gasolinera` paga su gas. Solo admite dca2 (y
+     * ksw2): una transaccion de dca3 por la gasolinera muere comprando el gas con
+     * «Failed to buy gas», asi que ahi se para antes de firmar.
      */
-    private const val DCA_CUSTODIA = "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"
+    class ContratoDca(val modulo: String, val custodia: String, val gasolinera: Boolean)
 
-    private const val DCA_KDA = "coin"
-    private const val DCA_USDC = "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC"
+    /**
+     * Un token del lado que no es KDA. `minimo` es el MIN-IN del contrato por
+     * compra, escrito como texto para compararlo sin redondeos de `Double`.
+     * `contrato` es la clave del contrato donde vive: lo decide el token, nunca la
+     * pantalla.
+     */
+    class TokenDca(val modulo: String, val precision: Int, val minimo: String, val contrato: String)
+
+    private val DCA_CONTRATOS = mapOf(
+        // KDA <-> kb-USDC, el que ya esta probado con dinero. Custodia leida de la
+        // cadena el 12/09/2026.
+        "dca2" to ContratoDca("free.ksw-dca2", "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8", gasolinera = true),
+        // kb-ETH, FLUX y bro, siempre contra KDA. Custodia leida de la cadena con
+        // `(free.ksw-dca3.custody-account)`.
+        "dca3" to ContratoDca("free.ksw-dca3", "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8", gasolinera = false),
+    )
+
+    private val DCA_TOKENS = mapOf(
+        "kb-USDC" to TokenDca("n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC", 6, "1", "dca2"),
+        "kb-ETH" to TokenDca("n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-ETH", 18, "0.0004", "dca3"),
+        "FLUX" to TokenDca("runonflux.flux", 8, "15", "dca3"),
+        "bro" to TokenDca("n_582fed11af00dc626812cd7890bb88e72067f28c.bro", 12, "0.0002", "dca3"),
+    )
+
+    /** El KDA vale en los dos contratos, y es siempre uno de los dos lados. */
+    private val DCA_KDA_TOKEN = TokenDca(DCA_KDA, 12, "100", "")
+
+    private fun tokenDca(clave: String): TokenDca =
+        DCA_TOKENS[clave] ?: throw IllegalArgumentException("Ese token no está en los planes de compra.")
+
+    private fun contratoDca(clave: String): ContratoDca =
+        DCA_CONTRATOS[clave] ?: throw IllegalArgumentException("Ese contrato de compras no existe.")
+
+    /** Solo dca2 va por la gasolinera. Se para aqui y no en la cadena, que cobra el intento. */
+    private fun exigirGasolineraDca(gratis: Boolean, contrato: ContratoDca) {
+        if (gratis && !contrato.gasolinera) {
+            throw IllegalArgumentException("La gasolinera solo paga los planes de kb-USDC: en este el gas lo pagas tú.")
+        }
+    }
+
+    /**
+     * Un importe del DCA escrito con los decimales del token, 12 como mucho.
+     *
+     * Es el mismo texto el que va al codigo y a la capability `TRANSFER`, que es lo
+     * que exige el nodo (hallazgo #8 de Alex). Con los decimales del token y no con
+     * 12 fijos porque Pact rechaza un importe con mas cifras de las que admite el
+     * token: 15,123456789 FLUX (8 decimales) tumbaria el plan en la cadena. El tope
+     * de 12 es el del escritorio: kb-ETH admite 18, pero con 12 ya caben de sobra
+     * los 0,0004 del minimo.
+     */
+    fun decimalDca(cantidad: Double, precision: Int): String {
+        val d = minOf(12, maxOf(1, precision))
+        val texto = String.format(java.util.Locale.US, "%." + d + "f", cantidad)
+        // Redondear no puede dejar un cero firmado: se para y se dice.
+        if (!(texto.toDouble() > 0.0)) {
+            throw IllegalArgumentException("Esa cantidad es más pequeña que lo que admite este token.")
+        }
+        return texto
+    }
 
     /**
      * Monta y firma la creacion de un plan DCA.
      *
+     * `token` es la clave del lado que no es KDA; `haciaToken` dice el sentido:
+     * true = se entrega KDA y se compra el token, false = al reves. El contrato
+     * (dca2 o dca3) sale del token con el mapa de arriba.
+     *
      * El dueño ingresa el bote entero en la misma transaccion: la capability que
      * se firma es `<token>.TRANSFER owner <custodia> <deposito>`, con el importe
-     * exacto. A partir de ahi el contrato va comprando su cuota, y el gas de cada
-     * compra lo paga un vigilante externo, no este movil.
+     * exacto y la custodia DE ESE CONTRATO. A partir de ahi el contrato va
+     * comprando su cuota, y el gas de cada compra lo paga un vigilante externo, no
+     * este movil.
      *
      * `owner` tiene que ser la cuenta `k:` de esta misma clave: el contrato exige
      * que el dueño sea el principal de su propio guard, asi que un plan a nombre
@@ -322,7 +393,8 @@ object FirmaKda {
     fun crearPlanDca(
         networkId: String,
         owner: String,
-        haciaUsdc: Boolean,
+        token: String,
+        haciaToken: Boolean,
         deposito: Double,
         cuota: Double,
         periodo: Long,
@@ -337,6 +409,9 @@ object FirmaKda {
         if (owner != "k:$publica") {
             throw IllegalArgumentException("Un plan de compras solo se puede crear a nombre de la propia cartera.")
         }
+        val otro = tokenDca(token)
+        val contrato = contratoDca(otro.contrato)
+        exigirGasolineraDca(gratis, contrato)
         // Una sola llamada, y empieza por `free.ksw-dca2.`: la gasolinera la acepta
         // sin mas. Aqui no hace falta comision porque el codigo no toca el AMM de
         // forma directa -que lo haga el contrato por dentro le da igual al filtro,
@@ -347,25 +422,30 @@ object FirmaKda {
         if (periodo < 300 || periodo > 31536000) throw IllegalArgumentException("Entre compra y compra tienen que pasar de 5 minutos a un año.")
         if (deslizamiento < 0.0 || deslizamiento > 0.5) throw IllegalArgumentException("El deslizamiento va de 0 a 50 %.")
 
-        val entra = if (haciaUsdc) DCA_KDA else DCA_USDC
-        val sale = if (haciaUsdc) DCA_USDC else DCA_KDA
+        val entra = if (haciaToken) DCA_KDA_TOKEN else otro
+        val sale = if (haciaToken) otro else DCA_KDA_TOKEN
+
+        val dep = decimalDca(deposito, entra.precision)
+        val cuo = decimalDca(cuota, entra.precision)
+        // El MIN-IN del contrato, repetido aqui para no gastar gas en un plan que
+        // la cadena va a tirar. Se compara el texto que se firma, no el `Double`.
+        if (java.math.BigDecimal(cuo) < java.math.BigDecimal(entra.minimo)) {
+            throw IllegalArgumentException("La cuota por compra está por debajo del mínimo del contrato.")
+        }
+        val per = decimalCanonico(periodo.toDouble())
+        val des = decimalCanonico(deslizamiento)
 
         // El id lo pone la app, no la pantalla. El contrato exige que empiece por
         // los 10 primeros caracteres del dueño (anti-okupas) y que no lleve
         // comillas, parentesis, barras ni espacios.
         val id = owner.take(10) + "-" + System.currentTimeMillis()
 
-        val dep = decimalCanonico(deposito)
-        val cuo = decimalCanonico(cuota)
-        val per = decimalCanonico(periodo.toDouble())
-        val des = decimalCanonico(deslizamiento)
-
-        val codigo = """($DCA_MODULO.create-plan \"$id\" \"$owner\" (read-keyset \"ks\") $entra $sale $dep $cuo $per $des)"""
+        val codigo = """(${contrato.modulo}.create-plan \"$id\" \"$owner\" (read-keyset \"ks\") ${entra.modulo} ${sale.modulo} $dep $cuo $per $des)"""
         val datos = """{"ks":{"keys":["$publica"],"pred":"keys-all"}}"""
 
         val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":$datos}},""" +
             """"signers":[{"pubKey":"$publica","clist":[${capGas(gratis, owner, gasLimit)},""" +
-            """{"name":"$entra.TRANSFER","args":["$owner","$DCA_CUSTODIA",{"decimal":"$dep"}]}]}],""" +
+            """{"name":"${entra.modulo}.TRANSFER","args":["$owner","${contrato.custodia}",{"decimal":"$dep"}]}]}],""" +
             """"meta":{"chainId":"$DCA_CHAIN","sender":"${remitente(gratis, owner)}","gasLimit":$gasLimit,""" +
             """"gasPrice":${if (gratis) GASOLINERA_GASPRICE else gasPrice},"ttl":600,"creationTime":$creationTime},""" +
             """"nonce":"koberlet-android:${System.currentTimeMillis()}"}"""
@@ -398,14 +478,20 @@ object FirmaKda {
     /**
      * Firma parar, reanudar, cerrar o recargar un plan de compras.
      *
+     * `contrato` es la clave del contrato donde vive el plan ("dca2" o "dca3"),
+     * que la pantalla sabe porque lo leyo de ahi. Poner la que no es no desvia
+     * nada: el id no existe en el otro contrato y la transaccion revierte.
+     *
      * Las tres primeras las autoriza el guard del dueño: el contrato hace
      * `enforce-guard` del keyset del plan, y eso NO lo satisface una firma
      * acotada a capabilities -una firma acotada solo vale dentro de las que
      * concede-. Por eso van SIN clist. No es un agujero: lo que se firma es este
      * comando exacto, montado aqui, con su hash; la firma no sirve para otro.
      *
-     * Recargar si lleva clist, porque ahi si sale dinero: `TRANSFER` del dueño a
-     * la cuenta de custodia por el importe exacto, y nada mas.
+     * Recargar si lleva clist, porque ahi si sale dinero: `TRANSFER` del token del
+     * bote (`entra`: "KDA" o la clave del token) a la custodia DE ESE CONTRATO por
+     * el importe exacto, y nada mas. El token tiene que ser uno de los que admite
+     * ese contrato; si no, no se firma.
      *
      * Cerrar devuelve el bote que quede a la cuenta del dueño; eso lo hace el
      * contrato con su propia capability, no hace falta firmar nada para ello.
@@ -416,7 +502,8 @@ object FirmaKda {
         id: String,
         owner: String,
         cantidad: Double,
-        entraEsUsdc: Boolean,
+        contrato: String,
+        entra: String,
         privada: ByteArray,
         publica: String,
         creationTime: Long,
@@ -427,6 +514,7 @@ object FirmaKda {
         if (owner != "k:$publica") {
             throw IllegalArgumentException("Ese plan no es de esta cartera.")
         }
+        val c = contratoDca(contrato)
         // SOLO `recargar` puede ir por la gasolinera, y no es por capricho.
         //
         // Pausar, reanudar y cerrar se firman SIN clist -firma sin acotar- porque
@@ -438,6 +526,7 @@ object FirmaKda {
         if (gratis && accion != "recargar") {
             throw IllegalArgumentException("Esa acción sobre el plan no va por la gasolinera.")
         }
+        exigirGasolineraDca(gratis, c)
         if (gratis) exigirCabeEnGasolinera(gasLimit)
         if (!idPlanValido(id, owner)) {
             throw IllegalArgumentException("El identificador del plan no vale.")
@@ -447,24 +536,30 @@ object FirmaKda {
         val clist: String
         when (accion) {
             "pausar" -> {
-                codigo = """($DCA_MODULO.pause-plan \"$id\")"""
+                codigo = """(${c.modulo}.pause-plan \"$id\")"""
                 clist = ""
             }
             "reanudar" -> {
-                codigo = """($DCA_MODULO.resume-plan \"$id\")"""
+                codigo = """(${c.modulo}.resume-plan \"$id\")"""
                 clist = ""
             }
             "cerrar" -> {
-                codigo = """($DCA_MODULO.close-plan \"$id\")"""
+                codigo = """(${c.modulo}.close-plan \"$id\")"""
                 clist = ""
             }
             "recargar" -> {
                 if (cantidad <= 0) throw IllegalArgumentException("La cantidad tiene que ser mayor que cero.")
-                val entra = if (entraEsUsdc) DCA_USDC else DCA_KDA
-                val monto = decimalCanonico(cantidad)
-                codigo = """($DCA_MODULO.topup \"$id\" $monto)"""
+                // El token del bote: KDA vale en los dos contratos; cualquier otro
+                // tiene que vivir en ESTE. Firmar el TRANSFER de un token que el
+                // plan no tiene revierte siempre (ya costo un fallo en KoberluSW).
+                val t = if (entra == "KDA") DCA_KDA_TOKEN else tokenDca(entra)
+                if (t !== DCA_KDA_TOKEN && t.contrato != contrato) {
+                    throw IllegalArgumentException("Ese token no va en ese contrato de compras.")
+                }
+                val monto = decimalDca(cantidad, t.precision)
+                codigo = """(${c.modulo}.topup \"$id\" $monto)"""
                 clist = ""","clist":[${capGas(gratis, owner, gasLimit)},""" +
-                    """{"name":"$entra.TRANSFER","args":["$owner","$DCA_CUSTODIA",{"decimal":"$monto"}]}]"""
+                    """{"name":"${t.modulo}.TRANSFER","args":["$owner","${c.custodia}",{"decimal":"$monto"}]}]"""
             }
             else -> throw IllegalArgumentException("Esa acción sobre el plan no existe.")
         }

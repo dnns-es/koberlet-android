@@ -172,6 +172,90 @@ export async function saldoEnMercado(red, modulo, cuenta) {
     }
 }
 
+// --- Los tokens del Mercado en la tarjeta de la cartera ---------------------
+//
+// La tarjeta enseña, ademas de lo de siempre, cualquier token del Mercado en el
+// que la cuenta tenga saldo: lo que compra un plan de DCA (kb-ETH, FLUX, bro) o lo
+// que se cambia aqui no tiene por que estar en la lista de la red, y sin esto se
+// compraba algo y no aparecia en ningun sitio. Mismo criterio que el escritorio
+// (`saldosMercado` de su `lib/dex.js`).
+
+/**
+ * El mercado, recordado unos minutos. La tarjeta se repinta cada vez que se
+ * vuelve al Panel, y el mercado entero es una consulta de 45.000 de gas: pedirlo
+ * en cada repintado seria cargar al nodo para enseñar lo mismo.
+ */
+const MERCADO_VIVE_MS = 5 * 60 * 1000;
+let mercadoGuardado = null;      // { clave, cuando, m }
+
+export async function mercadoReciente(red) {
+    const clave = red.nodo + '|' + red.networkId;
+    if (mercadoGuardado && mercadoGuardado.clave === clave && Date.now() - mercadoGuardado.cuando < MERCADO_VIVE_MS) {
+        return mercadoGuardado.m;
+    }
+    const m = await mercado(red);
+    mercadoGuardado = { clave, cuando: Date.now(), m };
+    return m;
+}
+
+/**
+ * Los modulos que la cadena ha tirado en esta sesion, para no volver a pedirlos.
+ *
+ * Hay contratos rotos -lago.USD2 es el que se vio en el escritorio- que tumban
+ * la consulta ENTERA aunque su lectura vaya dentro de un `try`: el fallo es de
+ * carga del modulo y el `try` no llega a pararlo. Solo se aparta lo que falla EN
+ * LA CADENA; un fallo de red no aparta nada y la proxima vez se vuelve a preguntar.
+ */
+const ROTOS = new Set();
+const LOTE_SALDOS = 12;
+
+/**
+ * Saldo de una cuenta en muchos tokens a la vez, en la chain 2. Devuelve
+ * `{ modulo: cantidad }` solo con los que tienen algo.
+ *
+ * De 12 en 12 y cada uno en su `(try -1.0 ...)`: asi son seis lecturas y no
+ * setenta. Si una tanda falla entera, se repite token a token para salvar a los
+ * buenos y apartar al culpable.
+ */
+export async function saldosMercado(red, cuenta, modulos) {
+    try {
+        exigirCuentaKda(cuenta, 'consultada');
+    } catch (_) {
+        return {};
+    }
+    const lee = async (lote) => {
+        const code = '[' + lote.map((m) => `(try -1.0 (${m}.get-balance "${cuenta}"))`).join(' ') + ']';
+        const r = await local(red.nodo, red.networkId, CHAIN, code);
+        if (!r || r.status !== 'success' || !Array.isArray(r.data) || r.data.length !== lote.length) {
+            const e = new Error('lote');
+            e.rota = !!(r && r.status === 'failure');
+            throw e;
+        }
+        return r.data.map(num);
+    };
+    // Solo modulos con forma de modulo: el nombre va dentro del codigo Pact.
+    const mods = [...new Set(modulos)]
+        .filter((m) => /^[A-Za-z0-9_.-]+$/.test(String(m)) && m !== KDA && !ROTOS.has(m));
+    const lotes = [];
+    for (let i = 0; i < mods.length; i += LOTE_SALDOS) lotes.push(mods.slice(i, i + LOTE_SALDOS));
+    const salida = {};
+    await Promise.all(lotes.map(async (lote) => {
+        try {
+            (await lee(lote)).forEach((v, j) => { if (v > 0) salida[lote[j]] = v; });
+        } catch (_) {
+            for (const m of lote) {
+                try {
+                    const [v] = await lee([m]);
+                    if (v > 0) salida[m] = v;
+                } catch (e) {
+                    if (e.rota) ROTOS.add(m);
+                }
+            }
+        }
+    }));
+    return salida;
+}
+
 // Redondeo HACIA ABAJO a los decimales del token. Dos motivos, los dos serios:
 // cobrar de más, aunque sea un decimal, es cobrar lo que no es tuyo; y mandar más
 // decimales de los que admite el token hace que el contrato tire la transacción.

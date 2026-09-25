@@ -152,41 +152,99 @@ public enum FirmaKda {
     }
 
     // --- DCA ------------------------------------------------------------------
+    //
+    // Los mismos mapas que Kotlin (ver FirmaKda.kt): de la pantalla solo llega una
+    // CLAVE de token ("kb-USDC", "kb-ETH", "FLUX", "bro") y, para tocar un plan, la
+    // del contrato ("dca2", "dca3"). Modulos y cuentas de custodia viven aqui y
+    // cualquier otra clave se rechaza. El contrato de un plan nuevo lo decide el
+    // token, no la pantalla.
+    //
+    // La gasolinera todavia no esta en iPhone (ver PARIDAD.md), asi que aqui el gas
+    // lo paga siempre el dueño y la regla «dca3 no va por la gasolinera» se cumple
+    // sola.
 
-    private static let dcaModulo = "free.ksw-dca2"
     public static let dcaChain = "2"
-    private static let dcaCustodia = "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"
     private static let dcaKda = "coin"
-    private static let dcaUsdc = "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC"
 
+    /// Un contrato de compras periodicas y la cuenta que custodia sus botes.
+    struct ContratoDca { let modulo: String; let custodia: String }
+
+    /// Un token del lado que no es KDA. `minimo` es el MIN-IN del contrato por
+    /// compra, en texto para compararlo sin redondeos de `Double`.
+    struct TokenDca { let modulo: String; let precision: Int; let minimo: String; let contrato: String }
+
+    private static let dcaContratos: [String: ContratoDca] = [
+        "dca2": ContratoDca(modulo: "free.ksw-dca2", custodia: "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"),
+        "dca3": ContratoDca(modulo: "free.ksw-dca3", custodia: "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8"),
+    ]
+
+    private static let dcaTokens: [String: TokenDca] = [
+        "kb-USDC": TokenDca(modulo: "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC", precision: 6, minimo: "1", contrato: "dca2"),
+        "kb-ETH": TokenDca(modulo: "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-ETH", precision: 18, minimo: "0.0004", contrato: "dca3"),
+        "FLUX": TokenDca(modulo: "runonflux.flux", precision: 8, minimo: "15", contrato: "dca3"),
+        "bro": TokenDca(modulo: "n_582fed11af00dc626812cd7890bb88e72067f28c.bro", precision: 12, minimo: "0.0002", contrato: "dca3"),
+    ]
+
+    /// El KDA vale en los dos contratos, y es siempre uno de los dos lados.
+    private static let dcaKdaToken = TokenDca(modulo: dcaKda, precision: 12, minimo: "100", contrato: "")
+
+    private static func tokenDca(_ clave: String) throws -> TokenDca {
+        guard let t = dcaTokens[clave] else { throw FalloBoveda.argumento("Ese token no está en los planes de compra.") }
+        return t
+    }
+
+    private static func contratoDca(_ clave: String) throws -> ContratoDca {
+        guard let c = dcaContratos[clave] else { throw FalloBoveda.argumento("Ese contrato de compras no existe.") }
+        return c
+    }
+
+    /// Un importe del DCA con los decimales del token, 12 como mucho: el mismo
+    /// texto en el codigo y en la capability. Igual que `decimalDca` de Kotlin.
+    public static func decimalDca(_ cantidad: Double, _ precision: Int) throws -> String {
+        let d = min(12, max(1, precision))
+        let texto = String(format: "%.\(d)f", cantidad)
+        if !((Double(texto) ?? 0) > 0) {
+            throw FalloBoveda.argumento("Esa cantidad es más pequeña que lo que admite este token.")
+        }
+        return texto
+    }
+
+    /// Crea un plan. `token` es la clave del lado que no es KDA; `haciaToken`
+    /// true = se entrega KDA y se compra el token, false = al reves.
     public static func crearPlanDca(
-        networkId: String, owner: String, haciaUsdc: Bool, deposito: Double, cuota: Double,
+        networkId: String, owner: String, token: String, haciaToken: Bool, deposito: Double, cuota: Double,
         periodo: Int64, deslizamiento: Double, privada: [UInt8], publica: String, creationTime: Int64,
         gasLimit: Int = 20000, gasPrice: String = "1e-8"
     ) throws -> JSON {
         if owner != "k:\(publica)" {
             throw FalloBoveda.argumento("Un plan de compras solo se puede crear a nombre de la propia cartera.")
         }
+        let otro = try tokenDca(token)
+        let contrato = try contratoDca(otro.contrato)
         if deposito <= 0 || cuota <= 0 { throw FalloBoveda.argumento("La cantidad tiene que ser mayor que cero.") }
         if cuota > deposito { throw FalloBoveda.argumento("La cuota no puede ser mayor que el bote.") }
         if periodo < 300 || periodo > 31_536_000 { throw FalloBoveda.argumento("Entre compra y compra tienen que pasar de 5 minutos a un año.") }
         if deslizamiento < 0.0 || deslizamiento > 0.5 { throw FalloBoveda.argumento("El deslizamiento va de 0 a 50 %.") }
 
-        let entra = haciaUsdc ? dcaKda : dcaUsdc
-        let sale = haciaUsdc ? dcaUsdc : dcaKda
-        let id = String(owner.prefix(10)) + "-\(Int64(Date().timeIntervalSince1970 * 1000))"
+        let entra = haciaToken ? dcaKdaToken : otro
+        let sale = haciaToken ? otro : dcaKdaToken
 
-        let dep = decimalCanonico(deposito)
-        let cuo = decimalCanonico(cuota)
+        let dep = try decimalDca(deposito, entra.precision)
+        let cuo = try decimalDca(cuota, entra.precision)
+        // El MIN-IN del contrato, comparado sobre el texto que se firma.
+        if (Decimal(string: cuo) ?? 0) < (Decimal(string: entra.minimo) ?? 0) {
+            throw FalloBoveda.argumento("La cuota por compra está por debajo del mínimo del contrato.")
+        }
         let per = decimalCanonico(Double(periodo))
         let des = decimalCanonico(deslizamiento)
+        let id = String(owner.prefix(10)) + "-\(Int64(Date().timeIntervalSince1970 * 1000))"
 
-        let codigo = "(\(dcaModulo).create-plan \\\"\(id)\\\" \\\"\(owner)\\\" (read-keyset \\\"ks\\\") \(entra) \(sale) \(dep) \(cuo) \(per) \(des))"
+        let codigo = "(\(contrato.modulo).create-plan \\\"\(id)\\\" \\\"\(owner)\\\" (read-keyset \\\"ks\\\") \(entra.modulo) \(sale.modulo) \(dep) \(cuo) \(per) \(des))"
         let datos = "{\"ks\":{\"keys\":[\"\(publica)\"],\"pred\":\"keys-all\"}}"
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
             "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
-            "{\"name\":\"\(entra).TRANSFER\",\"args\":[\"\(owner)\",\"\(dcaCustodia)\",{\"decimal\":\"\(dep)\"}]}]}]," +
+            "{\"name\":\"\(entra.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(contrato.custodia)\",{\"decimal\":\"\(dep)\"}]}]}]," +
             "\"meta\":{\"chainId\":\"\(dcaChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce())\"}"
         return try resultado(cmd, privada, extra: ["id": id])
@@ -200,30 +258,37 @@ public enum FirmaKda {
         return id.casa("^[A-Za-z0-9:_.-]+$")
     }
 
+    /// Parar, reanudar y cerrar van SIN clist (el contrato hace `enforce-guard` del
+    /// dueño y una firma acotada no lo cumple). Recargar lleva el `TRANSFER` del
+    /// token del bote (`entra`: "KDA" o su clave) a la custodia DE SU CONTRATO.
     public static func gestionarPlanDca(
         networkId: String, accion: String, id: String, owner: String, cantidad: Double,
-        entraEsUsdc: Bool, privada: [UInt8], publica: String, creationTime: Int64,
+        contrato: String, entra: String, privada: [UInt8], publica: String, creationTime: Int64,
         gasLimit: Int = 20000, gasPrice: String = "1e-8"
     ) throws -> JSON {
         if owner != "k:\(publica)" { throw FalloBoveda.argumento("Ese plan no es de esta cartera.") }
+        let c = try contratoDca(contrato)
         if !idPlanValido(id, owner) { throw FalloBoveda.argumento("El identificador del plan no vale.") }
 
         let codigo: String
         let clist: String
         switch accion {
         case "pausar":
-            codigo = "(\(dcaModulo).pause-plan \\\"\(id)\\\")"; clist = ""
+            codigo = "(\(c.modulo).pause-plan \\\"\(id)\\\")"; clist = ""
         case "reanudar":
-            codigo = "(\(dcaModulo).resume-plan \\\"\(id)\\\")"; clist = ""
+            codigo = "(\(c.modulo).resume-plan \\\"\(id)\\\")"; clist = ""
         case "cerrar":
-            codigo = "(\(dcaModulo).close-plan \\\"\(id)\\\")"; clist = ""
+            codigo = "(\(c.modulo).close-plan \\\"\(id)\\\")"; clist = ""
         case "recargar":
             if cantidad <= 0 { throw FalloBoveda.argumento("La cantidad tiene que ser mayor que cero.") }
-            let entra = entraEsUsdc ? dcaUsdc : dcaKda
-            let monto = decimalCanonico(cantidad)
-            codigo = "(\(dcaModulo).topup \\\"\(id)\\\" \(monto))"
+            let t = try entra == "KDA" ? dcaKdaToken : tokenDca(entra)
+            if entra != "KDA" && t.contrato != contrato {
+                throw FalloBoveda.argumento("Ese token no va en ese contrato de compras.")
+            }
+            let monto = try decimalDca(cantidad, t.precision)
+            codigo = "(\(c.modulo).topup \\\"\(id)\\\" \(monto))"
             clist = ",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
-                "{\"name\":\"\(entra).TRANSFER\",\"args\":[\"\(owner)\",\"\(dcaCustodia)\",{\"decimal\":\"\(monto)\"}]}]"
+                "{\"name\":\"\(t.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(c.custodia)\",{\"decimal\":\"\(monto)\"}]}]"
         default:
             throw FalloBoveda.argumento("Esa acción sobre el plan no existe.")
         }

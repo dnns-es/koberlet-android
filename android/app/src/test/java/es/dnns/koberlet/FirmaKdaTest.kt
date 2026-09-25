@@ -158,32 +158,157 @@ class FirmaKdaTest {
         assertTrue(FirmaKda.idPlanValido("k:60ec71ef-1789016588825", owner))
     }
 
+    // Claves de juguete de la frase de prueba de BIP39, las mismas del resto de
+    // pruebas. Nunca una clave de verdad.
+    private val privadaDca = Derivacion.privadaKadena(
+        Derivacion.semillaABytes("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"), 0)
+    private val publicaDca = Derivacion.publicaKadena(privadaDca)
+    private val ownerDca = "k:$publicaDca"
+    private val idDca = ownerDca.take(10) + "-1789016588825"
+
+    private val custodiaDca2 = "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"
+    private val custodiaDca3 = "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8"
+    private val kbEth = "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-ETH"
+
+    private fun gestion(accion: String, contrato: String, entra: String = "", cantidad: Double = 0.0, gratis: Boolean = false) =
+        JSONObject(FirmaKda.gestionarPlanDca(
+            networkId = "mainnet01", accion = accion, id = idDca, owner = ownerDca,
+            cantidad = cantidad, contrato = contrato, entra = entra, privada = privadaDca, publica = publicaDca,
+            creationTime = 1789000000L, gasLimit = if (gratis) 8000 else 20000, gratis = gratis,
+        ).getString("cmd"))
+
+    private fun crear(token: String, haciaToken: Boolean, deposito: Double, cuota: Double, gratis: Boolean = false) =
+        JSONObject(FirmaKda.crearPlanDca(
+            networkId = "mainnet01", owner = ownerDca, token = token, haciaToken = haciaToken,
+            deposito = deposito, cuota = cuota, periodo = 3600, deslizamiento = 0.05,
+            privada = privadaDca, publica = publicaDca, creationTime = 1789000000L,
+            gasLimit = if (gratis) 8000 else 20000, gratis = gratis,
+        ).getString("cmd"))
+
+    private fun codigoDe(o: JSONObject) = o.getJSONObject("payload").getJSONObject("exec").getString("code")
+    private fun transferDe(o: JSONObject) = o.getJSONArray("signers").getJSONObject(0).getJSONArray("clist").getJSONObject(1)
+    private fun montoDe(o: JSONObject) = transferDe(o).getJSONArray("args").getJSONObject(2).getString("decimal")
+    private fun custodiaDe(o: JSONObject) = transferDe(o).getJSONArray("args").getString(1)
+
+    private fun rechaza(motivo: String, bloque: () -> Unit) {
+        try {
+            bloque()
+            fail(motivo)
+        } catch (e: IllegalArgumentException) {
+            // correcto
+        }
+    }
+
     @Test
     fun `parar un plan se firma sin clist y recargar con el TRANSFER exacto`() {
-        val privada = Derivacion.privadaKadena(
-            Derivacion.semillaABytes("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"), 0)
-        val publica = Derivacion.publicaKadena(privada)
-        val owner = "k:" + publica
-        val id = owner.take(10) + "-1789016588825"
-
-        val parar = FirmaKda.gestionarPlanDca(
-            networkId = "mainnet01", accion = "pausar", id = id, owner = owner,
-            cantidad = 0.0, entraEsUsdc = false, privada = privada, publica = publica,
-            creationTime = 1789000000L,
-        ).getString("cmd")
-        assertTrue(parar.contains("pause-plan"))
+        val parar = gestion("pausar", "dca2").toString()
+        assertTrue(parar.contains("free.ksw-dca2.pause-plan"))
         // Sin clist: una firma acotada no satisface el enforce-guard del contrato.
         assertFalse(parar.contains("clist"))
 
-        val recarga = FirmaKda.gestionarPlanDca(
-            networkId = "mainnet01", accion = "recargar", id = id, owner = owner,
-            cantidad = 2.5, entraEsUsdc = false, privada = privada, publica = publica,
-            creationTime = 1789000000L,
-        ).getString("cmd")
-        assertTrue(recarga.contains("topup"))
-        assertTrue(recarga.contains("coin.TRANSFER"))
-        assertTrue(recarga.contains("c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"))
-        assertTrue(recarga.contains("2.500000000000"))
+        val recarga = gestion("recargar", "dca2", "KDA", 2.5)
+        assertTrue(codigoDe(recarga).startsWith("(free.ksw-dca2.topup"))
+        assertEquals("coin.TRANSFER", transferDe(recarga).getString("name"))
+        assertEquals(custodiaDca2, custodiaDe(recarga))
+        assertEquals("2.500000000000", montoDe(recarga))
+    }
+
+    @Test
+    fun `un plan de kb-ETH va al dca3 con su custodia y el importe igual en codigo y capability`() {
+        val o = crear("kb-ETH", haciaToken = false, deposito = 0.004, cuota = 0.0004)
+        val codigo = codigoDe(o)
+        assertTrue(codigo.startsWith("(free.ksw-dca3.create-plan"))
+        assertTrue(codigo.contains(" $kbEth coin "))
+        assertEquals("$kbEth.TRANSFER", transferDe(o).getString("name"))
+        assertEquals(ownerDca, transferDe(o).getJSONArray("args").getString(0))
+        assertEquals(custodiaDca3, custodiaDe(o))
+        val dep = montoDe(o)
+        assertEquals("0.004000000000", dep)
+        // Hallazgo #8 de Alex: el mismo texto en el codigo y en la capability.
+        assertTrue(codigo.contains(" $dep 0.000400000000 "))
+        // El gas lo paga el dueño: el dca3 no va por la gasolinera.
+        assertEquals(ownerDca, o.getJSONObject("meta").getString("sender"))
+    }
+
+    @Test
+    fun `comprar FLUX o bro con KDA tambien va al dca3, y kb-USDC sigue en el dca2`() {
+        val flux = crear("FLUX", haciaToken = true, deposito = 1000.0, cuota = 100.0)
+        assertTrue(codigoDe(flux).startsWith("(free.ksw-dca3.create-plan"))
+        assertTrue(codigoDe(flux).contains(" coin runonflux.flux "))
+        assertEquals("coin.TRANSFER", transferDe(flux).getString("name"))
+        assertEquals(custodiaDca3, custodiaDe(flux))
+
+        val bro = crear("bro", haciaToken = false, deposito = 0.002, cuota = 0.0002)
+        assertEquals("n_582fed11af00dc626812cd7890bb88e72067f28c.bro.TRANSFER", transferDe(bro).getString("name"))
+        assertEquals(custodiaDca3, custodiaDe(bro))
+
+        val usdc = crear("kb-USDC", haciaToken = false, deposito = 10.0, cuota = 1.0)
+        assertTrue(codigoDe(usdc).startsWith("(free.ksw-dca2.create-plan"))
+        assertEquals(custodiaDca2, custodiaDe(usdc))
+        // kb-USDC admite 6 decimales: el importe va con 6, no con 12.
+        assertEquals("10.000000", montoDe(usdc))
+    }
+
+    @Test
+    fun `un token o un contrato que no estan en el mapa no se firman`() {
+        rechaza("Ha firmado un plan con un token inventado.") { crear("PCO", true, 1000.0, 100.0) }
+        rechaza("Ha firmado un plan con un modulo en vez de una clave.") { crear(kbEth, true, 1000.0, 100.0) }
+        rechaza("Ha firmado un plan con KDA a los dos lados.") { crear("KDA", true, 1000.0, 100.0) }
+        rechaza("Ha firmado sobre un contrato inventado.") { gestion("pausar", "free.ksw-dca3") }
+        rechaza("Ha firmado sobre un contrato inventado.") { gestion("cerrar", "dca4") }
+        rechaza("Ha recargado con un token inventado.") { gestion("recargar", "dca3", "PCO", 1.0) }
+        // Un token de verdad, pero en el contrato que no es: tampoco.
+        rechaza("Ha recargado kb-ETH en el dca2.") { gestion("recargar", "dca2", "kb-ETH", 1.0) }
+        rechaza("Ha recargado kb-USDC en el dca3.") { gestion("recargar", "dca3", "kb-USDC", 1.0) }
+    }
+
+    @Test
+    fun `la gasolinera no paga el dca3`() {
+        rechaza("Ha firmado un plan de dca3 por la gasolinera.") { crear("kb-ETH", false, 0.004, 0.0004, gratis = true) }
+        rechaza("Ha firmado una recarga de dca3 por la gasolinera.") { gestion("recargar", "dca3", "FLUX", 20.0, gratis = true) }
+        // El dca2 sigue pudiendo ir por ella.
+        val usdc = crear("kb-USDC", false, 10.0, 1.0, gratis = true)
+        assertEquals(FirmaKda.GASOLINERA_CUENTA, usdc.getJSONObject("meta").getString("sender"))
+        val recarga = gestion("recargar", "dca2", "kb-USDC", 5.0, gratis = true)
+        assertEquals(FirmaKda.GASOLINERA_CUENTA, recarga.getJSONObject("meta").getString("sender"))
+    }
+
+    @Test
+    fun `pausar, reanudar y cerrar un plan de dca3 van sin clist a su modulo`() {
+        for ((accion, fn) in listOf("pausar" to "pause-plan", "reanudar" to "resume-plan", "cerrar" to "close-plan")) {
+            val o = gestion(accion, "dca3")
+            assertEquals("(free.ksw-dca3.$fn \"$idDca\")", codigoDe(o))
+            assertFalse(o.getJSONArray("signers").getJSONObject(0).has("clist"))
+        }
+    }
+
+    @Test
+    fun `recargar un plan de dca3 lleva el TRANSFER de su token a la custodia del dca3`() {
+        val o = gestion("recargar", "dca3", "kb-ETH", 0.0004)
+        assertEquals("(free.ksw-dca3.topup \"$idDca\" 0.000400000000)", codigoDe(o))
+        assertEquals("$kbEth.TRANSFER", transferDe(o).getString("name"))
+        assertEquals(custodiaDca3, custodiaDe(o))
+        assertEquals("0.000400000000", montoDe(o))
+
+        // FLUX admite 8 decimales: con 12 el contrato tiraria la recarga.
+        assertEquals("15.50000000", montoDe(gestion("recargar", "dca3", "FLUX", 15.5)))
+
+        // Un bote de KDA en dca3 se recarga con coin.TRANSFER, tambien a la custodia del dca3.
+        val kda = gestion("recargar", "dca3", "KDA", 100.0)
+        assertEquals("coin.TRANSFER", transferDe(kda).getString("name"))
+        assertEquals(custodiaDca3, custodiaDe(kda))
+    }
+
+    @Test
+    fun `una cuota por debajo del minimo del contrato no se firma`() {
+        rechaza("Ha firmado 0,0003 kb-ETH por compra.") { crear("kb-ETH", false, 0.003, 0.0003) }
+        rechaza("Ha firmado 14 FLUX por compra.") { crear("FLUX", false, 140.0, 14.0) }
+        rechaza("Ha firmado 0,0001 bro por compra.") { crear("bro", false, 0.001, 0.0001) }
+        rechaza("Ha firmado 99 KDA por compra.") { crear("FLUX", true, 990.0, 99.0) }
+        rechaza("Ha firmado 0,5 kb-USDC por compra.") { crear("kb-USDC", false, 5.0, 0.5) }
+        // Justo en el minimo, si.
+        crear("FLUX", false, 150.0, 15.0)
+        crear("bro", false, 0.002, 0.0002)
     }
 
     // --- Puente: Kadena -> Ethereum -----------------------------------------
