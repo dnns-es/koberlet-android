@@ -894,6 +894,10 @@ const EN = {
         'The connection to the relay server could not be opened. Check that you have internet and try again; if you are on a hotel or office wifi, try your mobile data.',
     'El enlace no ha respondido. Suele ser que el código QR ya había caducado: vuelve a sacarlo en la web, que cambia cada vez, y léelo otra vez.':
         'The link did not respond. Usually the QR code had already expired: show it again on the website —it changes every time— and scan it again.',
+    'Esa web quiere firmar de una forma que Koberlet todavía no sabe: {0}. No se ha conectado.':
+        'That website wants to sign in a way Koberlet does not know yet: {0}. It has not been connected.',
+    'Esa web pide avisos que Koberlet todavía no sabe mandar: {0}. No se ha conectado.':
+        'That website asks for events Koberlet does not know how to send yet: {0}. It has not been connected.',
     'Webs conectadas': 'Connected websites',
     'Desconectar': 'Disconnect',
     'Una web quiere conectarse': 'A website wants to connect',

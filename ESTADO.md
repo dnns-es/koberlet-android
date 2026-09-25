@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** · En TestFlight: **0.59.3** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.59.3** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -217,6 +217,50 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 [`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
+
+## 0.59.4 (25/09/2026) — la web pedía tres redes y el monedero ofrecía una
+
+Antonio, en el **iPhone**, leyendo el QR de `mercatusdex.fun`: la tarjeta de conectar
+salía bien y al pulsar **Conectar** aparecían dos líneas en rojo, en inglés:
+
+```
+Non conforming namespaces. approve() namespaces chains don't satisfy required
+namespaces. Required: kadena:mainnet01,kadena:testnet04,kadena:development.
+Approved: kadena:mainnet01
+```
+
+No era del iPhone ni del relé: era **nuestro**. `aprobarSesion()` aprobaba siempre
+`kadena:mainnet01` a secas, sin mirar lo que la web había pedido. El SDK compara lo
+aprobado con lo exigido y, si falta una sola red, tira la conexión entera —y hace bien:
+una sesión que no cubre lo que se pidió es una web llamando a una red que el monedero
+nunca aceptó. Con `play.smartpacts.io`, que solo pide mainnet, no se vio: fue la
+primera web que pide más de una.
+
+Ahora se ofrece **lo que la web pide**, dentro de lo que se puede dar sin mentir:
+
+- **Redes**: todas las que pida, obligatorias y opcionales, con una cuenta en cada una
+  (sin la cuenta, la red aprobada no cuenta para el SDK). En Kadena la misma clave es
+  la misma cuenta en cualquier red, y la red en la que se firma de verdad va **dentro
+  del comando**, que se enseña entero antes de pedir la contraseña: ofrecerlas no
+  regala nada. Mainnet va siempre la primera, porque las webs se quedan con la primera
+  cuenta de la lista.
+- **Métodos y avisos**: solo los que sabemos atender. Si una web **exige** uno que no
+  está, no se conecta y se dice **cuál** («Esa web quiere firmar de una forma que
+  Koberlet todavía no sabe: kadena_sign_v1»). Prometerlo cambiaría un «no» inmediato
+  por una sesión que se cae al primer uso, con el dueño delante creyendo que va.
+- Se acepta también la **otra forma** de pedir que permite el estándar: una clave por
+  red (`kadena:mainnet01: {…}`) en vez de una lista de `chains`.
+
+La parte que decide todo esto vive ahora en `src/lib/wc-namespaces.js`, **sin el SDK
+dentro**, y tiene su prueba (`test/walletconnect.test.js`, 12 comprobaciones, con el
+caso de mercatusdex escrito tal cual). El fichero de al lado carga sockets y cripto y
+no se puede probar sin navegador; esta pieza sí, y esta pieza es la que se rompió.
+
+Afecta a **iPhone y Android por igual**: el código es el mismo. El escritorio tiene el
+mismo fallo en su propio repositorio y queda apuntado en `PARIDAD.md`.
+
+APK `koberlet-0.59.4.apk`, SHA-256
+`1e2750d4e23382516a6e9da1cacb9cc99ffe222e20831638768b64b7b2bb5e7a`.
 
 ## 0.59.3 (25/09/2026) — la tarjeta de firma pedía una contraseña que no tenía dónde escribirse
 

@@ -95,12 +95,19 @@ export function pintarWalletConnect(raiz, ctx) {
         WC_URI_MALA: () => t('Eso no es un enlace de conexión. Tiene que empezar por «wc:» y lo da la propia web junto al código QR.'),
         WC_SIN_RELE: () => t('No se ha podido abrir la conexión con el servidor de enlace. Comprueba que tienes internet y vuelve a intentarlo; si estás en una wifi de hotel o de oficina, prueba con los datos del móvil.'),
         WC_SIN_RESPUESTA: () => t('El enlace no ha respondido. Suele ser que el código QR ya había caducado: vuelve a sacarlo en la web, que cambia cada vez, y léelo otra vez.'),
+        // Estos dos dicen QUÉ es lo que no sabemos hacer, no solo que no se puede:
+        // sin el nombre del método no hay forma de saber qué habría que añadir.
+        WC_METODO_RARO: (m) => t('Esa web quiere firmar de una forma que Koberlet todavía no sabe: {0}. No se ha conectado.', cola(m)),
+        WC_AVISOS_RAROS: (m) => t('Esa web pide avisos que Koberlet todavía no sabe mandar: {0}. No se ha conectado.', cola(m)),
     };
+
+    /** Lo que va detrás del código, que es el detalle. */
+    const cola = (m) => String(m).split(': ').slice(1).join(': ');
 
     function explica(e) {
         const m = String((e && e.message) || e);
         const codigo = Object.keys(EXPLICACION).find((k) => m.includes(k));
-        return codigo ? EXPLICACION[codigo]() : t(m);
+        return codigo ? EXPLICACION[codigo](m) : t(m);
     }
 
     async function conectar(uri) {
@@ -182,7 +189,7 @@ export function pintarWalletConnect(raiz, ctx) {
                 estado.className = 'bueno';
                 estado.textContent = t('Conectado.');
             } catch (e) {
-                k.append(elemento('p', t(String(e.message || e)), 'malo'));
+                k.append(elemento('p', explica(e), 'malo'));
             }
         }, 'principal'));
         k.append(boton(t('Rechazar'), async () => {

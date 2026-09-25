@@ -23,6 +23,9 @@
 
 import { Core } from '@walletconnect/core';
 import { WalletKit } from '@reown/walletkit';
+// Lo que se le ofrece a la web vive aparte, sin SDK, para poder probarlo sin
+// navegador: es justo la pieza que fallaba con mercatusdex.fun.
+import { loQuePide, namespacesParaAprobar, claveDeCuenta } from './wc-namespaces.js';
 
 // El identificador del proyecto en el rele. No es un secreto -viaja dentro de todos
 // los monederos, se lee del propio paquete- pero va en el codigo y no en los ajustes
@@ -31,6 +34,18 @@ const PROJECT_ID = 'b0e3e11cc9ca4e31921e2ff7228a0f44';
 
 export const CADENA = 'kadena:mainnet01';
 export const METODOS = ['kadena_getAccounts_v1', 'kadena_quicksign_v1'];
+
+/**
+ * Lo que pidio cada propuesta que sigue en el aire, guardado hasta que se acepta
+ * o se rechaza.
+ *
+ * Hace falta porque **lo que se aprueba tiene que cubrir lo que se pidio**: el
+ * SDK compara una cosa con otra y, si falta una sola red, tira la conexion entera
+ * con un «Non conforming namespaces» en ingles. Es lo que le paso a Antonio el
+ * 25/09/2026 con mercatusdex.fun: la web pedia mainnet01, testnet04 y development,
+ * y aqui se aprobaba siempre mainnet01 a secas.
+ */
+const pendientes = new Map();
 
 const METADATOS = {
     name: 'Koberlet',
@@ -91,6 +106,10 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
     kit.on('session_proposal', (p) => {
         const m = (p.params && p.params.proposer && p.params.proposer.metadata) || {};
         const ns = Object.assign({}, p.params.requiredNamespaces, p.params.optionalNamespaces);
+        pendientes.set(p.id, {
+            obliga: loQuePide(p.params.requiredNamespaces),
+            suelta: loQuePide(p.params.optionalNamespaces),
+        });
         alProponer({
             id: p.id,
             // OJO: nombre y direccion los declara la propia web. Son una pista para
@@ -129,11 +148,26 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
     return kit;
 }
 
+/**
+ * Las cuentas que se le contestan a `kadena_getAccounts_v1`.
+ *
+ * Se quita la red de delante por el ÚLTIMO `:`, no contando letras: desde que una
+ * sesion puede llevar varias redes, las cuentas ya no miden todas lo mismo
+ * (`kadena:mainnet01:…` y `kadena:development:…`). Y se deduplica por clave: la
+ * misma cuenta repetida una vez por red no es informacion, es ruido.
+ */
 function cuentasDeSesion(sesion) {
     const lista = ((sesion && sesion.namespaces && sesion.namespaces.kadena) || {}).accounts || [];
+    const vistas = new Set();
+    const unicas = lista.filter((caip) => {
+        const pub = claveDeCuenta(caip);
+        if (vistas.has(pub)) return false;
+        vistas.add(pub);
+        return true;
+    });
     return {
-        accounts: lista.map((caip) => {
-            const pub = caip.slice(CADENA.length + 1);
+        accounts: unicas.map((caip) => {
+            const pub = claveDeCuenta(caip);
             return {
                 account: caip,
                 publicKey: pub,
@@ -155,27 +189,35 @@ export async function emparejar(uri) {
     return conLimite(kit.pair({ uri: limpia }), 'WC_SIN_RESPUESTA');
 }
 
+/**
+ * Aprueba la sesion OFRECIENDO LO QUE LA WEB PIDIO, no lo que nos venga bien.
+ *
+ * Antes se aprobaba `kadena:mainnet01` y punto. Con las webs que solo piden esa
+ * red funcionaba; con una que pida ademas testnet04 y development -mercatusdex.fun,
+ * por ejemplo- el SDK rechaza la conexion entera antes de que llegue a ninguna
+ * parte. No es capricho suyo: una sesion que no cubre lo que se pidio dejaria a la
+ * web llamando a una red que el monedero nunca acepto.
+ *
+ * Ofrecer las tres redes es HONESTO y no regala nada: en Kadena la misma clave es
+ * la misma cuenta en cualquier red, y la red en la que se firma de verdad va
+ * dentro del comando que se firma, que se enseña entero antes de pedir la
+ * contraseña. Lo que NO se hace es prometer metodos o avisos que no sabemos
+ * atender: eso se dice aqui y no se conecta, porque una sesion que se cae al
+ * primer uso es peor que un «no» a tiempo.
+ */
 export async function aprobarSesion(id, claves) {
     if (!kit) throw new Error('El transporte no está arrancado.');
-    const buenas = (claves || []).filter((k) => /^[0-9a-f]{64}$/i.test(k));
-    if (!buenas.length) throw new Error('No hay ninguna cuenta que ofrecer.');
-    return kit.approveSession({
-        id,
-        namespaces: {
-            kadena: {
-                chains: [CADENA],
-                methods: METODOS,
-                events: [],
-                // EL ORDEN IMPORTA: las webs se quedan con la primera cuenta de la
-                // lista. La elegida va delante.
-                accounts: buenas.map((k) => CADENA + ':' + k.toLowerCase()),
-            },
-        },
-    });
+    const namespaces = namespacesParaAprobar(
+        pendientes.get(id), claves, { cadena: CADENA, metodos: METODOS },
+    );
+    const sesion = await kit.approveSession({ id, namespaces });
+    pendientes.delete(id);
+    return sesion;
 }
 
 export async function rechazarSesion(id) {
     if (!kit) throw new Error('El transporte no está arrancado.');
+    pendientes.delete(id);
     return kit.rejectSession({ id, reason: { code: 5000, message: 'rechazado en el monedero' } });
 }
 
