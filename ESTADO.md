@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.59.6** (subiendo) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.60.0** (subiendo; la 0.59.6 build 18 conectó con Mercatus) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -217,6 +217,20 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 [`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
+
+## 0.60.0 (25/09/2026) — DCA con kb-ETH, FLUX y bro; Mercatus bloqueado
+
+- **DCA con `free.ksw-dca3`**: el lado no-KDA se elige entre kb-USDC, kb-ETH, FLUX y bro.
+  kb-USDC sigue en dca2; los otros tres van al dca3 (custodia
+  `c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8`). La pantalla solo manda claves y
+  Kotlin/Swift las traducen con mapas fijos; dca3 nunca va por la gasolinera. Se leen
+  los planes de los dos contratos. Mínimos: 100 KDA, 1 kb-USDC, 0,0004 kb-ETH, 15 FLUX,
+  0,0002 bro. **Ojo**: el importe de kb-USDC en dca2 se firma ahora con 6 decimales
+  (mismo valor): probar un plan real antes de publicar en Android.
+- **Tarjeta**: tokens del Mercado en los que hay saldo, valorados al precio del pool.
+- **WalletConnect**: mercatusdex.fun bloqueada (decisión de Antonio: sin comisión DNNS no
+  hay conexión). Dominio verificado por Reown o declarado; una sesión vieja no firma.
+- Tests: JS 80/80, Kotlin 121/121. Swift sin ejecutar en Windows (lo compila el CI).
 
 ## 0.59.6 (25/09/2026) — WalletConnect: los avisos exigidos se aceptan
 
