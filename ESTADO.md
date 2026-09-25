@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.59.3** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.59.4** (build 16) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -218,6 +218,34 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.59.5 (25/09/2026) — `kadena_sign_v1`: el monedero monta el comando
+
+Con la 0.59.4 en el iPhone, el aviso nuevo hizo su trabajo y dijo el siguiente
+tropiezo en español en vez de en inglés: «Esa web quiere firmar de una forma que
+Koberlet todavía no sabe: **kadena_sign_v1**. No se ha conectado.»
+
+Kadena tiene dos formas de pedir una firma por WalletConnect. Con
+`kadena_quicksign_v1` la web manda el comando **ya montado**; con `kadena_sign_v1`
+manda las **piezas** —código, datos, permisos, quién paga el gas, chain— y el comando
+lo monta el monedero. mercatusdex.fun exige la segunda.
+
+- `src/lib/wc-comando.js` (sin SDK, con prueba): monta el comando con los permisos
+  **tal cual** los pide la web —ni uno menos, que sería firmar algo distinto de lo que
+  se enseñó; ni uno más, que sería firmar más de lo pedido—. La clave que firma es la
+  del `sender` si es una `k:`, y si no, la de la sesión; los `extraSigners` van **sin
+  permisos**, porque no somos quien decide qué autorizan. La **red la pone la sesión**,
+  no un campo del mensaje.
+- Lo montado pasa por **la misma pantalla** que un quicksign: se desmenuza, se enseña
+  cuánto se autoriza mover y a quién, y lo aprueba una persona con contraseña o Face ID.
+  La firma sale de `firmarComandoExterno`, la misma de siempre.
+- Cada método contesta con **su** forma: `sign_v1` un comando en `body`, quicksign una
+  lista en `responses`. La del otro deja a la web esperando algo que no llega.
+- Montarlo aquí no es peor que recibirlo hecho: lo que se firma es exactamente la
+  cadena que se devuelve y el hash sale de ella.
+
+`test/wc-comando.test.js`, 9 comprobaciones, y la prueba de la 0.59.4 lee ahora la
+lista de métodos **del fichero de verdad** en vez de copiarla. 69/69.
+
 ## 0.59.4 (25/09/2026) — la web pedía tres redes y el monedero ofrecía una
 
 Antonio, en el **iPhone**, leyendo el QR de `mercatusdex.fun`: la tarjeta de conectar
@@ -259,7 +287,7 @@ no se puede probar sin navegador; esta pieza sí, y esta pieza es la que se romp
 Afecta a **iPhone y Android por igual**: el código es el mismo. El escritorio tiene el
 mismo fallo en su propio repositorio y queda apuntado en `PARIDAD.md`.
 
-APK `koberlet-0.59.4.apk`, SHA-256
+Subida a TestFlight el 25/09 a las 19:40 (build 16, «Upload succeeded»). APK `koberlet-0.59.4.apk`, SHA-256
 `1e2750d4e23382516a6e9da1cacb9cc99ffe222e20831638768b64b7b2bb5e7a`.
 
 ## 0.59.3 (25/09/2026) — la tarjeta de firma pedía una contraseña que no tenía dónde escribirse

@@ -925,6 +925,11 @@ const EN = {
         'Signing for a website only works in the installed app: here the vault is a development stand-in and does not sign.',
     'El transporte no está arrancado.': 'The connection is not started.',
     'WC_URI_MALA': 'That link is not a valid connection link.',
+    // Estos tres van a la WEB, no a la pantalla: son una `kadena_sign_v1` mal
+    // formada. Se traducen igual para que quien lea el código sepa qué significan.
+    'WC_SIN_CODIGO': 'The signing request carries no Pact code.',
+    'WC_SIN_CUENTA': 'The signing request does not say which account signs.',
+    'WC_SIN_CHAIN': 'The signing request carries no valid chain.',
     'No hay ninguna cuenta que ofrecer.': 'There is no account to offer.',
     'La web pide firmar con una cuenta que no está en este aparato.': 'The website asks to sign with an account that is not on this device.',
     'Gas, como mucho': 'Gas, at most',

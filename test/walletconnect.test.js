@@ -22,9 +22,15 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loQuePide, namespacesParaAprobar, claveDeCuenta } from '../src/lib/wc-namespaces.js';
 
-const BASE = { cadena: 'kadena:mainnet01', metodos: ['kadena_getAccounts_v1', 'kadena_quicksign_v1'] };
+// Los métodos se leen del fichero de verdad, no se copian: `walletconnect.js`
+// carga el SDK y no se puede importar aquí, pero si esta lista fuera una copia a
+// mano, la prueba seguiría pasando el día que la de verdad cambie.
+const FUENTE = readFileSync(new URL('../src/lib/walletconnect.js', import.meta.url), 'utf8');
+const METODOS = JSON.parse(FUENTE.match(/export const METODOS = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
+const BASE = { cadena: 'kadena:mainnet01', metodos: METODOS };
 const CLAVE = 'a'.repeat(64);
 const OTRA = 'b'.repeat(64);
 
@@ -34,7 +40,9 @@ test('el caso de mercatusdex: se aprueban LAS TRES redes que pide', () => {
     const p = pide({
         kadena: {
             chains: ['kadena:mainnet01', 'kadena:testnet04', 'kadena:development'],
-            methods: ['kadena_getAccounts_v1', 'kadena_quicksign_v1'],
+            // Y los tres métodos que exige: el tercero, `kadena_sign_v1`, fue el
+            // segundo tropiezo con esta web (0.59.4 decía «no sé hacerlo»).
+            methods: ['kadena_getAccounts_v1', 'kadena_quicksign_v1', 'kadena_sign_v1'],
             events: [],
         },
     });
@@ -102,17 +110,17 @@ test('lo de otras cadenas ni se mira', () => {
 });
 
 test('un método EXIGIDO que no sabemos hacer no se promete: no se conecta', () => {
-    const p = pide({ kadena: { chains: ['kadena:mainnet01'], methods: ['kadena_sign_v1'], events: [] } });
-    assert.throws(() => namespacesParaAprobar(p, [CLAVE], BASE), /WC_METODO_RARO: kadena_sign_v1/);
+    const p = pide({ kadena: { chains: ['kadena:mainnet01'], methods: ['kadena_inventado_v9'], events: [] } });
+    assert.throws(() => namespacesParaAprobar(p, [CLAVE], BASE), /WC_METODO_RARO: kadena_inventado_v9/);
 });
 
 test('un método solo OPCIONAL que no sabemos hacer no impide conectar, y no se promete', () => {
     const p = pide(
         { kadena: { chains: ['kadena:mainnet01'], methods: ['kadena_quicksign_v1'], events: [] } },
-        { kadena: { chains: [], methods: ['kadena_sign_v1'], events: [] } },
+        { kadena: { chains: [], methods: ['kadena_inventado_v9'], events: [] } },
     );
     const ns = namespacesParaAprobar(p, [CLAVE], BASE);
-    assert.ok(!ns.kadena.methods.includes('kadena_sign_v1'), JSON.stringify(ns.kadena.methods));
+    assert.ok(!ns.kadena.methods.includes('kadena_inventado_v9'), JSON.stringify(ns.kadena.methods));
     assert.ok(ns.kadena.methods.includes('kadena_quicksign_v1'));
 });
 

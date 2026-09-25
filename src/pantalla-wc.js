@@ -26,6 +26,7 @@ import { nombreCartera } from './nombres.js';
 import { nombreBio } from './biometria.js';
 import { corta } from './direccion.js';
 import * as wc from './lib/walletconnect.js';
+import { respuestaFirmada } from './lib/wc-comando.js';
 
 function elemento(tag, texto, clase) {
     const e = document.createElement(tag);
@@ -266,7 +267,7 @@ export function pintarWalletConnect(raiz, ctx) {
             aviso.className = 'nota';
             aviso.textContent = t('Firmando…');
             try {
-                const respuestas = [];
+                const firmados = [];
                 for (const comando of f.comandos) {
                     // La cuenta con la que se firma la dice el propio comando; aqui se
                     // busca cual de las carteras de este aparato tiene esa clave.
@@ -275,12 +276,11 @@ export function pintarWalletConnect(raiz, ctx) {
                     const mia = cuentasKadena().find((x) => String(x.cuenta).slice(2).toLowerCase() === pedida);
                     if (!mia) throw new Error('La web pide firmar con una cuenta que no está en este aparato.');
                     const r = await boveda.firmarComandoExterno({ carteraId: mia.carteraId, cmd: comando.cmd, ...comoFirmar });
-                    respuestas.push({
-                        commandSigData: { cmd: comando.cmd, sigs: [{ pubKey: r.pubKey, sig: r.sig }] },
-                        outcome: { result: 'success', hash: r.hash },
-                    });
+                    firmados.push({ cmd: comando.cmd, pubKey: r.pubKey, sig: r.sig, hash: r.hash });
                 }
-                await wc.responder(f.topic, f.id, { responses: respuestas });
+                // Cada método contesta con su forma: la del otro deja a la web
+                // esperando algo que no llega.
+                await wc.responder(f.topic, f.id, respuestaFirmada(f.metodo, firmados));
                 zonaPeticion.innerHTML = '';
                 estado.className = 'bueno';
                 estado.textContent = t('Firmado y devuelto a la web.');

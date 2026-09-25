@@ -17,6 +17,8 @@
 //     el dueño ya acepto enseñar al conectar;
 //   - `kadena_quicksign_v1` es "firma esto", y NO se contesta solo jamas: sale por
 //     `alPedirFirma` para que la pantalla lo desmenuce y lo apruebe una persona.
+//   - `kadena_sign_v1` es lo mismo pero la web manda las piezas en vez del comando
+//     hecho; se monta en `wc-comando.js` y a partir de ahi va por el mismo camino.
 //
 // La clave nunca pasa por aqui: esto recibe el comando, la pantalla lo enseña y la
 // boveda nativa lo firma tras pedir contrasena o huella.
@@ -26,6 +28,7 @@ import { WalletKit } from '@reown/walletkit';
 // Lo que se le ofrece a la web vive aparte, sin SDK, para poder probarlo sin
 // navegador: es justo la pieza que fallaba con mercatusdex.fun.
 import { loQuePide, namespacesParaAprobar, claveDeCuenta } from './wc-namespaces.js';
+import { comandoDeFirma } from './wc-comando.js';
 
 // El identificador del proyecto en el rele. No es un secreto -viaja dentro de todos
 // los monederos, se lee del propio paquete- pero va en el codigo y no en los ajustes
@@ -33,7 +36,8 @@ import { loQuePide, namespacesParaAprobar, claveDeCuenta } from './wc-namespaces
 const PROJECT_ID = 'b0e3e11cc9ca4e31921e2ff7228a0f44';
 
 export const CADENA = 'kadena:mainnet01';
-export const METODOS = ['kadena_getAccounts_v1', 'kadena_quicksign_v1'];
+// `kadena_sign_v1` desde la 0.59.5: mercatusdex.fun lo exige y sin el no conecta.
+export const METODOS = ['kadena_getAccounts_v1', 'kadena_quicksign_v1', 'kadena_sign_v1'];
 
 /**
  * Lo que pidio cada propuesta que sigue en el aire, guardado hasta que se acepta
@@ -134,10 +138,43 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
         if (metodo === 'kadena_quicksign_v1') {
             const comandos = (params.request.params && params.request.params.commandSigDatas) || [];
             alPedirFirma({
-                id, topic,
+                id, topic, metodo,
                 nombre: String(quien.name || '?'),
                 url: String(quien.url || '?'),
                 comandos: comandos.map((c) => ({ cmd: String(c.cmd || '') })),
+            });
+            return;
+        }
+        if (metodo === 'kadena_sign_v1') {
+            // Aqui la web manda las piezas y el comando se monta en `wc-comando.js`.
+            // Lo que sale de ahi pasa por la MISMA pantalla que un quicksign: se
+            // desmenuza, se enseña y lo aprueba una persona.
+            let cmd;
+            try {
+                const pet = (params.request && params.request.params) || {};
+                const cuerpo = pet.body || pet;
+                // Con que clave se firma: la del `sender` si es una cuenta k:, y si
+                // no, la primera de la sesion. Si esa clave no esta en este aparato
+                // lo dice la pantalla, que es donde se busca la cartera.
+                const sender = String(cuerpo.sender || '');
+                const clave = /^k:[0-9a-f]{64}$/i.test(sender)
+                    ? sender.slice(2).toLowerCase()
+                    : (cuentasDeSesion(sesion).accounts[0] || {}).publicKey;
+                // La red la manda la SESION, no el mensaje: se aprobo para unas
+                // redes concretas y la peticion dice en cual de ellas va.
+                const red = String(params.chainId || CADENA).split(':')[1] || 'mainnet01';
+                cmd = comandoDeFirma(pet, red, clave);
+            } catch (e) {
+                // Esto le llega a la WEB: que diga que metodo y que falto, para que
+                // quien la programa pueda arreglarlo sin adivinar.
+                await fallar(topic, id, 'kadena_sign_v1 mal formado: ' + e.message);
+                return;
+            }
+            alPedirFirma({
+                id, topic, metodo,
+                nombre: String(quien.name || '?'),
+                url: String(quien.url || '?'),
+                comandos: [{ cmd }],
             });
             return;
         }
