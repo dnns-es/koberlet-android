@@ -124,9 +124,18 @@ test('un método solo OPCIONAL que no sabemos hacer no impide conectar, y no se 
     assert.ok(ns.kadena.methods.includes('kadena_quicksign_v1'));
 });
 
-test('avisos exigidos: tampoco se prometen', () => {
-    const p = pide({ kadena: { chains: ['kadena:mainnet01'], methods: [], events: ['accountsChanged'] } });
-    assert.throws(() => namespacesParaAprobar(p, [CLAVE], BASE), /WC_AVISOS_RAROS: accountsChanged/);
+// Mercatus exige kadena_transaction_updated (25/09/2026, tras la 0.59.5). Un aviso es
+// algo que el monedero PUEDE mandar, no algo que deba hacer: se aprueba y no se manda.
+test('avisos exigidos: se aprueban (no obligan a nada)', () => {
+    const p = pide({ kadena: { chains: ['kadena:mainnet01'], methods: ['kadena_sign_v1'],
+        events: ['kadena_transaction_updated', 'accountsChanged'] } });
+    const ns = namespacesParaAprobar(p, [CLAVE], BASE);
+    assert.deepEqual(ns.kadena.events, ['kadena_transaction_updated', 'accountsChanged']);
+});
+
+test('un aviso con nombre raro no pasa', () => {
+    const p = pide({ kadena: { chains: ['kadena:mainnet01'], methods: [], events: ['<script>'] } });
+    assert.throws(() => namespacesParaAprobar(p, [CLAVE], BASE), /WC_AVISOS_RAROS/);
 });
 
 test('sin ninguna clave válida no se aprueba nada', () => {

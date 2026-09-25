@@ -24,10 +24,12 @@
 //     mainnet, en testnet y en una red de pruebas; y la red en la que se firma de
 //     verdad va DENTRO del comando, que se enseña entero antes de la contraseña.
 //     Ofrecerlas no regala nada.
-//   - METODOS Y AVISOS: solo los que sabemos atender. Si la web EXIGE uno que no
-//     esta, no se conecta y se dice cual. Aprobar prometiendo algo que no se sabe
-//     hacer cambia un «no» inmediato por una sesion que se cae al primer uso, con
-//     el dueño delante creyendo que va.
+//   - METODOS: solo los que sabemos atender. Si la web EXIGE uno que no esta, no
+//     se conecta y se dice cual. Aprobar prometiendo algo que no se sabe hacer
+//     cambia un «no» inmediato por una sesion que se cae al primer uso, con el
+//     dueño delante creyendo que va.
+//   - AVISOS (events): los que exija. Van del monedero a la web y son opcionales:
+//     aprobarlos no promete mandarlos.
 
 /**
  * Qué redes, métodos y avisos pide un bloque de namespaces.
@@ -72,8 +74,13 @@ export function namespacesParaAprobar(pedido, claves, base) {
 
     const raros = sinRepetir(obliga.metodos.filter((m) => !base.metodos.includes(m)));
     if (raros.length) throw new Error('WC_METODO_RARO: ' + raros.join(', '));
+    // Los AVISOS exigidos si se aprueban. Un aviso lo manda el monedero cuando quiere;
+    // aprobarlo no le obliga a mandarlo, y la firma responde igual sin el. Rechazarlos
+    // dejo a Antonio sin conectar a Mercatus (kadena_transaction_updated, 25/09/2026).
+    // Solo se para lo que no tiene pinta de nombre de aviso.
     const avisos = sinRepetir(obliga.eventos);
-    if (avisos.length) throw new Error('WC_AVISOS_RAROS: ' + avisos.join(', '));
+    const feos = avisos.filter((e) => !/^[A-Za-z0-9_.:-]{1,64}$/.test(String(e)));
+    if (feos.length) throw new Error('WC_AVISOS_RAROS: ' + feos.join(', '));
 
     // Mainnet SIEMPRE la primera: es la red donde hay dinero de verdad y, como las
     // webs se quedan con la primera cuenta que se les manda, tiene que ser la suya.
@@ -85,7 +92,7 @@ export function namespacesParaAprobar(pedido, claves, base) {
     const accounts = [];
     for (const c of cadenas) for (const k of buenas) accounts.push(c + ':' + k);
 
-    return { kadena: { chains: cadenas, methods: metodos, events: [], accounts } };
+    return { kadena: { chains: cadenas, methods: metodos, events: avisos, accounts } };
 }
 
 /** La clave pública de una cuenta CAIP-10, sea cual sea el largo de la red. */
