@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-22 · En `descargas.dnns.es`: **0.58.0** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** · En TestFlight: **0.59.3** · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -219,6 +219,15 @@ ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hast
 que se escriba por qué no debe estarlo.
 
 ## 0.59.3 (25/09/2026) — la tarjeta de firma pedía una contraseña que no tenía dónde escribirse
+
+Publicada en `descargas.dnns.es` el 25/09 a las 08:25 y en TestFlight (build 15).
+`versionCode` 5903, SHA-256
+`10e96afa848e980994f0513c3edd0d0500a23655f34f5aeb70d80531de18c67e`, firmada con
+el certificado de siempre (`75194f6a…`, CN=DNNS.es). Comprobado bajándola por
+HTTPS: la huella del APK servido cuadra con la del compilado y con la que anuncia
+`latest.json`. **Solo canal directo**; a Play no va hasta que la cuenta esté
+aprobada, y la decisión de fondo sigue en pie: el `.aab` de Play no lleva
+WalletConnect (ver 0.59.0).
 
 Con la 0.59.2 el camino entero funcionó por fin en el iPhone: se leyó el QR, se
 apostó en la web y llegó la petición de firma con su desglose —0,1 KDA al pote de
