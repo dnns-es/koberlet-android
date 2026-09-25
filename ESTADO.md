@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.59.3** (la 0.59.4 compilada, sin subir) · En TestFlight: **0.60.0** (subiendo; la 0.59.6 build 18 conectó con Mercatus) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.60.0** · En TestFlight: **0.60.0** (subiendo; la 0.59.6 build 18 conectó con Mercatus) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -231,6 +231,9 @@ que se escriba por qué no debe estarlo.
 - **WalletConnect**: mercatusdex.fun bloqueada (decisión de Antonio: sin comisión DNNS no
   hay conexión). Dominio verificado por Reown o declarado; una sesión vieja no firma.
 - Tests: JS 80/80, Kotlin 121/121. Swift sin ejecutar en Windows (lo compila el CI).
+- **Canal directo publicado** (25/09/2026 22:3x): APK `koberlet-0.60.0.apk`, SHA-256
+  `4685d0a71422ebc05fb6c6c2d5dc833295c557f1257c8b4715ee073e1ab727fa`, certificado 75194f6a… (el de
+  siempre), comprobado por HTTPS; maqueta web actualizada (copia `_bak-koberlet-web-*`).
 
 ## 0.59.6 (25/09/2026) — WalletConnect: los avisos exigidos se aceptan
 
