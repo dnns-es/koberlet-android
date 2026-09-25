@@ -148,3 +148,15 @@ test('la clave se saca de la cuenta sea cual sea el largo de la red', () => {
     assert.equal(claveDeCuenta('kadena:mainnet01:' + CLAVE), CLAVE);
     assert.equal(claveDeCuenta('kadena:development:' + CLAVE), CLAVE);
 });
+
+// Mercatus BLOQUEADA (decisión de Antonio, 25/09/2026): sin comisión DNNS no hay conexión.
+test('mercatusdex.fun no se conecta; el resto sí', async () => {
+    const { webBloqueada } = await import('../src/lib/wc-namespaces.js');
+    assert.ok(webBloqueada('https://mercatusdex.fun'));
+    assert.ok(webBloqueada(undefined, 'https://app.mercatusdex.fun/swap'));
+    assert.ok(!webBloqueada('https://play.smartpacts.io', 'https://play.smartpacts.io'));
+    assert.ok(!webBloqueada('https://notmercatusdex.fun'));
+    const src = readFileSync(new URL('../src/lib/walletconnect.js', import.meta.url), 'utf8');
+    assert.match(src, /prop && prop\.bloqueada[\s\S]{0,200}WC_WEB_BLOQUEADA/);
+    assert.match(src, /webBloqueada\(quien\.url\)/);
+});

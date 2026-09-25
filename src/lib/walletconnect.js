@@ -27,7 +27,7 @@ import { Core } from '@walletconnect/core';
 import { WalletKit } from '@reown/walletkit';
 // Lo que se le ofrece a la web vive aparte, sin SDK, para poder probarlo sin
 // navegador: es justo la pieza que fallaba con mercatusdex.fun.
-import { loQuePide, namespacesParaAprobar, claveDeCuenta } from './wc-namespaces.js';
+import { loQuePide, namespacesParaAprobar, claveDeCuenta, webBloqueada } from './wc-namespaces.js';
 import { comandoDeFirma } from './wc-comando.js';
 
 // El identificador del proyecto en el rele. No es un secreto -viaja dentro de todos
@@ -110,9 +110,12 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
     kit.on('session_proposal', (p) => {
         const m = (p.params && p.params.proposer && p.params.proposer.metadata) || {};
         const ns = Object.assign({}, p.params.requiredNamespaces, p.params.optionalNamespaces);
+        const verificado = (((p.verifyContext || {}).verified) || {}).origin;
         pendientes.set(p.id, {
             obliga: loQuePide(p.params.requiredNamespaces),
             suelta: loQuePide(p.params.optionalNamespaces),
+            // Webs con las que Koberlet no opera (wc-namespaces.js, decisión de Antonio).
+            bloqueada: webBloqueada(verificado, m.url),
         });
         alProponer({
             id: p.id,
@@ -129,6 +132,12 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
         const metodo = params && params.request && params.request.method;
         const sesion = kit.getActiveSessions()[topic];
         const quien = (sesion && sesion.peer && sesion.peer.metadata) || {};
+        // Una sesion con una web bloqueada abierta ANTES del bloqueo no firma nada mas.
+        if (webBloqueada(quien.url)) {
+            await fallar(topic, id, 'Koberlet no opera con esta web.');
+            try { await kit.disconnectSession({ topic, reason: { code: 6000, message: 'web no admitida' } }); } catch (_) { /* ya cerrada */ }
+            return;
+        }
 
         if (metodo === 'kadena_getAccounts_v1') {
             try { await responder(topic, id, cuentasDeSesion(sesion)); }
@@ -244,9 +253,13 @@ export async function emparejar(uri) {
  */
 export async function aprobarSesion(id, claves) {
     if (!kit) throw new Error('El transporte no está arrancado.');
-    const namespaces = namespacesParaAprobar(
-        pendientes.get(id), claves, { cadena: CADENA, metodos: METODOS },
-    );
+    const prop = pendientes.get(id);
+    if (prop && prop.bloqueada) {
+        pendientes.delete(id);
+        try { await kit.rejectSession({ id, reason: { code: 5000, message: 'web no admitida' } }); } catch (_) { /* caducada */ }
+        throw new Error('WC_WEB_BLOQUEADA');
+    }
+    const namespaces = namespacesParaAprobar(prop, claves, { cadena: CADENA, metodos: METODOS });
     const sesion = await kit.approveSession({ id, namespaces });
     pendientes.delete(id);
     return sesion;

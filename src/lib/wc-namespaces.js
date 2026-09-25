@@ -97,3 +97,20 @@ export function namespacesParaAprobar(pedido, claves, base) {
 
 /** La clave pública de una cuenta CAIP-10, sea cual sea el largo de la red. */
 export const claveDeCuenta = (caip) => String(caip).slice(String(caip).lastIndexOf(':') + 1);
+
+// WEBS CON LAS QUE KOBERLET NO SE CONECTA (decisión de Antonio, 25/09/2026).
+//
+// mercatusdex.fun es un DEX sobre los MISMOS pools que el Mercado de Koberlet: un cambio
+// hecho allí y firmado aquí no paga la comisión DNNS. Quien quiera cambiar tokens lo
+// tiene en el Mercado. Se mira el dominio que VERIFICA WalletConnect (Reown Verify, no
+// lo puede inventar la web) y también el que declara la propia web; basta uno.
+const BLOQUEADAS = ['mercatusdex.fun'];
+
+function dominio(u) {
+    try { return new URL(String(u)).hostname.toLowerCase(); } catch (_) { return ''; }
+}
+
+/** ¿Es una web bloqueada? `urls`: el origen verificado y el que declara la web. */
+export function webBloqueada(...urls) {
+    return urls.map(dominio).some((h) => h && BLOQUEADAS.some((b) => h === b || h.endsWith('.' + b)));
+}

@@ -98,6 +98,7 @@ export function pintarWalletConnect(raiz, ctx) {
         WC_SIN_RESPUESTA: () => t('El enlace no ha respondido. Suele ser que el código QR ya había caducado: vuelve a sacarlo en la web, que cambia cada vez, y léelo otra vez.'),
         // Estos dos dicen QUÉ es lo que no sabemos hacer, no solo que no se puede:
         // sin el nombre del método no hay forma de saber qué habría que añadir.
+        WC_WEB_BLOQUEADA: () => t('Koberlet no se conecta con esta web. Para cambiar tokens usa el Mercado de Koberlet: mismos pools y lo firmas aquí.'),
         WC_METODO_RARO: (m) => t('Esa web quiere firmar de una forma que Koberlet todavía no sabe: {0}. No se ha conectado.', cola(m)),
         WC_AVISOS_RAROS: (m) => t('Esa web pide avisos que Koberlet todavía no sabe mandar: {0}. No se ha conectado.', cola(m)),
     };

@@ -898,6 +898,8 @@ const EN = {
         'That website wants to sign in a way Koberlet does not know yet: {0}. It has not been connected.',
     'Esa web pide avisos que Koberlet todavía no sabe mandar: {0}. No se ha conectado.':
         'That website asks for events Koberlet does not know how to send yet: {0}. It has not been connected.',
+    'Koberlet no se conecta con esta web. Para cambiar tokens usa el Mercado de Koberlet: mismos pools y lo firmas aquí.':
+        'Koberlet does not connect to this website. To swap tokens use the Koberlet Market: same pools, signed right here.',
     'Webs conectadas': 'Connected websites',
     'Desconectar': 'Disconnect',
     'Una web quiere conectarse': 'A website wants to connect',
@@ -925,6 +927,7 @@ const EN = {
         'Signing for a website only works in the installed app: here the vault is a development stand-in and does not sign.',
     'El transporte no está arrancado.': 'The connection is not started.',
     'WC_URI_MALA': 'That link is not a valid connection link.',
+    'WC_WEB_BLOQUEADA': 'Koberlet does not connect to this website.',
     // Estos tres van a la WEB, no a la pantalla: son una `kadena_sign_v1` mal
     // formada. Se traducen igual para que quien lea el código sepa qué significan.
     'WC_SIN_CODIGO': 'The signing request carries no Pact code.',
