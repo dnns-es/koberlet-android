@@ -38,6 +38,7 @@ cambio**, no después.
 
 | Cambio | Escritorio | Android | iOS | Notas |
 |---|---|---|---|---|
+| Errores del escritorio en inglés | **Hecho en código (sin publicar)** | Comprobar | Comprobar | Los errores de main.js y lib/*.js salían en español con la app en inglés (caso real: DCA sin gas). En el escritorio se traducen en el renderer con `renderer/errores-en.js` y `test/errores-en.test.js` falla si se añade un error sin traducción. El móvil tiene pruebas en test/ para claves sin traducir, pero los errores que vienen del código nativo Kotlin/Swift pueden seguir saliendo solo en español. |
 | Chain 2 por defecto en todos los selectores de chain (Enviar: origen y destino; Recibir, QR, cross-chain…) | **Falta** | **Falta** | **Falta** | Pedido por Antonio el 26/09/2026 para la próxima versión de todas las plataformas. Hoy el Enviar del escritorio arranca en chain 0/0. La chain 2 es donde vive todo lo de KoberluSW (Mercado, DCA, órdenes). |
 | Gasolinera en el Mercado (`free.ksw-gasolinera`) | **Sí (2.10.0)** | Sí (0.57.0) | **Falta** | Cerrado el 18/09/2026. Hubo que enseñarle a medir el gas: iba con `preflight=false`, que no devuelve consumo, y declaraba topes fijos de 8000/14000 que no caben en el contrato. **Probado en cadena** — ver abajo. |
 | Umbral de 5 kb-USDC para subvencionar | **Sí, en el Mercado (2.10.0)**; el DCA y las órdenes siguen sin umbral | Sí | — | Queda una diferencia dentro del propio escritorio: el Mercado exige 5 USDC y el DCA subvenciona cualquier importe. Hay que decidir si se unifica. |
