@@ -8,7 +8,8 @@
 // en el plugin, con la contrasena o la huella; esta pantalla solo junta numeros y
 // reenvia al nodo el comando ya firmado.
 
-import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan } from './lib/dca.js';
+import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan, gasolineraLista, motivoGas, GAS_GASOLINERA, MARGEN_GAS } from './lib/dca.js';
+import { Capacitor } from '@capacitor/core';
 import { saldoEnMercado } from './lib/dex.js';
 import { enviarComando, esperarResultado } from './lib/kda.js';
 import { boveda } from './boveda/contrato.js';
@@ -582,6 +583,26 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         girar.disabled = true;
         eligeToken.disabled = true;
         salida.innerHTML = '';
+        const soltar = () => { enMarcha = false; crear.disabled = false; girar.disabled = false; eligeToken.disabled = false; };
+
+        // ¿Quién paga el gas? Los planes de kb-USDC (dca2) los paga la gasolinera de
+        // KoberluSW, como en el escritorio: así no hace falta tener KDA suelto. Solo
+        // en Android, que es donde la bóveda nativa sabe firmar con ella; en iPhone
+        // todavía no (PARIDAD.md) y paga el usuario.
+        const gratis = TOKENS[otro].contrato === 'dca2' && Capacitor.getPlatform() === 'android'
+            && await gasolineraLista(ctx.red);
+        if (!gratis) {
+            // Si paga el usuario, se mira ANTES de firmar que tenga KDA en la chain 2.
+            // Si no, el nodo lo rechaza con un mensaje que no se entiende.
+            const kdaSuelto = await saldoEnMercado(ctx.red, 'coin', kda.cuenta);
+            const falta = (haciaToken ? dep : 0) + MARGEN_GAS;
+            if (kdaSuelto != null && kdaSuelto < falta) {
+                soltar();
+                return malo(haciaToken
+                    ? t('Te falta KDA en la chain 2: el bote son {0} KDA y hay que dejar además algo para el gas (al menos {1} en total). Tienes {2}.', numero(dep), numero(falta, 4), numero(kdaSuelto, 4))
+                    : t('Para crear este plan hace falta un poco de KDA en la chain 2 para el gas (con 0,05 KDA sobra). Ahora tienes {0}. Mándate algo de KDA a esta misma cuenta en la chain 2 y vuelve a intentarlo.', numero(kdaSuelto, 4)));
+            }
+        }
         // La escalera de pasos: con el dinero en el aire hay que ver por dónde va.
         // Ver `pasos.js` para el porqué.
         const esc = pasos([
@@ -605,6 +626,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
                 cuota: cuo,
                 periodo: String(cada.sel.value),
                 deslizamiento: Number(desliz.sel.value),
+                ...(gratis ? { gratis: true, gasLimit: GAS_GASOLINERA } : {}),
             });
             esc.empieza(1);
             const rk = await enviarComando(ctx.red.nodo, ctx.red.networkId, '2', firmado);
@@ -633,15 +655,18 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
             }
         } catch (e) {
             esc.falla();
-            detras.append(elemento('p', t(String(e.message || e)), 'malo'));
+            const m = String(e.message || e);
+            const gas = motivoGas(m);
+            detras.append(elemento('p', gas === 'sin-kda'
+                ? t('El nodo no pudo cobrar el gas: tu cuenta no tiene KDA en la chain 2. El gas se paga siempre en KDA, aunque el plan sea de otro token. Mándate un poco de KDA (con 0,05 sobra) a esta misma cuenta en la chain 2 y vuelve a intentarlo.')
+                : gas === 'otro'
+                    ? t('El nodo no pudo cobrar el gas de la operación. Prueba otra vez en un momento.')
+                    : t(m), 'malo'));
         } finally {
             // Se suelta el cerrojo pase lo que pase: si salio bien, para poder crear
             // otro plan; y si se torcio, para poder reintentarlo. La escalera de pasos
             // se queda puesta hasta que se cambie algo del plan.
-            enMarcha = false;
-            crear.disabled = false;
-            girar.disabled = false;
-            eligeToken.disabled = false;
+            soltar();
         }
     }
 

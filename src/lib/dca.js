@@ -181,3 +181,45 @@ export async function planesDe(cuenta, red) {
     planes.fallidos = fallidos;
     return planes;
 }
+
+
+// --- Gas del plan ------------------------------------------------------------
+//
+// Caso real (26/09/2026): un usuario con 20 kb-USDC y CERO KDA en la chain 2 no
+// pudo crear un plan. El gas se paga siempre en KDA, y el nodo contesta «Failed to
+// buy gas: No value found…», que en pantalla salía cortado como «No». El
+// escritorio ya lo resolvía con la gasolinera de KoberluSW; aquí el cable estaba
+// sin conectar (PARIDAD.md).
+
+// Por debajo de esto la gasolinera se da por seca y paga el usuario. El mismo
+// criterio que el escritorio (`GASO_MIN` de su lib/dca.js).
+const GASOLINERA_MIN = 0.05;
+// El tope de gas que admite su GAS_PAYER. Crear un plan cabe; el escritorio firma
+// con este mismo límite.
+export const GAS_GASOLINERA = 8000;
+// Lo mínimo de KDA suelto para pagar el gas uno mismo (una operación del DCA
+// gasta del orden de 0,0001 KDA; esto deja margen).
+export const MARGEN_GAS = 0.01;
+
+/** ¿Puede pagar la gasolinera ahora? Si no contesta, se da por que no: paga el usuario. */
+export async function gasolineraLista(red) {
+    try {
+        const r = await local(red.nodo, red.networkId, CHAIN, '(free.ksw-gasolinera.saldo)');
+        if (!r || r.status !== 'success') return false;
+        const v = typeof r.data === 'object' && r.data ? Number(r.data.decimal) : Number(r.data);
+        return v >= GASOLINERA_MIN;
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
+ * Lo que dice el nodo, en llano, cuando el gas no se pudo cobrar. Devuelve null si
+ * el error es otro: entonces se enseña tal cual.
+ */
+export function motivoGas(mensaje) {
+    const m = String(mensaje || '');
+    if (!/buy gas/i.test(m)) return null;
+    if (/No value found|row not found|Insufficient funds|insufficient/i.test(m)) return 'sin-kda';
+    return 'otro';
+}

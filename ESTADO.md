@@ -218,6 +218,16 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.60.1 (26/09/2026) — DCA: el gas lo paga la gasolinera
+
+- Caso real: un usuario con 20 kb-USDC y 0 KDA en la chain 2 no podía crear un plan
+  («Failed to buy gas: No», cortado). Ahora, en Android, los planes de kb-USDC (dca2)
+  van por `free.ksw-gasolinera` (gasLimit 8000), como en el escritorio. Simulado en
+  mainnet con su cuenta: éxito, 820 de gas.
+- Si paga el usuario (dca3 o iPhone), se mira su KDA en la chain 2 antes de firmar, y el
+  rechazo de gas del nodo se explica en llano, en español e inglés.
+- Tests: JS 82/82.
+
 ## 0.60.0 (25/09/2026) — DCA con kb-ETH, FLUX y bro; Mercatus bloqueado
 
 - **DCA con `free.ksw-dca3`**: el lado no-KDA se elige entre kb-USDC, kb-ETH, FLUX y bro.

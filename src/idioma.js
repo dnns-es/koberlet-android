@@ -1189,6 +1189,14 @@ const EN = {
     'te faltan KDA en la chain 2. El peaje del puente se paga en KDA, así que tener el token no basta.':
         'you are short of KDA on chain 2. The bridge toll is paid in KDA, so holding the token is not enough.',
     'no hay saldo suficiente para esa cantidad.': 'there is not enough balance for that amount.',
+    'Te falta KDA en la chain 2: el bote son {0} KDA y hay que dejar además algo para el gas (al menos {1} en total). Tienes {2}.':
+        'You are short of KDA on chain 2: the pot is {0} KDA and you also need a little for gas (at least {1} in total). You have {2}.',
+    'Para crear este plan hace falta un poco de KDA en la chain 2 para el gas (con 0,05 KDA sobra). Ahora tienes {0}. Mándate algo de KDA a esta misma cuenta en la chain 2 y vuelve a intentarlo.':
+        'Creating this plan needs a little KDA on chain 2 for gas (0.05 KDA is plenty). You have {0} now. Send some KDA to this same account on chain 2 and try again.',
+    'El nodo no pudo cobrar el gas: tu cuenta no tiene KDA en la chain 2. El gas se paga siempre en KDA, aunque el plan sea de otro token. Mándate un poco de KDA (con 0,05 sobra) a esta misma cuenta en la chain 2 y vuelve a intentarlo.':
+        'The node could not charge the gas: your account has no KDA on chain 2. Gas is always paid in KDA, even when the plan uses another token. Send a little KDA (0.05 is plenty) to this same account on chain 2 and try again.',
+    'El nodo no pudo cobrar el gas de la operación. Prueba otra vez en un momento.':
+        'The node could not charge the gas for this operation. Try again in a moment.',
     'el permiso que se firmaría no cubre esta operación; esto es un fallo nuestro, avisa.':
         'the permission that would be signed does not cover this operation; this one is our bug, please tell us.',
     'el nodo lo rechazó.': 'the node rejected it.',

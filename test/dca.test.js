@@ -192,3 +192,22 @@ test('un token del Mercado vale su cantidad por el precio de su pool y el del KD
     assert.equal(valorPorPool(10, 0, { unidad: 2 }), null);
     assert.equal(valorPorPool(10, 0.5, null), null);
 });
+
+// Caso real del 26/09/2026: 20 kb-USDC y cero KDA en la chain 2. El nodo contestó
+// «Failed to buy gas: No value found…» y en pantalla salió cortado como «No».
+test('el gas que no se pudo cobrar se explica en llano', async () => {
+    const { motivoGas } = await import('../src/lib/dca.js');
+    const real = 'El nodo respondio HTTP 400 con algo que no es JSON: One or more transactions were invalid: Transaction "s9nVYL" at index 0 failed with: Attempt to buy gas failed with: "s9nVYL" Failed to buy gas: No value found in table coin_coin-table for key: k:db1dd25f';
+    assert.equal(motivoGas(real), 'sin-kda');
+    assert.equal(motivoGas('Failed to buy gas: Insufficient funds'), 'sin-kda');
+    assert.equal(motivoGas('Failed to buy gas: algo raro'), 'otro');
+    assert.equal(motivoGas('Keyset failure'), null);
+});
+
+test('la gasolinera solo se pide para planes de dca2, y con su tope de gas', async () => {
+    const src = readFileSync(new URL('../src/pantalla-dca.js', import.meta.url), 'utf8');
+    assert.match(src, /TOKENS\[otro\]\.contrato === 'dca2' && Capacitor\.getPlatform\(\) === 'android'/);
+    assert.match(src, /gratis \? \{ gratis: true, gasLimit: GAS_GASOLINERA \}/);
+    const { GAS_GASOLINERA } = await import('../src/lib/dca.js');
+    assert.equal(GAS_GASOLINERA, 8000);   // MAX-GASLIMIT de free.ksw-gasolinera
+});
