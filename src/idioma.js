@@ -1011,6 +1011,9 @@ const EN = {
         'The backup that really matters is the 12 words on paper: they work in any Kadena wallet and do not depend on this program. The file is a convenience, not a replacement.',
     'No se ha podido preguntar el saldo': 'The balance could not be checked',
     'Mi cartera': 'My wallet',
+    'Cartera importada': 'Imported wallet',
+    'La contraseña debe tener al menos {0} caracteres.': 'The password must be at least {0} characters long.',
+    'Esa contraseña es de las primeras que se prueban. Pon otra.': 'That password is one of the first ones people try. Choose another.',
     'Mi cartera KDA': 'My KDA wallet',
     'Mi cartera EVM': 'My EVM wallet',
     'No ha contestado ninguna chain. Mira si tienes conexión (¿modo avión?, ¿wifi sin internet?) y dale a Refrescar. Tu dinero sigue donde estaba: lo que falla es la consulta.':

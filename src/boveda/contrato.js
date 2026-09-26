@@ -1,6 +1,8 @@
 // Koberlet Android - Copyright 2026 DNNS.es (Oberluss)
 // SPDX-License-Identifier: Apache-2.0
 
+import { t } from '../idioma.js';
+
 // CONTRATO DE LA BOVEDA.
 //
 // Este fichero no guarda nada: define QUE se le puede pedir a la boveda y, sobre
@@ -59,13 +61,14 @@ export const MIN_CONTRASENA = 10;
 
 export function contrasenaDebil(c) {
     if (typeof c !== 'string' || c.length < MIN_CONTRASENA) {
-        return `La contraseña debe tener al menos ${MIN_CONTRASENA} caracteres.`;
+        // Pasa por t(): con la app en ingles salia en castellano (visto al hacer los manuales, 26/09/2026).
+        return t('La contraseña debe tener al menos {0} caracteres.', MIN_CONTRASENA);
     }
     // Sin reglas de "una mayúscula y un símbolo": obligan a contraseñas cortas y
     // retorcidas. Lo que de verdad ayuda es longitud y que no sea una frase hecha.
     const trivial = ['contrasena', 'contraseña', 'password', '1234567890', 'koberlet123'];
-    if (trivial.some((t) => c.toLowerCase().includes(t))) {
-        return 'Esa contraseña es de las primeras que se prueban. Pon otra.';
+    if (trivial.some((frase) => c.toLowerCase().includes(frase))) {
+        return t('Esa contraseña es de las primeras que se prueban. Pon otra.');
     }
     return null;
 }

@@ -9,7 +9,7 @@
 // app en ingles, ver «Mi cartera» en la cabecera no es respetar un dato: es una
 // pantalla a medio traducir.
 //
-// Asi que solo se traducen ESOS tres nombres, los que escribe el propio codigo
+// Asi que solo se traducen ESOS nombres, los que escribe el propio codigo
 // (aqui y en `Carteras.kt`). En cuanto el dueño renombra la cartera, deja de
 // coincidir y su nombre se queda tal cual lo escribio, en el idioma que sea.
 
@@ -20,5 +20,9 @@ export function nombreCartera(etiqueta) {
     if (!e || e === 'Mi cartera') return t('Mi cartera');
     if (e === 'Mi cartera KDA') return t('Mi cartera KDA');
     if (e === 'Mi cartera EVM') return t('Mi cartera EVM');
+    // Tambien los que pone la app al importar o añadir sin nombre (26/09/2026: en
+    // ingles salia «Cartera importada» en la cabecera).
+    if (e === 'Cartera importada') return t('Cartera importada');
+    if (e === 'Cartera nueva') return t('Cartera nueva');
     return e;
 }
