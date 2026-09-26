@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-25 · En `descargas.dnns.es`: **0.60.0** · En TestFlight: **0.60.0** (subiendo; la 0.59.6 build 18 conectó con Mercatus) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-26 · En `descargas.dnns.es`: **0.60.1** · En TestFlight: **0.60.1** (build 21) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -227,6 +227,9 @@ que se escriba por qué no debe estarlo.
 - Si paga el usuario (dca3 o iPhone), se mira su KDA en la chain 2 antes de firmar, y el
   rechazo de gas del nodo se explica en llano, en español e inglés.
 - Tests: JS 82/82.
+- **Publicada** (26/09/2026 21:3x): APK `koberlet-0.60.1.apk`, SHA-256
+  `881eb003a666da24fff7a0f8054e7f6573e78ca29d1c70382e02d3116563b2f4`, certificado 75194f6a…; maqueta web
+  actualizada (copia `_bak-koberlet-web-20260926-213114`). TestFlight: 0.60.1 build 21 subida.
 
 ## 0.60.0 (25/09/2026) — DCA con kb-ETH, FLUX y bro; Mercatus bloqueado
 
