@@ -932,6 +932,98 @@ class KoberletVault : Plugin() {
         }
     }
 
+    /**
+     * Firma una orden limite nueva (`free.ksw2`).
+     *
+     * De la pantalla llegan el sentido y tres numeros en texto -cuanto, a que
+     * precio, cuanto como minimo-. El contrato, los tokens y la custodia los pone
+     * `FirmaKda`. Se pide la contraseña: esto ingresa el deposito entero.
+     */
+    @PluginMethod
+    fun firmarCrearOrden(call: PluginCall) {
+        val carteraId = call.getString("carteraId") ?: return call.reject("Falta la cartera.")
+        val networkId = call.getString("networkId") ?: return call.reject("Falta la red.")
+        val venta = call.getBoolean("venta") ?: return call.reject("Falta el sentido de la orden.")
+        val cantidad = call.getString("cantidad") ?: return call.reject("Falta la cantidad.")
+        val disparo = call.getString("disparo") ?: return call.reject("Falta el precio.")
+        val minimo = call.getString("minimo") ?: return call.reject("Falta el mínimo a recibir.")
+        val gratis = call.getBoolean("gratis", false) ?: false
+        val gasPedido = call.getInt("gasLimit")
+        val horaNodo = call.getString("creationTime")?.toLongOrNull()
+        if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
+
+        conContrasena(call, "Firma la orden") { contrasena ->
+        hilo(call) {
+            val datos = abrirFichero(contrasena)
+            val cartera = Carteras.buscar(datos, carteraId)
+                ?: throw IllegalArgumentException("Esa cartera no existe.")
+            if (Carteras.redDe(cartera) != "kda") {
+                throw IllegalArgumentException("Las órdenes son de Kadena: elige una cartera de Kadena.")
+            }
+            val privada = Carteras.privadaDe(cartera)
+            val publica = Derivacion.publicaKadena(privada)
+            val ahora = System.currentTimeMillis() / 1000
+            val creation = if (horaNodo != null && Math.abs(horaNodo - ahora) < 86400) horaNodo else ahora - 90
+
+            try {
+                FirmaKda.crearOrden(
+                    networkId = networkId,
+                    owner = "k:$publica",
+                    venta = venta,
+                    cantidad = cantidad,
+                    disparo = disparo,
+                    minimo = minimo,
+                    privada = privada,
+                    publica = publica,
+                    creationTime = creation,
+                    gratis = gratis,
+                    gasLimit = if (gratis && gasPedido != null) gasPedido else 12000,
+                ).let { JSObject.fromJSONObject(it) }
+            } finally {
+                privada.fill(0)
+            }
+        }
+        }
+    }
+
+    /** Firma cancelar una orden limite: el deposito vuelve entero al dueño. */
+    @PluginMethod
+    fun firmarCancelarOrden(call: PluginCall) {
+        val carteraId = call.getString("carteraId") ?: return call.reject("Falta la cartera.")
+        val networkId = call.getString("networkId") ?: return call.reject("Falta la red.")
+        val id = call.getString("id") ?: return call.reject("Falta la orden.")
+        val horaNodo = call.getString("creationTime")?.toLongOrNull()
+        if (!fichero.exists()) return call.reject("No hay ninguna cartera en este aparato.")
+
+        conContrasena(call, "Firma cancelar la orden") { contrasena ->
+        hilo(call) {
+            val datos = abrirFichero(contrasena)
+            val cartera = Carteras.buscar(datos, carteraId)
+                ?: throw IllegalArgumentException("Esa cartera no existe.")
+            if (Carteras.redDe(cartera) != "kda") {
+                throw IllegalArgumentException("Las órdenes son de Kadena: elige una cartera de Kadena.")
+            }
+            val privada = Carteras.privadaDe(cartera)
+            val publica = Derivacion.publicaKadena(privada)
+            val ahora = System.currentTimeMillis() / 1000
+            val creation = if (horaNodo != null && Math.abs(horaNodo - ahora) < 86400) horaNodo else ahora - 90
+
+            try {
+                FirmaKda.cancelarOrden(
+                    networkId = networkId,
+                    id = id,
+                    owner = "k:$publica",
+                    privada = privada,
+                    publica = publica,
+                    creationTime = creation,
+                ).let { JSObject.fromJSONObject(it) }
+            } finally {
+                privada.fill(0)
+            }
+        }
+        }
+    }
+
 
     /**
      * Firma un comando que ha montado OTRO: una pagina web, por WalletConnect.

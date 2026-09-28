@@ -47,6 +47,8 @@ const MOTIVOS = {
     firmarCambioEvm: () => t('Firma el cambio'),
     firmarCrearDca: () => t('Firma el plan de compras'),
     firmarGestionDca: () => t('Firma el cambio en el plan'),
+    firmarCrearOrden: () => t('Firma la orden'),
+    firmarCancelarOrden: () => t('Firma cancelar la orden'),
     firmarComandoExterno: () => t('Firma lo que te pide la web'),
 };
 
@@ -102,6 +104,8 @@ export const bovedaNativa = {
     async firmarCambioAmm(datos) { return llamar('firmarCambioAmm', datos); },
     async firmarCrearDca(datos) { return llamar('firmarCrearDca', datos); },
     async firmarGestionDca(datos) { return llamar('firmarGestionDca', datos); },
+    async firmarCrearOrden(datos) { return llamar('firmarCrearOrden', datos); },
+    async firmarCancelarOrden(datos) { return llamar('firmarCancelarOrden', datos); },
     // WalletConnect: firma un comando que llega de una web. El unico que no monta
     // la boveda; por eso el nativo comprueba aparte que la clave pedida sea la de
     // la cartera elegida, y la pantalla enseña antes que se autoriza.

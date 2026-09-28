@@ -427,4 +427,61 @@ class FirmaKdaTest {
             creationTime = 1789000000L,
         )
     }
+
+    // --- Ordenes limite (free.ksw2) -----------------------------------------
+
+    private fun orden(venta: Boolean, cantidad: String, disparo: String = "0.6", minimo: String = "100.5", gratis: Boolean = false) =
+        JSONObject(FirmaKda.crearOrden(
+            networkId = "mainnet01", owner = ownerDca, venta = venta, cantidad = cantidad,
+            disparo = disparo, minimo = minimo, privada = privadaDca, publica = publicaDca,
+            creationTime = 1789000000L, gasLimit = if (gratis) 8000 else 12000, gratis = gratis,
+        ).getString("cmd"))
+
+    @Test
+    fun `una orden deposita en la custodia de ksw2 el importe exacto del token que entra`() {
+        val v = orden(true, "200.0")
+        assertTrue(codigoDe(v).startsWith("(free.ksw2.create-order "))
+        assertTrue(codigoDe(v).contains(" coin n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC 200.0 0.6 100.5 3153600000.0)"))
+        assertEquals("coin.TRANSFER", transferDe(v).getString("name"))
+        assertEquals("c:aTPrDBF5HQWwLBXmMwNc3JF83cA5cBywkYbQdac5XaY", custodiaDe(v))
+        assertEquals("200.0", montoDe(v))
+
+        val c = orden(false, "25.5", disparo = "2.0", minimo = "12.000000000001")
+        assertEquals("n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC.TRANSFER", transferDe(c).getString("name"))
+        assertTrue(codigoDe(c).contains(" n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC coin 25.5 "))
+    }
+
+    @Test
+    fun `una orden por la gasolinera cambia sender y gas juntos`() {
+        val o = orden(false, "10.0", gratis = true)
+        assertEquals(FirmaKda.GASOLINERA_CUENTA, o.getJSONObject("meta").getString("sender"))
+        val gas = o.getJSONArray("signers").getJSONObject(0).getJSONArray("clist").getJSONObject(0)
+        assertEquals("free.ksw-gasolinera.GAS_PAYER", gas.getString("name"))
+        rechaza("pasa del tope de la gasolinera") {
+            FirmaKda.crearOrden("mainnet01", ownerDca, false, "10.0", "2.0", "4.0", privadaDca, publicaDca, 1789000000L, gasLimit = 12000, gratis = true)
+        }
+    }
+
+    @Test
+    fun `una orden rechaza lo que el contrato tiraria`() {
+        rechaza("por debajo de 100 KDA") { orden(true, "99.9") }
+        rechaza("por debajo de 1 kb-USDC") { orden(false, "0.5") }
+        rechaza("kb-USDC con 7 decimales") { orden(false, "5.0000001") }
+        rechaza("minimo en kb-USDC con 7 decimales") { orden(true, "200.0", minimo = "1.0000001") }
+        rechaza("disparo cero") { orden(true, "200.0", disparo = "0") }
+        rechaza("codigo colado en la cantidad") { orden(true, "200.0) (coin.transfer") }
+        rechaza("a nombre de otro") {
+            FirmaKda.crearOrden("mainnet01", "k:" + "ab".repeat(32), true, "200.0", "0.6", "100.0", privadaDca, publicaDca, 1789000000L)
+        }
+    }
+
+    @Test
+    fun `cancelar una orden va sin clist y solo con un id del dueño`() {
+        val id = ownerDca.take(10) + "-1790000000000"
+        val o = JSONObject(FirmaKda.cancelarOrden("mainnet01", id, ownerDca, privadaDca, publicaDca, 1789000000L).getString("cmd"))
+        assertEquals("(free.ksw2.cancel-order \"$id\")", codigoDe(o))
+        assertFalse(o.getJSONArray("signers").getJSONObject(0).has("clist"))
+        rechaza("id de otro") { FirmaKda.cancelarOrden("mainnet01", "k:ffffffff-1", ownerDca, privadaDca, publicaDca, 1789000000L) }
+        rechaza("id con comillas") { FirmaKda.cancelarOrden("mainnet01", ownerDca.take(10) + "\")", ownerDca, privadaDca, publicaDca, 1789000000L) }
+    }
 }

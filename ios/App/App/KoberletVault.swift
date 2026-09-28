@@ -26,7 +26,7 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         "estado", "crear", "importar", "importarClave", "renombrarCartera", "borrarCartera",
         "abrir", "cerrar", "cuentas", "exportar", "borrarTodo", "exportarBoveda", "importarBoveda",
         "firmarEnvioKda", "firmarEnvioCrossKda", "firmarPuenteEvm", "firmarEnvioToken", "firmarCambioAmm",
-        "firmarCrearDca", "firmarGestionDca", "firmarComandoExterno",
+        "firmarCrearDca", "firmarGestionDca", "firmarCrearOrden", "firmarCancelarOrden", "firmarComandoExterno",
         "firmarPermisoEvm", "firmarEnvioEvm", "firmarCambioEvm", "firmarPuenteHaciaKadena",
         "bioEstado", "bioActivar", "bioBorrar",
     ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
@@ -407,6 +407,34 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
             return try FirmaKda.gestionarPlanDca(networkId: networkId, accion: accion, id: id, owner: "k:\(publica)",
                                                  cantidad: cantidad, contrato: contrato, entra: entra,
                                                  privada: privada, publica: publica, creationTime: creation)
+        }
+    }
+
+    @objc func firmarCrearOrden(_ call: CAPPluginCall) {
+        guard let networkId = call.getString("networkId") else { return call.reject("Falta la red.") }
+        guard let venta = call.getBool("venta") else { return call.reject("Falta el sentido de la orden.") }
+        guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
+        guard let disparo = call.getString("disparo") else { return call.reject("Falta el precio.") }
+        guard let minimo = call.getString("minimo") else { return call.reject("Falta el mínimo a recibir.") }
+        firmaKda(call, "Firma la orden") { privada, publica, creation, cartera in
+            if Carteras.redDe(cartera) != "kda" {
+                throw FalloBoveda.argumento("Las órdenes son de Kadena: elige una cartera de Kadena.")
+            }
+            return try FirmaKda.crearOrden(networkId: networkId, owner: "k:\(publica)", venta: venta, cantidad: cantidad,
+                                           disparo: disparo, minimo: minimo,
+                                           privada: privada, publica: publica, creationTime: creation)
+        }
+    }
+
+    @objc func firmarCancelarOrden(_ call: CAPPluginCall) {
+        guard let networkId = call.getString("networkId") else { return call.reject("Falta la red.") }
+        guard let id = call.getString("id") else { return call.reject("Falta la orden.") }
+        firmaKda(call, "Firma cancelar la orden") { privada, publica, creation, cartera in
+            if Carteras.redDe(cartera) != "kda" {
+                throw FalloBoveda.argumento("Las órdenes son de Kadena: elige una cartera de Kadena.")
+            }
+            return try FirmaKda.cancelarOrden(networkId: networkId, id: id, owner: "k:\(publica)",
+                                              privada: privada, publica: publica, creationTime: creation)
         }
     }
 

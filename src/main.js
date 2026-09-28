@@ -214,6 +214,12 @@ async function pintarSeccion(id) {
             pintarDca(app(), { cuentas, red: redActiva });
             return;
         }
+        case 'ordenes': {
+            const { pintarOrdenes } = await import('./pantalla-ordenes.js');
+            $('sub').textContent = t('Órdenes');
+            pintarOrdenes(app(), { cuentas, red: redActiva });
+            return;
+        }
         case 'puente': {
             const { pintarPuente } = await import('./pantalla-puente.js');
             $('sub').textContent = t('Puente');
@@ -1074,7 +1080,13 @@ function tarjetaCartera(grupo) {
                 // El «en 24 h» es del KDA, no del total: un total con dólares dentro
                 // no se mueve lo que se mueve el KDA, y colgarle ese porcentaje al
                 // lado sería dar por bueno un dato que no es de lo que se enseña.
-                let txt = t('el KDA {0} % en 24 h', signo + p.cambio24h.toFixed(1));
+                //
+                // Y el precio va A LA VISTA, con de dónde sale y de cuándo es
+                // (sugerencia de un usuario en Telegram, 28/09/2026): un total en
+                // euros sin decir a qué cambio está hecho no se puede comprobar.
+                const hora = new Date(p.cuando).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+                let txt = t('1 KDA = {0} ({1} % en 24 h) · CoinGecko, {2}',
+                    formateaPrecio(p.unidad, locale()), signo + p.cambio24h.toFixed(1), hora);
                 // Si hay algo en la cartera a lo que no se le sabe el precio, el
                 // total NO lo lleva dentro y hay que decirlo: si no, se lee como
                 // «esto es todo lo que tengo» y no lo es.

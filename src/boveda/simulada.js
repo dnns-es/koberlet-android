@@ -467,6 +467,14 @@ export const bovedaSimulada = {
         throw new Error('Tocar un plan de compras solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
     },
 
+    async firmarCrearOrden() {
+        throw new Error('Crear una orden solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
+    },
+
+    async firmarCancelarOrden() {
+        throw new Error('Cancelar una orden solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
+    },
+
     async firmarComandoExterno() {
         throw new Error('Firmar para una web solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.');
     },

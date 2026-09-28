@@ -300,6 +300,73 @@ public enum FirmaKda {
         return try resultado(cmd, privada)
     }
 
+    // --- Ordenes limite (`free.ksw2`) ----------------------------------------
+    //
+    // Lo mismo que Kotlin (ver FirmaKda.kt): contrato, chain, custodia, tokens y
+    // caducidad fijos aqui. De la pantalla llegan el sentido y tres numeros en
+    // texto. Sin gasolinera en iPhone todavia (PARIDAD.md): paga el dueño.
+
+    public static let ordenesModulo = "free.ksw2"
+    public static let ordenesChain = "2"
+    // Leida de la cadena el 28/09/2026 con `(free.ksw2.custody-account)`.
+    public static let ordenesCustodia = "c:aTPrDBF5HQWwLBXmMwNc3JF83cA5cBywkYbQdac5XaY"
+    private static let ordenesTtl = "3153600000.0"
+    private static let ordenesKda = TokenDca(modulo: dcaKda, precision: 12, minimo: "100", contrato: "")
+    private static let ordenesUsdc = TokenDca(modulo: "n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC", precision: 6, minimo: "1", contrato: "")
+
+    /// Un decimal ya escrito, con como mucho `precision` decimales y mayor que cero.
+    static func decimalOrden(_ n: String, _ precision: Int) throws -> String {
+        let d = try decimalValido(n)
+        let decimales = d.split(separator: ".", maxSplits: 1).last.map { $0.count } ?? 0
+        if decimales > precision { throw FalloBoveda.argumento("Esa cantidad lleva más decimales de los que admite el token.") }
+        if !((Decimal(string: d) ?? 0) > 0) { throw FalloBoveda.argumento("La cantidad tiene que ser mayor que cero.") }
+        return d
+    }
+
+    /// Orden nueva. `venta` true = entrega KDA y recibe kb-USDC. Dos capabilities:
+    /// `coin.GAS` y `<token-in>.TRANSFER` dueño -> custodia por el deposito.
+    public static func crearOrden(
+        networkId: String, owner: String, venta: Bool, cantidad: String, disparo: String, minimo: String,
+        privada: [UInt8], publica: String, creationTime: Int64,
+        gasLimit: Int = 12000, gasPrice: String = "1e-8"
+    ) throws -> JSON {
+        if owner != "k:\(publica)" { throw FalloBoveda.argumento("Una orden solo se puede crear a nombre de la propia cartera.") }
+        let entra = venta ? ordenesKda : ordenesUsdc
+        let sale = venta ? ordenesUsdc : ordenesKda
+        let monto = try decimalOrden(cantidad, entra.precision)
+        if (Decimal(string: monto) ?? 0) < (Decimal(string: entra.minimo) ?? 0) {
+            throw FalloBoveda.argumento("La orden está por debajo del mínimo del contrato.")
+        }
+        let trig = try decimalOrden(disparo, 12)
+        let minOut = try decimalOrden(minimo, sale.precision)
+        let id = String(owner.prefix(10)) + "-\(Int64(Date().timeIntervalSince1970 * 1000))"
+
+        let codigo = "(\(ordenesModulo).create-order \\\"\(id)\\\" \\\"\(owner)\\\" (read-keyset \\\"ks\\\") \(entra.modulo) \(sale.modulo) \(monto) \(trig) \(minOut) \(ordenesTtl))"
+        let datos = "{\"ks\":{\"keys\":[\"\(publica)\"],\"pred\":\"keys-all\"}}"
+
+        let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
+            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
+            "{\"name\":\"\(entra.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(ordenesCustodia)\",{\"decimal\":\"\(monto)\"}]}]}]," +
+            "\"meta\":{\"chainId\":\"\(ordenesChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"nonce\":\"\(nonce("koberlet-ios-orden"))\"}"
+        return try resultado(cmd, privada, extra: ["id": id])
+    }
+
+    /// Cancelar: SIN clist (el contrato hace `enforce-guard` del dueño).
+    public static func cancelarOrden(
+        networkId: String, id: String, owner: String, privada: [UInt8], publica: String, creationTime: Int64,
+        gasLimit: Int = 3000, gasPrice: String = "1e-8"
+    ) throws -> JSON {
+        if owner != "k:\(publica)" { throw FalloBoveda.argumento("Esa orden no es de esta cartera.") }
+        if !idPlanValido(id, owner) { throw FalloBoveda.argumento("El identificador de la orden no vale.") }
+        let codigo = "(\(ordenesModulo).cancel-order \\\"\(id)\\\")"
+        let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":{}}}," +
+            "\"signers\":[{\"pubKey\":\"\(publica)\"}]," +
+            "\"meta\":{\"chainId\":\"\(ordenesChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"nonce\":\"\(nonce("koberlet-ios-orden-cancelar"))\"}"
+        return try resultado(cmd, privada)
+    }
+
     // --- Enviar un token que no es KDA ---------------------------------------
 
     /// Envio de un FUNGIBLE que no es el KDA. El modulo viene de la pantalla y

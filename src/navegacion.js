@@ -53,7 +53,12 @@ import { HAY_WALLETCONNECT } from './canal.js';
 const SECCIONES = [
     { id: 'panel', nombre: 'Panel', barra: true, icono: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
     { id: 'dca', nombre: 'DCA', barra: true, icono: 'M12 8v8M8 12h8M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
-    { id: 'carteras', nombre: 'Carteras', barra: true, icono: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h3' },
+    // Órdenes ocupa el sitio de Carteras en la barra desde la 0.61.0, a petición
+    // de Antonio: poner un límite es algo que se hace con el dinero, a menudo;
+    // gestionar carteras (crear, importar, renombrar) es de vez en cuando, y
+    // cambiar de cartera ya se hace desde el selector de cada pantalla.
+    { id: 'ordenes', nombre: 'Órdenes', barra: true, icono: 'M4 7h11M4 12h7M4 17h11M17 4v6M14 7l3-3 3 3M17 20v-6M14 17l3 3 3-3' },
+    { id: 'carteras', nombre: 'Carteras', icono: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 12h3' },
     { id: 'mercado', nombre: 'Mercado', icono: 'M4 19V9M10 19V5M16 19v-7M22 19H2' },
     { id: 'puente', nombre: 'Puente', icono: 'M3 16c0-5 4-8 9-8s9 3 9 8M3 16h18M7 16v-3M17 16v-3M12 16V9' },
     // Conectar solo existe fuera de Google Play; el porque esta en `canal.js`.

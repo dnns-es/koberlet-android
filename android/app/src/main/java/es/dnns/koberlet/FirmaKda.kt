@@ -658,6 +658,142 @@ object FirmaKda {
             .put("sigs", sigs)
     }
 
+    // --- Ordenes limite (`free.ksw2`) ----------------------------------------
+    //
+    // El mismo reparto que en el DCA. El contrato, la chain, la cuenta de custodia,
+    // los dos tokens y la caducidad son constantes de aqui. De la pantalla llegan el
+    // SENTIDO (venta de KDA o compra de KDA) y tres numeros ya escritos como texto:
+    // cuanto entra, el precio de disparo y el minimo a recibir. Ese minimo sale de
+    // las reservas del pool, que solo se leen en la cadena, y por eso lo calcula la
+    // pantalla (`src/lib/ordenes.js`, igual que `lib/ordenes.js` del escritorio).
+    //
+    // Que la pantalla lo calcule no abre un agujero: el contrato vuelve a leer el
+    // precio y calcula su propio minimo antes de ejecutar, y lo unico que se firma
+    // es el deposito del dueño a la custodia de `free.ksw2`, por el importe exacto.
+    // Una orden no puede mandar el dinero a otro sitio.
+    const val ORDENES_MODULO = "free.ksw2"
+    const val ORDENES_CHAIN = "2"
+    // Leida de la cadena el 28/09/2026 con `(free.ksw2.custody-account)`.
+    const val ORDENES_CUSTODIA = "c:aTPrDBF5HQWwLBXmMwNc3JF83cA5cBywkYbQdac5XaY"
+    // MAX-TTL-SECONDS del contrato: la orden no caduca en la practica. Igual que el
+    // escritorio y la web.
+    private const val ORDENES_TTL = "3153600000.0"
+    private val ORDENES_KDA = TokenDca(DCA_KDA, 12, "100", "")
+    private val ORDENES_USDC = TokenDca("n_e595727b657fbbb3b8e362a05a7bb8d12865c1ff.kb-USDC", 6, "1", "")
+
+    /**
+     * Un decimal ya escrito, con como mucho `precision` cifras detras del punto.
+     * Pact rechaza un importe con mas decimales de los que admite el token, y ese
+     * fallo llega como algo que no se entiende.
+     */
+    private fun decimalOrden(n: String, precision: Int): String {
+        val d = decimalValido(n)
+        if (d.substringAfter('.').length > precision) {
+            throw IllegalArgumentException("Esa cantidad lleva más decimales de los que admite el token.")
+        }
+        if (!(java.math.BigDecimal(d) > java.math.BigDecimal.ZERO)) {
+            throw IllegalArgumentException("La cantidad tiene que ser mayor que cero.")
+        }
+        return d
+    }
+
+    /**
+     * Firma una orden limite nueva.
+     *
+     * `venta` true = se entrega KDA y se recibe kb-USDC; false = al reves. Se firman
+     * EXACTAMENTE dos capabilities: la del gas y `<token-in>.TRANSFER` del dueño a la
+     * custodia por el deposito. El deposito sale en la MISMA transaccion: no hay
+     * ningun momento en que el contrato tenga la orden apuntada sin el dinero detras.
+     *
+     * Por la gasolinera cabe: una sola llamada que empieza por `free.ksw2.`.
+     */
+    fun crearOrden(
+        networkId: String,
+        owner: String,
+        venta: Boolean,
+        cantidad: String,
+        disparo: String,
+        minimo: String,
+        privada: ByteArray,
+        publica: String,
+        creationTime: Long,
+        gasLimit: Int = 12000,
+        gasPrice: String = "1e-8",
+        gratis: Boolean = false,
+    ): JSONObject {
+        if (owner != "k:$publica") {
+            throw IllegalArgumentException("Una orden solo se puede crear a nombre de la propia cartera.")
+        }
+        if (gratis) exigirCabeEnGasolinera(gasLimit)
+        val entra = if (venta) ORDENES_KDA else ORDENES_USDC
+        val sale = if (venta) ORDENES_USDC else ORDENES_KDA
+        val monto = decimalOrden(cantidad, entra.precision)
+        // MIN-IN-KDA / MIN-IN-USDC del contrato: por debajo, create-order revierte.
+        if (java.math.BigDecimal(monto) < java.math.BigDecimal(entra.minimo)) {
+            throw IllegalArgumentException("La orden está por debajo del mínimo del contrato.")
+        }
+        val trig = decimalOrden(disparo, 12)
+        val minOut = decimalOrden(minimo, sale.precision)
+
+        // El id lo pone la app: empieza por los 10 primeros caracteres del dueño
+        // (enforce-safe-id del contrato), como en KoberluSW y el escritorio.
+        val id = owner.take(10) + "-" + System.currentTimeMillis()
+
+        val codigo = """($ORDENES_MODULO.create-order \"$id\" \"$owner\" (read-keyset \"ks\") ${entra.modulo} ${sale.modulo} $monto $trig $minOut $ORDENES_TTL)"""
+        val datos = """{"ks":{"keys":["$publica"],"pred":"keys-all"}}"""
+
+        val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":$datos}},""" +
+            """"signers":[{"pubKey":"$publica","clist":[${capGas(gratis, owner, gasLimit)},""" +
+            """{"name":"${entra.modulo}.TRANSFER","args":["$owner","$ORDENES_CUSTODIA",{"decimal":"$monto"}]}]}],""" +
+            """"meta":{"chainId":"$ORDENES_CHAIN","sender":"${remitente(gratis, owner)}","gasLimit":$gasLimit,""" +
+            """"gasPrice":${if (gratis) GASOLINERA_GASPRICE else gasPrice},"ttl":600,"creationTime":$creationTime},""" +
+            """"nonce":"koberlet-android-orden:${System.currentTimeMillis()}"}"""
+
+        val hash = hashComando(cmd)
+        val sigs = JSONArray().put(JSONObject().put("sig", firmar(privada, hash)))
+        return JSONObject()
+            .put("cmd", cmd)
+            .put("hash", aBase64Url(hash))
+            .put("sigs", sigs)
+            .put("id", id)
+    }
+
+    /**
+     * Firma cancelar una orden. Devuelve el deposito entero, sin comision.
+     *
+     * SIN clist, como parar un plan del DCA: `cancel-order` hace `enforce-guard`
+     * del dueño fuera de toda capability, y una firma acotada no lo cumple. Por lo
+     * mismo no puede ir por la gasolinera: el gas (unas 700 unidades) lo paga el
+     * dueño. Lo que se firma es este comando exacto; la firma no vale para otro.
+     */
+    fun cancelarOrden(
+        networkId: String,
+        id: String,
+        owner: String,
+        privada: ByteArray,
+        publica: String,
+        creationTime: Long,
+        gasLimit: Int = 3000,
+        gasPrice: String = "1e-8",
+    ): JSONObject {
+        if (owner != "k:$publica") throw IllegalArgumentException("Esa orden no es de esta cartera.")
+        // La misma vara que el contrato para el id, que va dentro del codigo Pact.
+        if (!idPlanValido(id, owner)) throw IllegalArgumentException("El identificador de la orden no vale.")
+
+        val codigo = """($ORDENES_MODULO.cancel-order \"$id\")"""
+        val cmd = """{"networkId":"$networkId","payload":{"exec":{"code":"$codigo","data":{}}},""" +
+            """"signers":[{"pubKey":"$publica"}],""" +
+            """"meta":{"chainId":"$ORDENES_CHAIN","sender":"$owner","gasLimit":$gasLimit,"gasPrice":$gasPrice,"ttl":600,"creationTime":$creationTime},""" +
+            """"nonce":"koberlet-android-orden-cancelar:${System.currentTimeMillis()}"}"""
+
+        val hash = hashComando(cmd)
+        val sigs = JSONArray().put(JSONObject().put("sig", firmar(privada, hash)))
+        return JSONObject()
+            .put("cmd", cmd)
+            .put("hash", aBase64Url(hash))
+            .put("sigs", sigs)
+    }
+
     // --- El Mercado de Kadena ------------------------------------------------
 
     /** El AMM del fork. Como todo lo que decide donde va el dinero, constante. */
