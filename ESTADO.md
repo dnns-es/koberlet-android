@@ -218,6 +218,17 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.61.0 (28/09/2026) — Órdenes límite y precio del KDA a la vista
+
+- **Órdenes límite** (`free.ksw2`): crear y cancelar, como el escritorio. Pantalla
+  `src/pantalla-ordenes.js`, cuentas en `src/lib/ordenes.js`, firma en
+  `FirmaKda.crearOrden`/`cancelarOrden` (Kotlin y Swift). Crear va por la gasolinera
+  en Android; cancelar lo paga el dueño (firma sin acotar).
+- **Barra de abajo:** Órdenes en el sitio de Carteras; Carteras pasa a «Más».
+- **Panel:** «1 KDA = … (… % en 24 h) · CoinGecko, hh:mm» bajo el total
+  (sugerencia de un usuario en Telegram).
+- Pruebas: 91/91 JS, `FirmaKdaTest` 28/28. **Sin probar todavía con dinero.**
+
 ## 0.60.1 (26/09/2026) — DCA: el gas lo paga la gasolinera
 
 - Caso real: un usuario con 20 kb-USDC y 0 KDA en la chain 2 no podía crear un plan
