@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-26 · En `descargas.dnns.es`: **0.60.1** · En TestFlight: **0.60.1** (build 21) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-28 · En `descargas.dnns.es`: **0.61.0** · En TestFlight: **0.60.1** (build 21) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -228,6 +228,9 @@ que se escriba por qué no debe estarlo.
 - **Panel:** «1 KDA = … (… % en 24 h) · CoinGecko, hh:mm» bajo el total
   (sugerencia de un usuario en Telegram).
 - Pruebas: 91/91 JS, `FirmaKdaTest` 28/28. **Sin probar todavía con dinero.**
+- **Publicada** (28/09/2026 16:48): APK `koberlet-0.61.0.apk`, SHA-256
+  `bab8c65bd83a6274f20972f5d270699528237b3d2a06ea6af033bbdaa9c94bde`, certificado 75194f6a…, comprobado bajándolo por HTTPS;
+  copia de `latest.json` `.bak-20260928-164754`; maqueta web actualizada (copia `_bak-koberlet-web-20260928-164918`).
 
 ## 0.60.1 (26/09/2026) — DCA: el gas lo paga la gasolinera
 
