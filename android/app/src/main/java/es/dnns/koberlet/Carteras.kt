@@ -187,15 +187,26 @@ object Carteras {
      * carteras, una de Kadena y otra de Ethereum. De hecho es exactamente lo que
      * deja la migracion v2 -> v3.
      */
-    fun yaExiste(datos: JSONObject, semilla: String, red: String): Boolean {
+    fun yaExiste(datos: JSONObject, semilla: String, red: String, derivacion: String = "std"): Boolean {
         val l = lista(datos)
         for (i in 0 until l.length()) {
             val c = l.getJSONObject(i)
             // optString: las carteras metidas por su clave privada no tienen semilla.
-            if (c.optString("semilla") == semilla && redDe(c) == red) return true
+            // La misma semilla con la otra derivacion es OTRA cuenta: se admite.
+            if (c.optString("semilla") == semilla && redDe(c) == red && derivacionDe(c) == derivacion) return true
         }
         return false
     }
+
+    /**
+     * Como se derivo la cuenta de esta cartera: "std" (SLIP-0010, la de eckoWallet
+     * y la de las carteras que nacen aqui) o "cw" (la de Chainweaver y Linx). Solo
+     * tiene sentido en Kadena; las de antes de existir esto son "std".
+     */
+    fun derivacionDe(cartera: JSONObject): String =
+        if (cartera.optString("derivacion") == "cw") "cw" else "std"
+
+    fun esChainweaver(cartera: JSONObject): Boolean = derivacionDe(cartera) == "cw"
 
     /** ¿Ya esta metida esta clave privada para esa red? */
     fun yaExisteClave(datos: JSONObject, privada: String, red: String): Boolean {
@@ -234,11 +245,24 @@ object Carteras {
      * que pegan la privada y la publica seguidas: la publica se recalcula, asi que
      * la segunda mitad sobra... pero solo si de verdad es la publica de esa
      * privada. Si no cuadra, no se acepta: sera otra cosa.
+     *
+     * Y en Kadena hay un tercer formato: los 256 caracteres que exportan Chainweaver
+     * y Linx (privada extendida + publica + chain code). Esa se guarda ENTERA, porque
+     * es otra clase de clave -ver `Derivacion`- y para volver a sacarla igual hace
+     * falta el chain code. Tambien se comprueba que la publica que lleva dentro sea
+     * la del escalar: si no, no es lo que dice ser.
      */
     fun normalizarClave(texto: String, red: String): String {
         var h = texto.trim().removePrefix("0x").removePrefix("0X").lowercase()
         if (!Regex("^[0-9a-f]+$").matches(h)) {
             throw IllegalArgumentException("Una clave privada son 64 caracteres del 0 al 9 y de la a a la f.")
+        }
+        if (h.length == 256 && red == "kda") {
+            val calculada = Derivacion.publicaKadena(Derivacion.deHex(h.substring(0, 128)))
+            if (calculada != h.substring(128, 192)) {
+                throw IllegalArgumentException("Esos 256 caracteres no son una clave de Chainweaver o Linx: la pública de dentro no cuadra.")
+            }
+            return h
         }
         if (h.length == 128 && red == "kda") {
             val privada = h.substring(0, 64)
@@ -264,7 +288,10 @@ object Carteras {
      */
     fun montarConClave(id: String, etiqueta: String, privada: String, red: String): JSONObject {
         if (red != "kda" && red != "evm") throw IllegalArgumentException("Esa red no existe.")
-        val bytes = Derivacion.deHex(privada)
+        // Una clave de 256 caracteres es la completa de Chainweaver/Linx: la
+        // privada extendida son sus 64 primeros bytes.
+        val cw = red == "kda" && privada.length == 256
+        val bytes = Derivacion.deHex(if (cw) privada.substring(0, 128) else privada)
         val cuenta = try {
             if (red == "kda") {
                 JSONObject().put("id", "$id-kda").put("etiqueta", "Kadena").put("tipo", "kda")
@@ -276,23 +303,52 @@ object Carteras {
         } finally {
             bytes.fill(0)
         }
-        return JSONObject()
+        val c = JSONObject()
             .put("id", id).put("etiqueta", etiqueta).put("privada", privada).put("red", red)
             .put("cuentas", JSONArray().put(cuenta))
+        if (cw) c.put("derivacion", "cw")
+        return c
     }
 
     /**
-     * Los 32 bytes de la clave privada de esa cartera, venga de donde venga.
+     * La clave privada de esa cartera, venga de donde venga: 32 bytes en las
+     * normales, 64 (la extendida) en las de Chainweaver.
      *
      * Quien la pida se la lleva en un array que puede -y debe- borrar despues.
      */
     fun privadaDe(cartera: JSONObject): ByteArray {
         val suelta = cartera.optString("privada")
-        if (suelta.isNotEmpty()) return Derivacion.deHex(suelta)
+        if (suelta.isNotEmpty()) {
+            return Derivacion.deHex(if (esChainweaver(cartera)) suelta.substring(0, 128) else suelta)
+        }
         val bytes = Derivacion.semillaABytes(cartera.getString("semilla"))
         return try {
-            if (redDe(cartera) == "kda") Derivacion.privadaKadena(bytes, 0)
-            else Derivacion.privadaEvm(bytes, 0)
+            when {
+                redDe(cartera) != "kda" -> Derivacion.privadaEvm(bytes, 0)
+                esChainweaver(cartera) -> Derivacion.privadaChainweaver(bytes, 0)
+                else -> Derivacion.privadaKadena(bytes, 0)
+            }
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    /**
+     * La clave de Kadena tal como se exporta: 64 hex en las normales; en las de
+     * Chainweaver, los 256 del formato completo, que es el que Chainweaver y Linx
+     * vuelven a aceptar.
+     */
+    fun claveExportableKda(cartera: JSONObject): String {
+        if (!esChainweaver(cartera)) {
+            val bytes = privadaDe(cartera)
+            try { return Derivacion.aHex(bytes) } finally { bytes.fill(0) }
+        }
+        val suelta = cartera.optString("privada")
+        if (suelta.isNotEmpty()) return suelta
+        val bytes = Derivacion.semillaABytes(cartera.getString("semilla"))
+        try {
+            val completa = Derivacion.claveCompletaChainweaver(bytes, 0)
+            try { return Derivacion.aHex(completa) } finally { completa.fill(0) }
         } finally {
             bytes.fill(0)
         }
@@ -313,13 +369,15 @@ object Carteras {
      * distintos- asi que quien quiera las dos crea dos carteras con las mismas
      * palabras, y la app no se lo impide.
      */
-    fun montar(id: String, etiqueta: String, semilla: String, red: String): JSONObject {
+    fun montar(id: String, etiqueta: String, semilla: String, red: String, derivacion: String = "std"): JSONObject {
         if (red != "kda" && red != "evm") throw IllegalArgumentException("Esa red no existe.")
+        if (derivacion != "std" && derivacion != "cw") throw IllegalArgumentException("Esa derivación no existe.")
+        val cw = red == "kda" && derivacion == "cw"
         val bytes = Derivacion.semillaABytes(semilla)
         val cuenta = try {
             if (red == "kda") {
                 JSONObject().put("id", "$id-kda").put("etiqueta", "Kadena").put("tipo", "kda")
-                    .put("cuenta", Derivacion.cuentaKadena(bytes, 0))
+                    .put("cuenta", if (cw) Derivacion.cuentaChainweaver(bytes, 0) else Derivacion.cuentaKadena(bytes, 0))
             } else {
                 JSONObject().put("id", "$id-evm").put("etiqueta", "EVM").put("tipo", "evm")
                     .put("cuenta", Derivacion.direccionEvm(Derivacion.privadaEvm(bytes, 0)))
@@ -327,8 +385,10 @@ object Carteras {
         } finally {
             bytes.fill(0)
         }
-        return JSONObject()
+        val c = JSONObject()
             .put("id", id).put("etiqueta", etiqueta).put("semilla", semilla).put("red", red)
             .put("cuentas", JSONArray().put(cuenta))
+        if (cw) c.put("derivacion", "cw")
+        return c
     }
 }

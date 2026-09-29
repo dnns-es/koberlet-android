@@ -8,7 +8,8 @@
 // en el plugin, con la contrasena o la huella; esta pantalla solo junta numeros y
 // reenvia al nodo el comando ya firmado.
 
-import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan, gasolineraLista, motivoGas, GAS_GASOLINERA, MARGEN_GAS } from './lib/dca.js';
+import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan, gasolineraLista, llegaAlUmbral, motivoGas, GAS_GASOLINERA, MARGEN_GAS } from './lib/dca.js';
+import { reservas } from './lib/ordenes.js';
 import { Capacitor } from '@capacitor/core';
 import { saldoEnMercado } from './lib/dex.js';
 import { enviarComando, esperarResultado } from './lib/kda.js';
@@ -589,8 +590,16 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         // KoberluSW, como en el escritorio: así no hace falta tener KDA suelto. Solo
         // en Android, que es donde la bóveda nativa sabe firmar con ella; en iPhone
         // todavía no (PARIDAD.md) y paga el usuario.
-        const gratis = TOKENS[otro].contrato === 'dca2' && Capacitor.getPlatform() === 'android'
-            && await gasolineraLista(ctx.red);
+        // Y solo si el bote llega a 5 kb-USDC (decisión de Antonio, 28/09/2026): el
+        // KDA se valora al precio del pool, que es contra el que compra el plan.
+        let valorUsdc = 0;
+        if (TOKENS[otro].contrato === 'dca2') {
+            valorUsdc = haciaToken
+                ? await reservas(ctx.red).then((r) => dep * r.precio).catch(() => 0)
+                : dep;
+        }
+        const gratis = TOKENS[otro].contrato === 'dca2' && llegaAlUmbral(valorUsdc)
+            && Capacitor.getPlatform() === 'android' && await gasolineraLista(ctx.red);
         if (!gratis) {
             // Si paga el usuario, se mira ANTES de firmar que tenga KDA en la chain 2.
             // Si no, el nodo lo rechaza con un mensaje que no se entiende.

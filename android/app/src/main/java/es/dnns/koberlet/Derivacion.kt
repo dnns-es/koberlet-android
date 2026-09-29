@@ -28,8 +28,15 @@ import java.security.SecureRandom
  *   - Semilla: BIP-39 (PBKDF2-HMAC-SHA512, 2048 vueltas, sal "mnemonic").
  *   - Kadena:  SLIP-0010 sobre Ed25519, ruta m'/44'/626'/<indice>'
  *              (comprobado en el fuente de @kadena/hd-wallet 0.6.2, que deriva
- *              con HDKey de ed25519-keygen; es la derivacion de Chainweaver y
- *              eckoWallet).
+ *              con HDKey de ed25519-keygen; es la derivacion de eckoWallet, Koala
+ *              y las carteras modernas de Kadena).
+ *   - Kadena "Chainweaver": OTRA derivacion, la de la cartera original de Kadena
+ *              (y la que Linx y eckoWallet aceptan al importar). No es una ruta
+ *              distinta: es el BIP32-Ed25519 de Cardano (libreria cardano-crypto,
+ *              esquema v2), empaquetado en @kadena/hd-wallet/chainweaver. Da
+ *              cuentas DISTINTAS de la misma semilla, y por eso existe aqui: hay
+ *              gente cuyo dinero esta en esa cuenta y no en la otra. Se elige al
+ *              importar; una cartera nueva siempre usa la de arriba.
  *   - EVM:     BIP-32 sobre secp256k1, ruta m/44'/60'/0'/0/0, como MetaMask.
  *
  * Nada de esto vale si no da EXACTAMENTE las mismas cuentas que las carteras de
@@ -142,14 +149,174 @@ object Derivacion {
         return clave
     }
 
-    /** Clave publica Ed25519 en hexadecimal: lo que en Kadena va detras de "k:". */
-    fun publicaKadena(privada: ByteArray): String {
-        val p = Ed25519PrivateKeyParameters(privada, 0)
-        return aHex(p.generatePublicKey().encoded)
+    /**
+     * Clave publica Ed25519 en hexadecimal: lo que en Kadena va detras de "k:".
+     *
+     * Admite las dos formas de clave privada que maneja la app: los 32 bytes de
+     * una semilla Ed25519 normal, y los 64 bytes de una clave EXTENDIDA de
+     * Chainweaver (escalar + prefijo), cuya publica no sale de hashear nada sino
+     * de multiplicar el escalar tal cual.
+     */
+    fun publicaKadena(privada: ByteArray): String = when (privada.size) {
+        32 -> aHex(Ed25519PrivateKeyParameters(privada, 0).generatePublicKey().encoded)
+        64 -> aHex(publicaDeEscalar(privada.copyOfRange(0, 32)))
+        else -> throw IllegalArgumentException("Una clave privada de Kadena son 32 o 64 bytes.")
     }
 
     fun cuentaKadena(semillaBytes: ByteArray, indice: Int): String =
         "k:" + publicaKadena(privadaKadena(semillaBytes, indice))
+
+    // --- BIP32-Ed25519 de Cardano - la derivacion de Chainweaver ---------------
+    //
+    // Reescrito a partir de `cbits/encrypted_sign.c` de cardano-crypto (el C que
+    // Chainweaver y @kadena/hd-wallet/chainweaver ejecutan compilado a WASM), y
+    // comprobado byte a byte contra ese paquete en DerivacionTest. Lo que hace:
+    //
+    //   Raiz:  para i = 1, 2, ...: d = HMAC-SHA512(semilla BIP-39, "Root Seed Chain i")
+    //          k = SHA-512(d[0..32]) con los bits ajustados de Ed25519
+    //          (k[0] &= 248, k[31] &= 127, k[31] |= 64); si el bit 0x20 de k[31]
+    //          queda puesto, esa i no vale y se prueba la siguiente.
+    //          La clave extendida son los 64 bytes de k; el chain code, d[32..64].
+    //   Hijo:  indice endurecido (0x80000000 + n) DIRECTO desde la raiz -aqui no
+    //          hay 44'/626'-, con el indice en little-endian (esquema v2):
+    //          z  = HMAC-SHA512(cc, 0x00 || k || indice)
+    //          kL = kL + 8 * z[0..28]           (sin reducir modulo el orden)
+    //          kR = kR + z[32..64]  (modulo 2^256)
+    //          cc = HMAC-SHA512(cc, 0x01 || k || indice)[32..64]
+    //
+    // El resultado no es una semilla Ed25519 sino un escalar ya hecho, y por eso
+    // la publica y la firma tienen su propio camino (`publicaDeEscalar`,
+    // `FirmaKda.firmarExtendida`).
+
+    private class NodoCw(val clave: ByteArray, val cadena: ByteArray)
+
+    private fun raizChainweaver(semillaBytes: ByteArray): NodoCw {
+        for (i in 1..1000) {
+            val d = hmacSha512(semillaBytes, "Root Seed Chain $i".toByteArray(Charsets.US_ASCII))
+            val k = MessageDigest.getInstance("SHA-512").digest(d.copyOfRange(0, 32))
+            k[0] = (k[0].toInt() and 248).toByte()
+            k[31] = (k[31].toInt() and 127).toByte()
+            k[31] = (k[31].toInt() or 64).toByte()
+            if (k[31].toInt() and 0x20 != 0) continue
+            return NodoCw(k, d.copyOfRange(32, 64))
+        }
+        throw IllegalStateException("No sale una raíz Chainweaver de esta semilla.")
+    }
+
+    private fun hijoChainweaver(padre: NodoCw, indice: Int): NodoCw {
+        val datos = ByteArray(69)
+        System.arraycopy(padre.clave, 0, datos, 1, 64)
+        datos[65] = indice.toByte()                       // little-endian: asi lo hace el esquema v2
+        datos[66] = (indice ushr 8).toByte()
+        datos[67] = (indice ushr 16).toByte()
+        datos[68] = (indice ushr 24).toByte()
+
+        datos[0] = 0
+        val z = hmacSha512(padre.cadena, datos)
+        datos[0] = 1
+        val cadena = hmacSha512(padre.cadena, datos).copyOfRange(32, 64)
+
+        // 8 * z[0..28]: multiply8_v2 del C, que deja 29 bytes utiles y por eso no
+        // desborda al sumarlo al escalar del padre.
+        val zl8 = ByteArray(32)
+        var acarreo = 0
+        for (i in 0 until 28) {
+            val b = z[i].toInt() and 0xff
+            zl8[i] = (((b shl 3) and 0xff) + (acarreo and 7)).toByte()
+            acarreo = b ushr 5
+        }
+        zl8[28] = ((z[27].toInt() and 0xff) ushr 5).toByte()
+
+        val hijo = ByteArray(64)
+        var r = 0
+        for (i in 0 until 32) {
+            r = (zl8[i].toInt() and 0xff) + (padre.clave[i].toInt() and 0xff) + r
+            hijo[i] = r.toByte()
+            r = r ushr 8
+        }
+        r = 0
+        for (i in 0 until 32) {
+            r = (z[32 + i].toInt() and 0xff) + (padre.clave[32 + i].toInt() and 0xff) + r
+            hijo[32 + i] = r.toByte()
+            r = r ushr 8
+        }
+        return NodoCw(hijo, cadena)
+    }
+
+    /** Clave privada extendida (64 bytes) de Chainweaver para ese indice. */
+    fun privadaChainweaver(semillaBytes: ByteArray, indice: Int): ByteArray =
+        hijoChainweaver(raizChainweaver(semillaBytes), indice or DURO).clave
+
+    /**
+     * La clave en el formato completo de Chainweaver y Linx: 128 bytes = privada
+     * extendida (64) + publica (32) + chain code (32). Es lo que esas carteras
+     * exportan como "clave privada", y lo que aqui se acepta al importar.
+     */
+    fun claveCompletaChainweaver(semillaBytes: ByteArray, indice: Int): ByteArray {
+        val nodo = hijoChainweaver(raizChainweaver(semillaBytes), indice or DURO)
+        val salida = ByteArray(128)
+        System.arraycopy(nodo.clave, 0, salida, 0, 64)
+        System.arraycopy(publicaDeEscalar(nodo.clave.copyOfRange(0, 32)), 0, salida, 64, 32)
+        System.arraycopy(nodo.cadena, 0, salida, 96, 32)
+        return salida
+    }
+
+    fun cuentaChainweaver(semillaBytes: ByteArray, indice: Int): String =
+        "k:" + publicaKadena(privadaChainweaver(semillaBytes, indice))
+
+    /** Orden del grupo de Ed25519: 2^252 + 27742317777372353535851937790883648493. */
+    val ORDEN_ED25519: BigInteger = BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989")
+
+    /** Un escalar en little-endian de 32 bytes, ya reducido modulo el orden. */
+    fun escalarBytes(n: BigInteger): ByteArray {
+        val be = aBytes32(n.mod(ORDEN_ED25519))
+        return ByteArray(32) { be[31 - it] }
+    }
+
+    fun escalarDe(le: ByteArray): BigInteger = BigInteger(1, ByteArray(le.size) { le[le.size - 1 - it] })
+
+    // La aritmetica de la curva, a mano con BigInteger. Bouncy Castle tiene la
+    // multiplicacion por el punto base pero solo para semillas (la hashea antes),
+    // y la que vale para un escalar suelto es privada. Son 30 lineas de RFC 8032
+    // (seccion 5.1) en coordenadas afines: lentas (unos milisegundos por firma,
+    // que en un movil no se notan) y sin tiempo constante, cosa que aqui se
+    // asume: el escalar solo se usa en el propio aparato, para las carteras
+    // Chainweaver, y el riesgo de medir tiempos desde fuera no existe en un
+    // telefono que firma una vez cada mucho.
+    private val P_ED25519: BigInteger = BigInteger.TWO.pow(255) - BigInteger.valueOf(19)
+    private val D_ED25519: BigInteger =
+        BigInteger.valueOf(-121665).multiply(BigInteger.valueOf(121666).modInverse(P_ED25519)).mod(P_ED25519)
+    private val BASE_X = BigInteger("15112221349535400772501151409588531511454012693041857206046113283949847762202")
+    private val BASE_Y = BigInteger("46316835694926478169428394003475163141307993866256225615783033603165251855960")
+
+    private fun sumaEd(p1: Array<BigInteger>, p2: Array<BigInteger>): Array<BigInteger> {
+        val (x1, y1) = p1
+        val (x2, y2) = p2
+        val x1x2 = x1 * x2
+        val y1y2 = y1 * y2
+        val dxy = D_ED25519 * x1x2 * y1y2
+        val x3 = (x1 * y2 + x2 * y1) * (BigInteger.ONE + dxy).modInverse(P_ED25519)
+        val y3 = (y1y2 + x1x2) * (BigInteger.ONE - dxy).modInverse(P_ED25519)
+        return arrayOf(x3.mod(P_ED25519), y3.mod(P_ED25519))
+    }
+
+    /** escalar * B, codificado como en RFC 8032: la publica de una clave extendida. */
+    fun publicaDeEscalar(escalarLe: ByteArray): ByteArray {
+        var n = escalarDe(escalarLe).mod(ORDEN_ED25519)
+        var acumulado = arrayOf(BigInteger.ZERO, BigInteger.ONE)      // el punto neutro
+        var base = arrayOf(BASE_X, BASE_Y)
+        while (n.signum() > 0) {
+            if (n.testBit(0)) acumulado = sumaEd(acumulado, base)
+            base = sumaEd(base, base)
+            n = n.shiftRight(1)
+        }
+        val (x, y) = acumulado
+        val salida = ByteArray(32)
+        val yBytes = aBytes32(y)
+        for (i in 0 until 32) salida[i] = yBytes[31 - i]
+        if (x.testBit(0)) salida[31] = (salida[31].toInt() or 0x80).toByte()
+        return salida
+    }
 
     // --- BIP-32 (secp256k1) - EVM -------------------------------------------
 

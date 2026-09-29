@@ -750,7 +750,23 @@ const EN = {
     'Importar': 'Import',
     // Importar por clave privada suelta.
     'Semilla o clave privada': 'Seed or private key',
-    'O importa una clave privada (64 caracteres)': 'Or import a private key (64 characters)',
+    'O importa una clave privada (64 caracteres, o la larga de Chainweaver y Linx)':
+        'Or import a private key (64 characters, or the long one from Chainweaver and Linx)',
+    // Derivación Chainweaver / Linx frente a la normal (SLIP-0010).
+    '¿De qué cartera viene la semilla?': 'Which wallet does the seed come from?',
+    'eckoWallet, Koala, Koberlet… (la normal)': 'eckoWallet, Koala, Koberlet… (the usual one)',
+    'Chainweaver o Linx': 'Chainweaver or Linx',
+    'Las mismas palabras dan una cuenta distinta en Chainweaver. Si al importar no aparece tu saldo, prueba con la otra opción.':
+        'The same words give a different account in Chainweaver. If your balance does not show up after importing, try the other option.',
+    'Cuenta derivada al estilo Chainweaver / Linx: con estas mismas palabras, eckoWallet o Koala enseñarían otra cuenta.':
+        'Account derived the Chainweaver / Linx way: with these same words, eckoWallet or Koala would show a different account.',
+    'Las 12 o 24 palabras de tu semilla, separadas por espacios. Vale la de eckoWallet, Koala, Chainweaver, Linx o el Koberlet de escritorio.':
+        'The 12 or 24 words of your recovery phrase, separated by spaces. One from eckoWallet, Koala, Chainweaver, Linx or desktop Koberlet works.',
+    'Esa derivación no existe.': 'That derivation does not exist.',
+    'Una clave privada de Kadena son 32 o 64 bytes.': 'A Kadena private key is 32 or 64 bytes.',
+    'No sale una raíz Chainweaver de esta semilla.': 'This seed does not yield a Chainweaver root key.',
+    'Esos 256 caracteres no son una clave de Chainweaver o Linx: la pública de dentro no cuadra.':
+        'Those 256 characters are not a Chainweaver or Linx key: the public key inside does not match.',
     'Importar esa clave': 'Import that key',
     'Una cartera metida por su clave privada no tiene palabras y nunca las tendrá: su única copia de seguridad es esa clave.':
         'A wallet added by its private key has no words and never will: that key is its only backup.',
@@ -771,8 +787,6 @@ const EN = {
     'Esa clave privada no vale.': 'That private key is no good.',
     'Eso no es hexadecimal.': 'That is not hexadecimal.',
     'Importar una cartera': 'Import a wallet',
-    'Las 12 o 24 palabras de tu semilla, separadas por espacios. Vale la de Chainweaver, eckoWallet o el Koberlet de escritorio: la derivación es la misma.':
-        'The 12 or 24 words of your recovery phrase, separated by spaces. One from Chainweaver, eckoWallet or desktop Koberlet works: the derivation is the same.',
     'Contraseña para cifrarla en este aparato': 'Password to encrypt it on this device',
     'Cartera nueva': 'New wallet',
     'Ese código no lleva una cuenta Kadena válida. Repásalo antes de enviar nada.':

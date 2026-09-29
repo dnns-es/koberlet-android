@@ -150,7 +150,42 @@ export function selectorRed(id, elegida = 'kda') {
         sel.append(o);
     });
     c.append(l, sel);
-    return { caja: c, valor: () => sel.value };
+    return { caja: c, valor: () => sel.value, select: sel };
+}
+
+/**
+ * Selector de DERIVACION al importar una semilla de Kadena.
+ *
+ * De unas mismas 12 palabras salen DOS cuentas distintas segun la cartera de
+ * donde vengan: la estandar (SLIP-0010; eckoWallet, Koala, Koberlet) y la de
+ * Chainweaver, que Linx tambien usa y que eckoWallet acepta al importar. No hay
+ * forma de adivinarlo desde las palabras, asi que se pregunta. Solo aparece
+ * cuando la red es Kadena: en Ethereum no existe la duda.
+ *
+ * `red` es lo que devuelve `selectorRed`: se le escucha para esconderse.
+ */
+export function selectorDerivacion(id, red) {
+    const c = document.createElement('div');
+    c.className = 'campo';
+    const l = document.createElement('label');
+    l.setAttribute('for', id);
+    l.textContent = t('¿De qué cartera viene la semilla?');
+    const sel = document.createElement('select');
+    sel.id = id;
+    [['std', t('eckoWallet, Koala, Koberlet… (la normal)')], ['cw', t('Chainweaver o Linx')]].forEach(([v, txt]) => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = txt;
+        sel.append(o);
+    });
+    const nota = document.createElement('p');
+    nota.className = 'nota';
+    nota.textContent = t('Las mismas palabras dan una cuenta distinta en Chainweaver. Si al importar no aparece tu saldo, prueba con la otra opción.');
+    c.append(l, sel, nota);
+    const ajustar = () => { c.style.display = red.valor() === 'kda' ? '' : 'none'; };
+    ajustar();
+    red.select.addEventListener('change', ajustar);
+    return { caja: c, valor: () => (red.valor() === 'kda' ? sel.value : 'std') };
 }
 
 /**

@@ -3,6 +3,7 @@
 
 package es.dnns.koberlet
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -256,5 +257,78 @@ class CarterasTest {
                 // correcto
             }
         }
+    }
+
+    // --- Carteras de Chainweaver / Linx ------------------------------------------
+    //
+    // La misma semilla da OTRA cuenta con la derivacion de Chainweaver. Lo que se
+    // prueba es que una cartera marcada "cw" usa esa, que la clave completa de 256
+    // caracteres que exportan Chainweaver y Linx entra y da la misma cuenta, y que
+    // lo que se exporta vuelve a entrar igual.
+
+    @Test
+    fun `una cartera cw deriva la cuenta de Chainweaver y no la de eckoWallet`() {
+        val std = Carteras.montar("c1", "A", SEMILLA, "kda")
+        val cw = Carteras.montar("c2", "B", SEMILLA, "kda", "cw")
+        val cuentaStd = std.getJSONArray("cuentas").getJSONObject(0).getString("cuenta")
+        val cuentaCw = cw.getJSONArray("cuentas").getJSONObject(0).getString("cuenta")
+        assertEquals("k:2c6a7b0a7524e5e3fdbe5da0b561f67fbc69883a4e5fe4aacdffe0df88a66793", cuentaCw)
+        assertFalse(cuentaStd == cuentaCw)
+        assertTrue(Carteras.esChainweaver(cw))
+        assertFalse(Carteras.esChainweaver(std))
+        assertEquals("std", Carteras.derivacionDe(std))
+        // La privada de una cw es la extendida: 64 bytes, no 32.
+        assertEquals(64, Carteras.privadaDe(cw).size)
+        assertEquals(32, Carteras.privadaDe(std).size)
+        // En EVM la derivacion no pinta nada y no se guarda.
+        assertFalse(Carteras.montar("c3", "C", SEMILLA, "evm", "cw").has("derivacion"))
+    }
+
+    @Test
+    fun `la misma semilla cabe dos veces en Kadena si es con distinta derivacion`() {
+        val datos = JSONObject().put("v", 3).put("activa", "c1")
+            .put("carteras", JSONArray().put(Carteras.montar("c1", "A", SEMILLA, "kda")))
+        assertTrue(Carteras.yaExiste(datos, SEMILLA, "kda"))
+        assertTrue(Carteras.yaExiste(datos, SEMILLA, "kda", "std"))
+        assertFalse(Carteras.yaExiste(datos, SEMILLA, "kda", "cw"))
+    }
+
+    @Test
+    fun `la clave completa de Chainweaver entra, da la misma cuenta y sale igual`() {
+        val porSemilla = Carteras.montar("c1", "A", SEMILLA, "kda", "cw")
+        val completa = Carteras.claveExportableKda(porSemilla)
+        assertEquals(256, completa.length)
+
+        assertEquals(completa, Carteras.normalizarClave("0x" + completa.uppercase(), "kda"))
+        val porClave = Carteras.montarConClave("c2", "B", completa, "kda")
+        assertTrue(Carteras.esChainweaver(porClave))
+        assertEquals(
+            porSemilla.getJSONArray("cuentas").getJSONObject(0).getString("cuenta"),
+            porClave.getJSONArray("cuentas").getJSONObject(0).getString("cuenta"),
+        )
+        assertEquals(Derivacion.aHex(Carteras.privadaDe(porSemilla)), Derivacion.aHex(Carteras.privadaDe(porClave)))
+        assertEquals(completa, Carteras.claveExportableKda(porClave))
+
+        // Una de 256 con la publica de dentro cambiada no es una clave: no entra.
+        val rota = completa.substring(0, 128) + "0".repeat(64) + completa.substring(192)
+        try {
+            Carteras.normalizarClave(rota, "kda")
+            fail("Ha aceptado una clave de Chainweaver con la pública que no es.")
+        } catch (e: IllegalArgumentException) {
+            // correcto
+        }
+        // Y en EVM 256 caracteres no son nada.
+        try {
+            Carteras.normalizarClave(completa, "evm")
+            fail("Ha aceptado 256 caracteres como clave de Ethereum.")
+        } catch (e: IllegalArgumentException) {
+            // correcto
+        }
+    }
+
+    @Test
+    fun `una cartera normal exporta sus 64 caracteres de siempre`() {
+        val std = Carteras.montar("c1", "A", SEMILLA, "kda")
+        assertEquals(Derivacion.aHex(Derivacion.privadaKadena(Derivacion.semillaABytes(SEMILLA), 0)), Carteras.claveExportableKda(std))
     }
 }

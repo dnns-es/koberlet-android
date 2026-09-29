@@ -16,7 +16,7 @@
 import { boveda, contrasenaDebil, MIN_CONTRASENA } from './boveda/contrato.js';
 import { nombreBio } from './biometria.js';
 import { t, locale, idiomaActual, fijarIdioma } from './idioma.js';
-import { selectorRed } from './cartera-activa.js';
+import { selectorRed, selectorDerivacion } from './cartera-activa.js';
 import { REDES_KDA, CHAINS } from './config.js';
 import { saldoKda, cuentaKdaValida } from './lib/kda.js';
 import { esNativo } from './red.js';
@@ -263,7 +263,7 @@ function pintarImportar(raiz, ctx) {
     const c = caja();
     c.append(
         titulo(t('Importar una cartera')),
-        parrafo(t('Las 12 o 24 palabras de tu semilla, separadas por espacios. Vale la de Chainweaver, eckoWallet o el Koberlet de escritorio: la derivación es la misma.'), 'nota'),
+        parrafo(t('Las 12 o 24 palabras de tu semilla, separadas por espacios. Vale la de eckoWallet, Koala, Chainweaver, Linx o el Koberlet de escritorio.'), 'nota'),
         parrafo(t('También vale una clave privada suelta, en hexadecimal: se reconoce sola. Ojo, esa cartera no tendrá palabras.'), 'nota'),
     );
     const campo = document.createElement('div');
@@ -278,7 +278,8 @@ function pintarImportar(raiz, ctx) {
     ta.spellcheck = false;
     campo.append(l, ta);
     const red = selectorRed('red2');
-    c.append(campo, red.caja, campoClave(t('Contraseña para cifrarla en este aparato'), 'c1'));
+    const derivacion = selectorDerivacion('deriv2', red);
+    c.append(campo, red.caja, derivacion.caja, campoClave(t('Contraseña para cifrarla en este aparato'), 'c1'));
 
     const seguir = boton(t('Importar'), async () => {
         const flojo = contrasenaDebil($('c1').value);
@@ -288,12 +289,13 @@ function pintarImportar(raiz, ctx) {
         try {
             // Palabras o clave privada: se distingue por la forma, no por un
             // botón más. Una clave son 64 caracteres hex -128 en el formato de
-            // algunas herramientas de Kadena- y una semilla nunca lo es.
+            // algunas herramientas de Kadena, 256 en el de Chainweaver y Linx- y
+            // una semilla nunca lo es.
             const escrito = ta.value.trim();
-            const esClave = /^(0x)?[0-9a-fA-F]{64}$/.test(escrito) || /^(0x)?[0-9a-fA-F]{128}$/.test(escrito);
+            const esClave = /^(0x)?([0-9a-fA-F]{64}|[0-9a-fA-F]{128}|[0-9a-fA-F]{256})$/.test(escrito);
             const { cuentas } = esClave
                 ? await boveda.importarClave($('c1').value, escrito, undefined, red.valor())
-                : await boveda.importar($('c1').value, escrito, undefined, red.valor());
+                : await boveda.importar($('c1').value, escrito, undefined, red.valor(), derivacion.valor());
             ctx.alTerminar(cuentas);
         } catch (e) {
             seguir.disabled = false;

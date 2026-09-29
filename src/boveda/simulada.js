@@ -211,8 +211,9 @@ function idNuevo(datos) {
     return 'c' + n;
 }
 
-async function montarCartera(id, etiqueta, semilla, red) {
+async function montarCartera(id, etiqueta, semilla, red, derivacion = 'std') {
     if (red !== 'kda' && red !== 'evm') throw new Error('Esa red no existe.');
+    if (derivacion !== 'std' && derivacion !== 'cw') throw new Error('Esa derivación no existe.');
     if (red === 'evm') {
         const evm = ethers.HDNodeWallet.fromPhrase(semilla, '', "m/44'/60'/0'/0/0");
         return {
@@ -220,14 +221,30 @@ async function montarCartera(id, etiqueta, semilla, red) {
             cuentas: [{ id: `${id}-evm`, etiqueta: 'EVM', tipo: 'evm', cuenta: evm.address }],
         };
     }
-    const hd = await import('@kadena/hd-wallet');
     const efimera = 'efimera-' + crypto.randomUUID();     // la libreria exige contrasena; aqui no guarda nada
+    if (derivacion === 'cw') {
+        // La derivacion de Chainweaver: es la propia libreria de Chainweaver
+        // (WASM), asi que aqui es la referencia contra la que se probo Kotlin.
+        const cw = await import('@kadena/hd-wallet/chainweaver');
+        const raiz = await cw.kadenaMnemonicToRootKeypair(efimera, semilla);
+        const { publicKey } = await cw.kadenaGenKeypair(efimera, raiz, 0);
+        return {
+            id, etiqueta, semilla, red, derivacion: 'cw',
+            cuentas: [{ id: `${id}-kda`, etiqueta: 'Kadena', tipo: 'kda', cuenta: 'k:' + publicKey }],
+        };
+    }
+    const hd = await import('@kadena/hd-wallet');
     const seed = await hd.kadenaMnemonicToSeed(efimera, semilla);
     const [pub] = await hd.kadenaGenKeypairFromSeed(efimera, seed, 0);
     return {
         id, etiqueta, semilla, red,
         cuentas: [{ id: `${id}-kda`, etiqueta: 'Kadena', tipo: 'kda', cuenta: 'k:' + pub }],
     };
+}
+
+/** "std" o "cw", como `Carteras.derivacionDe` del plugin. */
+function derivacionDe(cartera) {
+    return cartera.derivacion === 'cw' ? 'cw' : 'std';
 }
 
 /**
@@ -241,6 +258,11 @@ async function normalizarClave(texto, red) {
     if (!/^[0-9a-f]+$/.test(h)) {
         throw new Error('Una clave privada son 64 caracteres del 0 al 9 y de la a a la f.');
     }
+    // 256: la clave completa de Chainweaver/Linx (privada extendida + publica +
+    // chain code). Se guarda entera. El plugin comprueba que la publica de dentro
+    // sea la del escalar; este doble no tiene con que multiplicar en la curva y
+    // se la cree: es un doble de desarrollo y no firma nada.
+    if (h.length === 256 && red === 'kda') return h;
     if (h.length === 128 && red === 'kda') {
         const nacl = (await import('tweetnacl')).default;
         const privada = h.slice(0, 64);
@@ -267,6 +289,13 @@ async function montarConClave(id, etiqueta, privada, red) {
             cuentas: [{ id: `${id}-evm`, etiqueta: 'EVM', tipo: 'evm', cuenta: w.address }],
         };
     }
+    if (privada.length === 256) {
+        // Chainweaver/Linx: la publica viene dentro, en los bytes 64..96.
+        return {
+            id, etiqueta, privada, red, derivacion: 'cw',
+            cuentas: [{ id: `${id}-kda`, etiqueta: 'Kadena', tipo: 'kda', cuenta: 'k:' + privada.slice(128, 192) }],
+        };
+    }
     const nacl = (await import('tweetnacl')).default;
     const pub = Buffer.from(nacl.sign.keyPair.fromSeed(Buffer.from(privada, 'hex')).publicKey).toString('hex');
     return {
@@ -277,7 +306,7 @@ async function montarConClave(id, etiqueta, privada, red) {
 
 function cuentasPublicas(datos) {
     return datos.carteras.flatMap((c) =>
-        c.cuentas.map((cu) => ({ ...cu, carteraId: c.id, cartera: c.etiqueta, conSemilla: !!c.semilla })));
+        c.cuentas.map((cu) => ({ ...cu, carteraId: c.id, cartera: c.etiqueta, conSemilla: !!c.semilla, derivacion: derivacionDe(c) })));
 }
 
 async function guardarDatos(contrasena, datos) {
@@ -308,13 +337,13 @@ export const bovedaSimulada = {
         return { semilla, cuentas: cuentasPublicas(datos) };
     },
 
-    async importar(contrasena, semilla, etiqueta = 'Cartera importada', red = 'kda') {
+    async importar(contrasena, semilla, etiqueta = 'Cartera importada', red = 'kda', derivacion = 'std') {
         const limpia = String(semilla).trim().toLowerCase().replace(/\s+/g, ' ');
         const palabras = limpia.split(' ');
         if (![12, 15, 18, 21, 24].includes(palabras.length)) {
             throw new Error(`Una semilla tiene 12 o 24 palabras; has escrito ${palabras.length}.`);
         }
-        const datos = await conCarteraNueva(contrasena, limpia, etiqueta, red);
+        const datos = await conCarteraNueva(contrasena, limpia, etiqueta, red, derivacion);
         return { cuentas: cuentasPublicas(datos) };
     },
 
@@ -395,8 +424,17 @@ export const bovedaSimulada = {
         if (id.endsWith('-evm')) {
             return { privada: ethers.HDNodeWallet.fromPhrase(c.semilla, '', "m/44'/60'/0'/0/0").privateKey };
         }
-        const hd = await import('@kadena/hd-wallet');
         const efimera = 'efimera-' + crypto.randomUUID();
+        if (derivacionDe(c) === 'cw') {
+            // Los 128 bytes del formato de Chainweaver/Linx, que es lo que ellas
+            // vuelven a aceptar: privada extendida + publica + chain code.
+            const cw = await import('@kadena/hd-wallet/chainweaver');
+            const hdw = await import('@kadena/hd-wallet');
+            const raiz = await cw.kadenaMnemonicToRootKeypair(efimera, c.semilla);
+            const { secretKey } = await cw.kadenaGenKeypair(efimera, raiz, 0);
+            return { privada: Buffer.from(await hdw.kadenaDecrypt(efimera, secretKey)).toString('hex') };
+        }
+        const hd = await import('@kadena/hd-wallet');
         const seed = await hd.kadenaMnemonicToSeed(efimera, c.semilla);
         const [, privCifrada] = await hd.kadenaGenKeypairFromSeed(efimera, seed, 0);
         const bytes = await hd.kadenaDecrypt(efimera, privCifrada);
@@ -513,20 +551,21 @@ export const bovedaSimulada = {
 };
 
 /** Crea la boveda si no existe, o añade una cartera mas si ya la hay. */
-async function conCarteraNueva(contrasena, semilla, etiqueta, red) {
+async function conCarteraNueva(contrasena, semilla, etiqueta, red, derivacion = 'std') {
     let datos;
     if (localStorage.getItem(LLAVE)) {
         datos = (await leer(contrasena)).datos;
         // La misma semilla puede estar dos veces, una por red: eso es justo lo que
-        // deja la migración. Lo que no puede es repetirse en la misma red.
-        if (datos.carteras.some((c) => c.semilla === semilla && redDe(c) === red)) {
+        // deja la migración. Lo que no puede es repetirse en la misma red... salvo
+        // con la otra derivación, que es otra cuenta.
+        if (datos.carteras.some((c) => c.semilla === semilla && redDe(c) === red && derivacionDe(c) === derivacion)) {
             throw new Error('Esa cartera ya está metida en este navegador.');
         }
-        const c = await montarCartera(idNuevo(datos), etiqueta, semilla, red);
+        const c = await montarCartera(idNuevo(datos), etiqueta, semilla, red, derivacion);
         datos.carteras.push(c);
         datos.activa = c.id;
     } else {
-        const c = await montarCartera('c1', etiqueta, semilla, red);
+        const c = await montarCartera('c1', etiqueta, semilla, red, derivacion);
         datos = { v: VERSION, carteras: [c], activa: 'c1' };
     }
     return guardarDatos(contrasena, datos);

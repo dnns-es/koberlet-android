@@ -206,7 +206,8 @@ test('el gas que no se pudo cobrar se explica en llano', async () => {
 
 test('la gasolinera solo se pide para planes de dca2, y con su tope de gas', async () => {
     const src = readFileSync(new URL('../src/pantalla-dca.js', import.meta.url), 'utf8');
-    assert.match(src, /TOKENS\[otro\]\.contrato === 'dca2' && Capacitor\.getPlatform\(\) === 'android'/);
+    // dca2, umbral de 5 kb-USDC (decisión de Antonio, 28/09/2026) y Android, en ese orden.
+    assert.match(src, /TOKENS\[otro\]\.contrato === 'dca2' && llegaAlUmbral\(valorUsdc\)\s*&& Capacitor\.getPlatform\(\) === 'android'/);
     assert.match(src, /gratis \? \{ gratis: true, gasLimit: GAS_GASOLINERA \}/);
     const { GAS_GASOLINERA } = await import('../src/lib/dca.js');
     assert.equal(GAS_GASOLINERA, 8000);   // MAX-GASLIMIT de free.ksw-gasolinera

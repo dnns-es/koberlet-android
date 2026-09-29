@@ -21,6 +21,7 @@
 // -"kb-ETH", "dca3"-, nunca un modulo ni una cuenta.
 
 import { local, exigirCuentaKda } from './kda.js';
+import { MIN_GRATIS_USDC } from './dex.js';
 
 const CHAIN = '2';
 
@@ -200,6 +201,15 @@ export const GAS_GASOLINERA = 8000;
 // Lo mínimo de KDA suelto para pagar el gas uno mismo (una operación del DCA
 // gasta del orden de 0,0001 KDA; esto deja margen).
 export const MARGEN_GAS = 0.01;
+
+/**
+ * DECISIÓN DE ANTONIO (28/09/2026), la misma en todas las versiones: la gasolinera
+ * solo paga a partir de 5 kb-USDC de operación, también en el DCA y en las órdenes.
+ * Por debajo, el gas lo pone el usuario. El umbral es el del Mercado (`dex.js`).
+ */
+export function llegaAlUmbral(valorUsdc) {
+    return Number(valorUsdc) >= MIN_GRATIS_USDC;
+}
 
 /** ¿Puede pagar la gasolinera ahora? Si no contesta, se da por que no: paga el usuario. */
 export async function gasolineraLista(red) {

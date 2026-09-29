@@ -46,12 +46,58 @@ object FirmaKda {
     fun aBase64Url(bytes: ByteArray): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 
-    /** Firma Ed25519 del hash, en hexadecimal, que es como la quiere Chainweb. */
-    fun firmar(privada: ByteArray, hash: ByteArray): String {
-        val firmante = Ed25519Signer()
-        firmante.init(true, Ed25519PrivateKeyParameters(privada, 0))
-        firmante.update(hash, 0, hash.size)
-        return Derivacion.aHex(firmante.generateSignature())
+    /**
+     * Firma Ed25519 del hash, en hexadecimal, que es como la quiere Chainweb.
+     *
+     * Con 32 bytes es una clave normal y firma Bouncy Castle. Con 64 es una clave
+     * extendida de Chainweaver, y va por `firmarExtendida`.
+     */
+    fun firmar(privada: ByteArray, hash: ByteArray): String = when (privada.size) {
+        32 -> {
+            val firmante = Ed25519Signer()
+            firmante.init(true, Ed25519PrivateKeyParameters(privada, 0))
+            firmante.update(hash, 0, hash.size)
+            Derivacion.aHex(firmante.generateSignature())
+        }
+        64 -> Derivacion.aHex(firmarExtendida(privada, hash))
+        else -> throw IllegalArgumentException("Una clave privada de Kadena son 32 o 64 bytes.")
+    }
+
+    /**
+     * Ed25519 con una clave EXTENDIDA: el escalar `a` (32 bytes) y el prefijo
+     * (otros 32) vienen ya hechos, no salen de hashear una semilla. Es la firma de
+     * RFC 8032 quitando ese primer paso:
+     *
+     *   r = SHA-512(prefijo || mensaje) mod L
+     *   R = r * B
+     *   S = (r + SHA-512(R || A || mensaje) * a) mod L
+     *
+     * La firma que sale la verifica cualquier Ed25519 normal con la publica A, y
+     * Chainweb no distingue de donde salio la clave. El `r` no coincide con el que
+     * calcula Chainweaver (mete el chain code en el hash) y da igual: cada firma
+     * vale por si sola mientras `r` sea secreto y no se repita para otro mensaje.
+     */
+    fun firmarExtendida(privada: ByteArray, mensaje: ByteArray): ByteArray {
+        val a = Derivacion.escalarDe(privada.copyOfRange(0, 32))
+        val publica = Derivacion.publicaDeEscalar(privada.copyOfRange(0, 32))
+
+        val sha = java.security.MessageDigest.getInstance("SHA-512")
+        sha.update(privada, 32, 32)
+        sha.update(mensaje)
+        val r = Derivacion.escalarDe(sha.digest()).mod(Derivacion.ORDEN_ED25519)
+        val rB = Derivacion.publicaDeEscalar(Derivacion.escalarBytes(r))
+
+        sha.reset()
+        sha.update(rB)
+        sha.update(publica)
+        sha.update(mensaje)
+        val h = Derivacion.escalarDe(sha.digest()).mod(Derivacion.ORDEN_ED25519)
+        val s = (r + h * a).mod(Derivacion.ORDEN_ED25519)
+
+        val firma = ByteArray(64)
+        System.arraycopy(rB, 0, firma, 0, 32)
+        System.arraycopy(Derivacion.escalarBytes(s), 0, firma, 32, 32)
+        return firma
     }
 
     /**

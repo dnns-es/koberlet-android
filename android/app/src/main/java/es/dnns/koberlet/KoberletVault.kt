@@ -78,6 +78,11 @@ class KoberletVault : Plugin() {
         val contrasena = call.getString("contrasena") ?: return call.reject("Falta la contraseña.")
         val etiqueta = call.getString("etiqueta") ?: "Cartera importada"
         val red = call.getString("red") ?: "kda"
+        // "std" (eckoWallet, Koala, y lo que nace aqui) o "cw" (Chainweaver, Linx):
+        // la misma semilla da cuentas distintas segun cual. Lo elige el dueño en la
+        // pantalla, porque no hay forma de adivinarlo desde las palabras.
+        val derivacion = call.getString("derivacion") ?: "std"
+        if (derivacion != "std" && derivacion != "cw") return call.reject("Esa derivación no existe.")
         val semilla = call.getString("semilla")?.trim()?.lowercase()?.replace(Regex("\\s+"), " ")
             ?: return call.reject("Falta la semilla.")
         // Se comprueba el control de la semilla ANTES de guardar nada: una palabra
@@ -87,7 +92,7 @@ class KoberletVault : Plugin() {
             return call.reject("Esa semilla no es válida: repasa las palabras, alguna no cuadra.")
         }
         hilo(call) {
-            val datos = anadirCartera(contrasena, semilla, etiqueta, red)
+            val datos = anadirCartera(contrasena, semilla, etiqueta, red, derivacion)
             JSObject().put("cuentas", cuentasPublicas(datos))
         }
     }
@@ -229,11 +234,12 @@ class KoberletVault : Plugin() {
                     val carteraId = id.substringBeforeLast('-')
                     val c = Carteras.buscar(datos, carteraId)
                         ?: throw IllegalArgumentException("Esa cartera no existe.")
-                    val bytes = Carteras.privadaDe(c)
-                    try {
-                        if (id.endsWith("-kda")) Derivacion.aHex(bytes) else "0x" + Derivacion.aHex(bytes)
-                    } finally {
-                        bytes.fill(0)
+                    if (id.endsWith("-kda")) {
+                        // 64 hex, o los 256 del formato de Chainweaver/Linx si es de esas.
+                        Carteras.claveExportableKda(c)
+                    } else {
+                        val bytes = Carteras.privadaDe(c)
+                        try { "0x" + Derivacion.aHex(bytes) } finally { bytes.fill(0) }
                     }
                 }
                 else -> throw IllegalArgumentException("No sé qué es eso que quieres exportar.")
@@ -1182,13 +1188,13 @@ class KoberletVault : Plugin() {
         Carteras.normalizar(JSONObject(Cofre.descifrar(fichero.readText(), contrasena)))
 
     /** Crea la boveda si no existe, o añade una cartera mas si ya la hay. */
-    private fun anadirCartera(contrasena: String, semilla: String, etiqueta: String, red: String): JSONObject {
+    private fun anadirCartera(contrasena: String, semilla: String, etiqueta: String, red: String, derivacion: String = "std"): JSONObject {
         val datos = if (fichero.exists()) {
             val d = abrirFichero(contrasena)
-            if (Carteras.yaExiste(d, semilla, red)) throw Exception("Esa cartera ya está metida en este aparato.")
-            Carteras.anadir(d, Carteras.montar(Carteras.idNuevo(d), etiqueta, semilla, red))
+            if (Carteras.yaExiste(d, semilla, red, derivacion)) throw Exception("Esa cartera ya está metida en este aparato.")
+            Carteras.anadir(d, Carteras.montar(Carteras.idNuevo(d), etiqueta, semilla, red, derivacion))
         } else {
-            val c = Carteras.montar("c1", etiqueta, semilla, red)
+            val c = Carteras.montar("c1", etiqueta, semilla, red, derivacion)
             JSONObject().put("v", Carteras.VERSION)
                 .put("carteras", org.json.JSONArray().put(c))
                 .put("activa", "c1")
@@ -1239,6 +1245,8 @@ class KoberletVault : Plugin() {
                     // Para que la pantalla no ofrezca «ver la semilla» de una cartera
                     // que no la tiene. El secreto no cruza; solo el si/no.
                     .put("conSemilla", Carteras.esDeSemilla(cartera))
+                    // "std" o "cw": para que la pantalla diga de cual es, y nada mas.
+                    .put("derivacion", Carteras.derivacionDe(cartera))
                     .put("cuenta", c.getString("cuenta")))
             }
         }

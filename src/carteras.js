@@ -11,7 +11,7 @@
 import { boveda, contrasenaDebil } from './boveda/contrato.js';
 import { t } from './idioma.js';
 import { nombreCartera } from './nombres.js';
-import { selectorRed } from './cartera-activa.js';
+import { selectorRed, selectorDerivacion } from './cartera-activa.js';
 import { corta } from './direccion.js';
 
 function elemento(tag, texto, clase) {
@@ -230,6 +230,11 @@ function pintarCartera(raiz, ctx) {
     if (!conSemilla) {
         c.append(elemento('p', t('Esta cartera se metió por su clave privada: no tiene 12 palabras. Su única copia de seguridad es esa clave.'), 'nota'));
     }
+    // Que se sepa: esta cuenta sale de las palabras por el camino de Chainweaver,
+    // y en eckoWallet o Koala esas mismas palabras darian otra.
+    if (grupo.cuentas.some((cu) => cu.derivacion === 'cw')) {
+        c.append(elemento('p', t('Cuenta derivada al estilo Chainweaver / Linx: con estas mismas palabras, eckoWallet o Koala enseñarían otra cuenta.'), 'nota'));
+    }
 
     c.append(boton(t('Volver'), () => ctx.alVolver(), 'secundario'));
     raiz.append(c);
@@ -248,6 +253,8 @@ export function pintarAnadirCartera(raiz, ctx) {
     const red = selectorRed('red', ctx.red);
     c.append(red.caja);
     c.append(campoClave(t('Contraseña de la bóveda'), 'clave'));
+    // Solo cuenta al importar una semilla de Kadena; se pinta junto a ese campo.
+    const derivacion = selectorDerivacion('derivacion', red);
 
     const salida = elemento('div');
 
@@ -275,13 +282,13 @@ export function pintarAnadirCartera(raiz, ctx) {
     ta.autocapitalize = 'off';
     ta.spellcheck = false;
     cSemilla.append(l, ta);
-    c.append(cSemilla);
+    c.append(cSemilla, derivacion.caja);
 
     c.append(boton(t('Importar esa semilla'), async () => {
         const nombre = document.getElementById('nombre').value.trim() || 'Cartera importada';
         salida.innerHTML = '';
         try {
-            const { cuentas } = await boveda.importar(document.getElementById('clave').value, ta.value, nombre, red.valor());
+            const { cuentas } = await boveda.importar(document.getElementById('clave').value, ta.value, nombre, red.valor(), derivacion.valor());
             ctx.alTerminar(cuentas);
         } catch (e) {
             error(salida, t(String(e.message || e)));
@@ -296,7 +303,8 @@ export function pintarAnadirCartera(raiz, ctx) {
     const cClave = elemento('div', null, 'campo');
     const lc = document.createElement('label');
     lc.setAttribute('for', 'privada');
-    lc.textContent = t('O importa una clave privada (64 caracteres)');
+    // 64 caracteres la normal; la de Chainweaver y Linx es de 256 y se reconoce sola.
+    lc.textContent = t('O importa una clave privada (64 caracteres, o la larga de Chainweaver y Linx)');
     const tc = document.createElement('textarea');
     tc.id = 'privada';
     tc.rows = 2;

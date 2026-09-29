@@ -41,8 +41,11 @@ import { t } from '../idioma.js';
  * @type {{
  *   estado: () => Promise<EstadoBoveda>,
  *   crear: (contrasena: string, etiqueta?: string, red?: 'kda'|'evm') => Promise<{ semilla: string, cuentas: CuentaPublica[] }>,
- *   importar: (contrasena: string, semilla: string, etiqueta?: string, red?: 'kda'|'evm') => Promise<{ cuentas: CuentaPublica[] }>,
+ *   importar: (contrasena: string, semilla: string, etiqueta?: string, red?: 'kda'|'evm', derivacion?: 'std'|'cw') => Promise<{ cuentas: CuentaPublica[] }>,
+ *      (`derivacion`: 'std' = SLIP-0010, la de eckoWallet/Koala y la de las carteras que nacen aqui;
+ *       'cw' = la de Chainweaver y Linx, que da OTRA cuenta de las mismas palabras. Solo cuenta en Kadena.)
  *   importarClave: (contrasena: string, privada: string, etiqueta?: string, red?: 'kda'|'evm') => Promise<{ cuentas: CuentaPublica[] }>,
+ *      (en Kadena admite 64 hex, 128 -privada+publica- o 256: la clave completa de Chainweaver/Linx)
  *   abrir: (contrasena: string) => Promise<{ cuentas: CuentaPublica[] }>,
  *   cerrar: () => Promise<void>,
  *   cuentas: () => Promise<CuentaPublica[]>,

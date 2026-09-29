@@ -77,7 +77,8 @@ export const bovedaNativa = {
         return { existe: !!r.existe, abierta: !!r.abierta, motor: 'nativa' };
     },
     async crear(contrasena, etiqueta, red) { return llamar('crear', { contrasena, etiqueta, red }); },
-    async importar(contrasena, semilla, etiqueta, red) { return llamar('importar', { contrasena, semilla, etiqueta, red }); },
+    // `derivacion`: 'std' (SLIP-0010, la normal) o 'cw' (Chainweaver / Linx). Solo cuenta en Kadena.
+    async importar(contrasena, semilla, etiqueta, red, derivacion = 'std') { return llamar('importar', { contrasena, semilla, etiqueta, red, derivacion }); },
     async importarClave(contrasena, privada, etiqueta, red) { return llamar('importarClave', { contrasena, privada, etiqueta, red }); },
     async renombrarCartera(contrasena, id, etiqueta) { return llamar('renombrarCartera', { contrasena, id, etiqueta }); },
     async borrarCartera(contrasena, id) { return llamar('borrarCartera', { contrasena, id }); },

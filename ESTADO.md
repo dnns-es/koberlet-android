@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-28 · En `descargas.dnns.es`: **0.61.0** · En TestFlight: **0.61.0** (build 22) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-29 · En `descargas.dnns.es`: **0.62.0** · En TestFlight: **0.61.0** (build 22; la 0.62.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -217,6 +217,40 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 [`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
+
+## 0.62.0 (29/09/2026) — Semillas y claves de Chainweaver / Linx; umbral de 5 kb-USDC en la gasolinera
+
+- **Caso real (Telegram, 29/09):** una semilla que en Linx y en eckoWallet daba la misma
+  cuenta, en Koberlet daba otra. **Causa:** Chainweaver no deriva por SLIP-0010 sino por el
+  BIP32-Ed25519 de Cardano (`cardano-crypto`, esquema v2, índice endurecido directo desde
+  la raíz), empaquetado en `@kadena/hd-wallet/chainweaver`. Linx usa esa, y eckoWallet la
+  acepta al importar: de las mismas 12 palabras salen DOS cuentas. El comentario de
+  `Derivacion.kt` decía que la nuestra «es la de Chainweaver y eckoWallet»: era falso
+  (es la de eckoWallet y Koala). El escritorio tiene el mismo hueco (`lib/wallets.js`
+  llama «chainweaver» al SLIP-0010) — fila en `PARIDAD.md`.
+- **Segunda derivación en Kotlin**: `Derivacion.privadaChainweaver` (clave extendida de 64
+  bytes), pública por multiplicación del escalar (aritmética propia con BigInteger: la de
+  Bouncy Castle es privada) y `FirmaKda.firmarExtendida`. `publicaKadena` y `firmar`
+  distinguen por tamaño (32/64), así que todas las operaciones firman sin tocarse.
+  **Probado byte a byte contra el paquete oficial** (`DerivacionTest`: raíz, claves 0-2
+  de dos semillas, clave completa de 128 bytes, y una firma hecha por la propia
+  Chainweaver verificada con nuestra pública).
+- **Al importar una semilla de Kadena** se elige «eckoWallet, Koala, Koberlet… (la
+  normal)» o «Chainweaver o Linx» (`selectorDerivacion`, primer uso y «Añadir wallet»);
+  la cartera guarda `derivacion:"cw"` y la pantalla lo dice. La misma semilla cabe dos
+  veces si es con distinta derivación. Se acepta y se exporta la **clave larga de 256
+  hex** de Chainweaver/Linx (privada extendida + pública + chain code), comprobando que
+  la pública de dentro cuadra. **La derivación por defecto no cambia.**
+- **Gasolinera con umbral** (decisión de Antonio, 28/09): el DCA (dca2) y las órdenes
+  solo van por `free.ksw-gasolinera` a partir de 5 kb-USDC de operación
+  (`llegaAlUmbral` en `src/lib/dca.js`, mismo umbral que el Mercado); por debajo paga el
+  usuario. En el DCA el KDA se valora al precio del pool.
+- Pruebas: JS 91/91, Kotlin 136/136 (`CarterasTest` 19, `DerivacionTest` 15,
+  `FirmaKdaTest` 28). Swift sin tocar: iPhone sigue solo con SLIP-0010 (PARIDAD).
+- **Publicada** (29/09/2026): APK `koberlet-0.62.0.apk`, SHA-256
+  `feeb17fc44aa1cffb8c115ed282c9775e89b088754f29852e2004ca5049225fa`, certificado 75194f6a…;
+  copia de `latest.json` y de la maqueta web con fecha. AAB de Play compilado
+  (`app-play-release.aab`, 0.62.0), **sin subir** a Play.
 
 ## 0.61.0 (28/09/2026) — Órdenes límite y precio del KDA a la vista
 
