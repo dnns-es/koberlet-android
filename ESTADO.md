@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-29 · En `descargas.dnns.es`: **0.62.0** · En TestFlight: **0.61.0** (build 22; la 0.62.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-29 · En `descargas.dnns.es`: **0.62.1** · En TestFlight: **0.62.0** (build 23; la 0.62.1 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -217,6 +217,23 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 [`PARIDAD.md`](PARIDAD.md): **todo cambio que se haga en un sistema se apunta
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
+
+## 0.62.1 (29/09/2026) — El precio del KDA con respaldo: el pool cuando CoinGecko falla
+
+- **Caso real:** el escritorio (y el iPhone) enseñaban 0,00 US$ con los saldos bien:
+  CoinGecko devolvía 403 («Request blocked», CloudFront) desde la red de Antonio. Y el
+  precio del KDA en CoinGecko solo se alimenta de CoinEx y Gate; CoinEx ha cerrado.
+- `precioKda({ red })` en `src/lib/mercado.js`: si CoinGecko falla o no trae KDA, el
+  precio sale del pool KDA/kb-USDC de la chain 2 (`reservas` de `lib/ordenes.js`,
+  1 kb-USDC = 1 $). A las otras monedas se pasa con la razón eur/usd… recordada de la
+  última respuesta buena de CoinGecko (7 días, `localStorage`), sin pedir el cambio a
+  un tercero más; sin razón recordada y moneda ≠ USD no hay precio (no se inventa).
+  El Panel dice «pool KDA/kb-USDC del Mercado» y sin «en 24 h». `test/precio.test.js`.
+- Lo mismo en el escritorio: 2.15.0 (`lib/precios.js`). PARIDAD cerrada en los tres.
+- Pruebas: JS 97/97.
+- **Publicada** (29/09/2026): APK `koberlet-0.62.1.apk`, SHA-256
+  `67b8c78e2b094bd29618107d116ed4e897680e9594ca564b0e0fcd87ee06a125`, certificado 75194f6a…,
+  comprobado por HTTPS; copias de `latest.json` y de la maqueta web con fecha.
 
 ## 0.62.0 (29/09/2026) — Semillas y claves de Chainweaver / Linx; umbral de 5 kb-USDC en la gasolinera
 

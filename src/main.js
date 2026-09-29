@@ -724,7 +724,7 @@ async function hojaRecibir(cuenta, chainSugerida = 2) {
         // el QR son KDA: una hoja abierta veinte minutos pediria los KDA que
         // valian diez euros hace veinte minutos, y en una cuenta grande eso ya no
         // son céntimos. Refrescando, el codigo pide siempre lo que valen ahora.
-        const traerPrecio = () => precioKda({ maxEdadMs: REFRESCO_PRECIO_MS }).then((p) => {
+        const traerPrecio = () => precioKda({ maxEdadMs: REFRESCO_PRECIO_MS, red: redActiva }).then((p) => {
             if (!p) return;                    // sin red se conserva el anterior y el pie lo dira
             precio = p;
             for (const o of opcionesMoneda) o.disabled = precioDe(o.value) === null;
@@ -1076,7 +1076,6 @@ function tarjetaCartera(grupo) {
                     subCripto: t('{0} · lo que hay en KDA', redActiva.nombre),
                 });
 
-                const signo = p.cambio24h >= 0 ? '+' : '';
                 // El «en 24 h» es del KDA, no del total: un total con dólares dentro
                 // no se mueve lo que se mueve el KDA, y colgarle ese porcentaje al
                 // lado sería dar por bueno un dato que no es de lo que se enseña.
@@ -1084,9 +1083,17 @@ function tarjetaCartera(grupo) {
                 // Y el precio va A LA VISTA, con de dónde sale y de cuándo es
                 // (sugerencia de un usuario en Telegram, 28/09/2026): un total en
                 // euros sin decir a qué cambio está hecho no se puede comprobar.
+                // Si CoinGecko no contesta, el precio es el del pool KDA/kb-USDC del
+                // Mercado (29/09/2026), y entonces se dice eso y no hay «en 24 h».
                 const hora = new Date(p.cuando).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
-                let txt = t('1 KDA = {0} ({1} % en 24 h) · CoinGecko, {2}',
-                    formateaPrecio(p.unidad, locale()), signo + p.cambio24h.toFixed(1), hora);
+                let txt;
+                if (p.fuente === 'pool' || !Number.isFinite(p.cambio24h)) {
+                    txt = t('1 KDA = {0} · pool KDA/kb-USDC del Mercado, {1}', formateaPrecio(p.unidad, locale()), hora);
+                } else {
+                    const signo = p.cambio24h >= 0 ? '+' : '';
+                    txt = t('1 KDA = {0} ({1} % en 24 h) · CoinGecko, {2}',
+                        formateaPrecio(p.unidad, locale()), signo + p.cambio24h.toFixed(1), hora);
+                }
                 // Si hay algo en la cartera a lo que no se le sabe el precio, el
                 // total NO lo lleva dentro y hay que decirlo: si no, se lee como
                 // «esto es todo lo que tengo» y no lo es.
@@ -1115,8 +1122,11 @@ function tarjetaCartera(grupo) {
                 }
             };
 
-            precioKda().then((p) => {
-                if (!p) return;
+            // Con la red activa: si CoinGecko falla, el precio sale del pool. Sin
+            // precio en la moneda elegida (respaldo sin cambio recordado) no se
+            // pinta nada: un NaN en el total sería peor que el hueco.
+            precioKda({ red: redActiva }).then((p) => {
+                if (!p || !(p.unidad > 0)) return;
                 enDinero.precio = p;
                 pintarDinero();
             });
@@ -1330,7 +1340,7 @@ function tarjetaEvm(c, evm, bloqueTotal, cifra, acciones, lista, detalle) {
             // El precio llega después y por su cuenta; hasta entonces la tarjeta ya
             // es útil con las cantidades. Cuando llega, cada línea dice lo que vale y
             // el número grande puede enseñar el total en dinero -de un toque-.
-            precioKda().then((p) => {
+            precioKda({ red: redActiva }).then((p) => {
                 if (!p) return;
                 let suma = 0;
                 let sinPrecio = false;

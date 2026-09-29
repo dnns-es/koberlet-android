@@ -687,6 +687,7 @@ const EN = {
     '{0} · valor de la cartera': '{0} · wallet value',
     '{0} · lo que hay en KDA': '{0} · how much KDA there is',
     '1 KDA = {0} ({1} % en 24 h) · CoinGecko, {2}': '1 KDA = {0} ({1}% in 24 h) · CoinGecko, {2}',
+    '1 KDA = {0} · pool KDA/kb-USDC del Mercado, {1}': '1 KDA = {0} · KDA/kb-USDC pool on the Market, {1}',
     '{0} contado a {1} KDA, que es su precio de venta: todavía no cotiza en ningún mercado.':
         '{0} counted at {1} KDA, which is its sale price: it is not traded on any market yet.',
     'sin contar lo que no tiene precio conocido': 'not counting what has no known price',
