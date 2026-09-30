@@ -218,6 +218,26 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.63.0 (30/09/2026) — Precio límite en el DCA; el Mercado abre en kb-USDC → KDA
+
+- **Pedido por Antonio** («en dca poner limite de precio», «por defecto cuando se abre
+  mercado quiero kb-USDC KDA»). El contrato ya tenía el precio límite ([P8]:
+  `set-limit`/`limit-of` en ksw-dca2 y ksw-dca3); faltaba en la app.
+- Precio en TOKEN por KDA (el lado que no es KDA). Comprando KDA solo ejecuta si el neto
+  ≤ límite; vendiendo, si ≥. 0 = sin límite; si no se cumple, la cuota se salta y se
+  reintenta en la siguiente. Se pone al crear (casilla opcional) o desde el historial
+  («Precio límite»). Como vive en otra tabla y exige que el plan exista, al crear con
+  límite se manda `set-limit` DESPUÉS de que el plan entre en un bloque, con la misma
+  contraseña/huella; si falla, el plan existe y se pone desde el historial.
+- Kotlin: acción `limite` en `FirmaKda.gestionarPlanDca` (sin clist, 12 decimales,
+  0..1000, nunca por la gasolinera). Swift: la misma rama, sin compilar (no hay Swift en
+  Windows). JS: `leerLimites` en `src/lib/dca.js`, UNA lectura para todos los planes
+  vivos; `null` = sin leer, que se enseña como tal y no como «sin límite».
+- Mercado: de fábrica kb-USDC arriba y KDA abajo (`pantalla-mercado.js`).
+- Escritorio: lo mismo en la 2.16.0, más la comprobación de saldo antes de firmar un
+  cambio (Antonio pagó tres veces el gas pidiendo 100 kb-USDC con 22).
+- Pruebas: JS 98/98, Kotlin 137/137.
+
 ## 0.62.1 (29/09/2026) — El precio del KDA con respaldo: el pool cuando CoinGecko falla
 
 - **Caso real:** el escritorio (y el iPhone) enseñaban 0,00 US$ con los saldos bien:

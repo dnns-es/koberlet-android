@@ -151,7 +151,44 @@ function planEnClaro(p, contrato) {
         // Cuantas compras quedan con lo que hay en el bote: es el dato que
         // de verdad dice cuanto le queda de vida al plan.
         quedan: cuota > 0 ? Math.floor(bote / cuota) : 0,
+        // El precio limite vive en otra tabla del contrato y se lee aparte
+        // (`leerLimites`). null = sin leer; 0 = sin limite.
+        limite: null,
     };
+}
+
+// --- Precio limite ([P8] del contrato) ------------------------------------------
+//
+// Por plan, un precio en TOKEN por KDA, siendo TOKEN el lado que no es KDA (kb-USDC
+// casi siempre). Comprando KDA solo se ejecuta si el precio neto queda por debajo o
+// igual; vendiendo, por encima o igual. 0 = sin limite; si no se cumple, esa cuota
+// no sale y se prueba en la siguiente. Lo pidio Antonio el 30/09/2026.
+
+/** MAX-LIMIT-PRICE del contrato. */
+export const LIMITE_MAX = 1000;
+
+/** ¿Es una venta de KDA? Entonces el limite es un suelo; si no, un techo. */
+export const esVentaKda = (simboloEntra) => simboloEntra === 'KDA';
+
+/** El token en que se expresa el limite: el lado del par que no es KDA. */
+export const tokenDelLimite = (simboloEntra, simboloSale) => (esVentaKda(simboloEntra) ? simboloSale : simboloEntra);
+
+/**
+ * Rellena `limite` en los planes vivos con UNA lectura para todos: una lista de
+ * `limit-of`, cada uno en su contrato. Si la lectura falla, se quedan en null,
+ * que la pantalla pinta como «sin leer» y no como «sin limite».
+ */
+async function leerLimites(planes, red) {
+    const vivos = planes.filter((p) => p.estado !== 'closed' && /^[A-Za-z0-9:_.-]{1,64}$/.test(p.id));
+    planes.forEach((p) => { if (p.estado === 'closed') p.limite = 0; });
+    if (!vivos.length) return;
+    const code = '[' + vivos.map((p) => `(${CONTRATOS[p.contrato].modulo}.limit-of "${p.id}")`).join(' ') + ']';
+    const r = await local(red.nodo, red.networkId, CHAIN, code).catch(() => null);
+    if (!r || r.status !== 'success' || !Array.isArray(r.data)) return;
+    vivos.forEach((p, i) => {
+        const v = num(r.data[i]);
+        p.limite = Number.isFinite(v) ? v : null;
+    });
 }
 
 /**
@@ -179,6 +216,7 @@ export async function planesDe(cuenta, red) {
     if (fallidos.length === claves.length) {
         throw new Error('No se pudieron leer tus planes de compra.');
     }
+    await leerLimites(planes, red);
     planes.fallidos = fallidos;
     return planes;
 }

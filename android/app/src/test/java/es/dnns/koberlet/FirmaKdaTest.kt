@@ -214,6 +214,20 @@ class FirmaKdaTest {
     }
 
     @Test
+    fun `el precio limite se firma sin clist, con 12 decimales, y fuera de 0 a 1000 no se firma`() {
+        val o = gestion("limite", "dca2", cantidad = 0.5)
+        assertEquals("(free.ksw-dca2.set-limit \"$idDca\" 0.500000000000)", codigoDe(o))
+        assertFalse(o.toString().contains("clist"))
+        assertEquals(ownerDca, o.getJSONObject("meta").getString("sender"))
+        // 0 quita el limite y SI se firma; bro por KDA son millonesimas y tienen que caber.
+        assertEquals("(free.ksw-dca3.set-limit \"$idDca\" 0.000000000000)", codigoDe(gestion("limite", "dca3", cantidad = 0.0)))
+        assertEquals("(free.ksw-dca3.set-limit \"$idDca\" 0.000002000000)", codigoDe(gestion("limite", "dca3", cantidad = 0.000002)))
+        rechaza("un precio negativo no se firma") { gestion("limite", "dca2", cantidad = -1.0) }
+        rechaza("por encima del tope del contrato no se firma") { gestion("limite", "dca2", cantidad = 1000.5) }
+        rechaza("el limite no va por la gasolinera") { gestion("limite", "dca2", cantidad = 0.5, gratis = true) }
+    }
+
+    @Test
     fun `un plan de kb-ETH va al dca3 con su custodia y el importe igual en codigo y capability`() {
         val o = crear("kb-ETH", haciaToken = false, deposito = 0.004, cuota = 0.0004)
         val codigo = codigoDe(o)

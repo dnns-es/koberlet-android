@@ -164,6 +164,8 @@ public enum FirmaKda {
     // sola.
 
     public static let dcaChain = "2"
+    /// MAX-LIMIT-PRICE del contrato: tope del precio limite, en TOKEN por KDA.
+    public static let dcaLimiteMax = 1000.0
     private static let dcaKda = "coin"
 
     /// Un contrato de compras periodicas y la cuenta que custodia sus botes.
@@ -279,6 +281,13 @@ public enum FirmaKda {
             codigo = "(\(c.modulo).resume-plan \\\"\(id)\\\")"; clist = ""
         case "cerrar":
             codigo = "(\(c.modulo).close-plan \\\"\(id)\\\")"; clist = ""
+        case "limite":
+            // Precio limite del plan ([P8] del contrato): TOKEN por KDA, neto. 0 lo
+            // quita, asi que no pasa por decimalDca. Igual que Kotlin (30/09/2026).
+            if cantidad.isNaN || cantidad < 0 || cantidad > dcaLimiteMax {
+                throw FalloBoveda.argumento("El precio límite va de 0 a 1000.")
+            }
+            codigo = "(\(c.modulo).set-limit \\\"\(id)\\\" \(decimalCanonico(cantidad)))"; clist = ""
         case "recargar":
             if cantidad <= 0 { throw FalloBoveda.argumento("La cantidad tiene que ser mayor que cero.") }
             let t = try entra == "KDA" ? dcaKdaToken : tokenDca(entra)

@@ -1169,6 +1169,23 @@ const EN = {
     'Compras hechas': 'Buys done',
     'Comprado': 'Bought',
     'Siguiente compra': 'Next buy',
+    'Precio límite': 'Price limit',
+    'sin leer': 'not read',
+    'Sin límite': 'No limit',
+    'Solo vende si 1 KDA ≥ {0} {1}. Si el precio está por debajo, esa cuota se salta y se prueba en la siguiente.':
+        'Sells only if 1 KDA ≥ {0} {1}. If the price is below, that sale is skipped and tried again next time.',
+    'Solo compra si 1 KDA ≤ {0} {1}. Si el precio está por encima, esa cuota se salta y se prueba en la siguiente.':
+        'Buys only if 1 KDA ≤ {0} {1}. If the price is above, that buy is skipped and tried again next time.',
+    'Precio límite en {0} por KDA. 0 para quitarlo.': 'Price limit in {0} per KDA. 0 to remove it.',
+    'El precio límite va de 0 a 1000.': 'The price limit goes from 0 to 1000.',
+    'Se quita el precio límite: el plan compra al precio que haya.': 'The price limit is removed: the plan buys at whatever the price is.',
+    '✓ Precio límite fijado.': '✓ Price limit set.',
+    'Precio límite en {0} por KDA (opcional)': 'Price limit in {0} per KDA (optional)',
+    'Sin límite: compra al precio que haya. Escribe un precio para que solo compre por debajo de él (o venda por encima).':
+        'No limit: buys at whatever the price is. Enter a price so it only buys below it (or sells above it).',
+    'Ahora se fija el precio límite ({0} {1} por KDA).': 'Now the price limit is being set ({0} {1} per KDA).',
+    'El plan se creó, pero no se pudo fijar el precio límite: {0}. Ponlo desde el historial.':
+        'The plan was created, but the price limit could not be set: {0}. Set it from the history.',
     'cada {0} días': 'every {0} days',
     'cada {0} horas': 'every {0} hours',
     'cada {0} minutos': 'every {0} minutes',

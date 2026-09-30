@@ -336,6 +336,16 @@ final class FirmaKdaTests: XCTestCase {
                                             cantidad: cantidad, contrato: contrato, entra: entra,
                                             privada: privada, publica: publica, creationTime: 1))
     }
+    func testElPrecioLimiteSeFirmaSinClistYFueraDeRangoNo() throws {
+        let o = try gestionDca("limite", "dca2", "", 0.5)
+        XCTAssertEqual(code(o), "(free.ksw-dca2.set-limit \"\(idDca)\" 0.500000000000)")
+        XCTAssertNil((o["signers"] as! [JSON])[0]["clist"])
+        XCTAssertEqual(code(try gestionDca("limite", "dca3", "", 0)), "(free.ksw-dca3.set-limit \"\(idDca)\" 0.000000000000)")
+        XCTAssertEqual(code(try gestionDca("limite", "dca3", "", 0.000002)), "(free.ksw-dca3.set-limit \"\(idDca)\" 0.000002000000)")
+        XCTAssertThrowsError(try gestionDca("limite", "dca2", "", -1))
+        XCTAssertThrowsError(try gestionDca("limite", "dca2", "", 1000.5))
+    }
+
     private func transfer(_ cmd: JSON) -> JSON { clist(cmd)[1] }
     private func custodia(_ cmd: JSON) -> String { (transfer(cmd)["args"] as! [Any])[1] as! String }
     private func monto(_ cmd: JSON) -> String { ((transfer(cmd)["args"] as! [Any])[2] as! JSON)["decimal"] as! String }

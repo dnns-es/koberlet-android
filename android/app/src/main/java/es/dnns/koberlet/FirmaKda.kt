@@ -343,6 +343,8 @@ object FirmaKda {
     // ejecutar codigo en el WebView, no puede hacer que la app firme un ingreso a
     // otra cuenta ni contra otro contrato: no hay hueco donde meterlo.
     const val DCA_CHAIN = "2"
+    /** MAX-LIMIT-PRICE del contrato: tope del precio limite, en TOKEN por KDA. */
+    const val DCA_LIMITE_MAX = 1000.0
     private const val DCA_KDA = "coin"
 
     /**
@@ -591,6 +593,19 @@ object FirmaKda {
             }
             "cerrar" -> {
                 codigo = """(${c.modulo}.close-plan \"$id\")"""
+                clist = ""
+            }
+            "limite" -> {
+                // Precio limite del plan ([P8] del contrato): TOKEN por KDA, neto. En
+                // una compra de KDA solo se ejecuta si el precio queda por debajo o
+                // igual; en una venta, por encima o igual. 0 lo quita. Va en
+                // `cantidad`, y admite 0 a proposito, asi que no pasa por decimalDca.
+                // Lo pidio Antonio el 30/09/2026; el escritorio lo firma igual.
+                if (cantidad.isNaN() || cantidad < 0.0 || cantidad > DCA_LIMITE_MAX) {
+                    throw IllegalArgumentException("El precio límite va de 0 a 1000.")
+                }
+                val precio = String.format(java.util.Locale.US, "%.12f", cantidad)
+                codigo = """(${c.modulo}.set-limit \"$id\" $precio)"""
                 clist = ""
             }
             "recargar" -> {

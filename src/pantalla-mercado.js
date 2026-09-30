@@ -153,12 +153,12 @@ function bloqueCambio(raiz, ctx) {
 function cambiador(ctx, m, lista, kda) {
     const raiz = elemento('div');
 
-    // De fábrica, KDA arriba y kb-USDC abajo: es el cambio que se hace el 90 % de
-    // las veces en este mercado. Si algún día no hubiera par de kb-USDC, se cae al
-    // primero con fondo en vez de dejar el lado vacío.
+    // De fábrica, kb-USDC arriba y KDA abajo: es el cambio que se hace casi siempre
+    // en este mercado (Antonio, 30/09/2026; igual en el escritorio). Si algún día no
+    // hubiera par de kb-USDC, se cae al primero con fondo en vez de dejar el lado vacío.
     const usdc = m.tokens.find((x) => x.simbolo === 'kb-USDC') || m.tokens[0];
-    const doy = lado('mk-doy', t('Doy'), lista, 'coin', true);
-    const recibo = lado('mk-recibo', t('Recibo'), lista, usdc.modulo, false);
+    const doy = lado('mk-doy', t('Doy'), lista, usdc.modulo, true);
+    const recibo = lado('mk-recibo', t('Recibo'), lista, 'coin', false);
 
     const vuelta = elemento('div', null, 'da-la-vuelta');
     const bVuelta = document.createElement('button');

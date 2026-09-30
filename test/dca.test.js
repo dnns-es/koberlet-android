@@ -138,15 +138,33 @@ test('la lista de planes lee los dos contratos y marca cada plan con el suyo', a
         if (code.startsWith('(free.ksw-dca3.plans-of')) {
             return { status: 'success', data: [plan('a-2', { refName: { namespace: null, name: 'runonflux.flux' } }, 'coin')] };
         }
+        // Los precios limite, los dos en UNA lectura y cada uno en su contrato.
+        if (code === '[(free.ksw-dca2.limit-of "a-1") (free.ksw-dca3.limit-of "a-2")]') {
+            return { status: 'success', data: [{ decimal: '0.5' }, 0] };
+        }
         return { status: 'failure', error: { message: 'no' } };
     }, async (vistos) => {
         const planes = await planesDe(CUENTA, RED);
-        assert.equal(vistos.length, 2);
-        assert.deepEqual(planes.map((p) => [p.id, p.contrato, p.claveEntra, p.simboloEntra]), [
-            ['a-1', 'dca2', 'KDA', 'KDA'],
-            ['a-2', 'dca3', 'FLUX', 'FLUX'],
+        assert.equal(vistos.length, 3);
+        assert.deepEqual(planes.map((p) => [p.id, p.contrato, p.claveEntra, p.simboloEntra, p.limite]), [
+            ['a-1', 'dca2', 'KDA', 'KDA', 0.5],
+            ['a-2', 'dca3', 'FLUX', 'FLUX', 0],
         ]);
         assert.deepEqual(planes.fallidos, []);
+    });
+});
+
+test('si los limites no se pueden leer, quedan en null y los planes se ven igual', async () => {
+    const plan = { id: 'a-1', status: 'active', 'token-in': 'coin', 'token-out': TOKENS['kb-USDC'].modulo,
+        quota: { decimal: '1.0' }, balance: { decimal: '5.0' }, period: { int: 3600 }, buys: { int: 0 } };
+    const cerrado = { ...plan, id: 'a-9', status: 'closed' };
+    await conNodo((code) => {
+        if (code.startsWith('(free.ksw-dca2.plans-of')) return { status: 'success', data: [plan, cerrado] };
+        if (code.startsWith('(free.ksw-dca3.plans-of')) return { status: 'success', data: [] };
+        return { status: 'failure', error: { message: 'roto' } };
+    }, async () => {
+        const planes = await planesDe(CUENTA, RED);
+        assert.deepEqual(planes.map((p) => [p.id, p.limite]), [['a-1', null], ['a-9', 0]]);
     });
 });
 
