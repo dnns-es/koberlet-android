@@ -1,6 +1,6 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-29 · En `descargas.dnns.es`: **0.62.1** · En TestFlight: **0.62.0** (build 23; la 0.62.1 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.0** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
@@ -237,6 +237,9 @@ que se escriba por qué no debe estarlo.
 - Escritorio: lo mismo en la 2.16.0, más la comprobación de saldo antes de firmar un
   cambio (Antonio pagó tres veces el gas pidiendo 100 kb-USDC con 22).
 - Pruebas: JS 98/98, Kotlin 137/137.
+- **Publicada** (30/09/2026): APK `koberlet-0.63.0.apk`, SHA-256
+  `3720482b6f9f755a2a891cf69c33d9f151d1a2294e460185a17efef9354222b3`, comprobado por HTTPS;
+  copias de `latest.json` y de la maqueta web con fecha.
 
 ## 0.62.1 (29/09/2026) — El precio del KDA con respaldo: el pool cuando CoinGecko falla
 
