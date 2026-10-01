@@ -8,7 +8,7 @@
 // en el plugin, con la contrasena o la huella; esta pantalla solo junta numeros y
 // reenvia al nodo el comando ya firmado.
 
-import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan, gasolineraLista, llegaAlUmbral, motivoGas, GAS_GASOLINERA, MARGEN_GAS, LIMITE_MAX, esVentaKda, tokenDelLimite } from './lib/dca.js';
+import { planesDe, enPausa, TOKENS, OTROS, CONTRATOS, PERIODOS, cuentasDelPlan, gasolineraLista, llegaAlUmbral, motivoGas, GAS_GASOLINERA, MARGEN_GAS, LIMITE_MAX, limiteDesdePago, pagoDesdeLimite, pagoActual, redondeoArriba, reservasPar } from './lib/dca.js';
 import { reservas } from './lib/ordenes.js';
 import { Capacitor } from '@capacitor/core';
 import { saldoEnMercado } from './lib/dex.js';
@@ -54,29 +54,36 @@ function estadoEnClaro(estado) {
 
 // --- Precio limite ([P8] del contrato) -----------------------------------------
 //
-// Se dice siempre como «1 KDA ≤ 0,5 kb-USDC»: comprando KDA el limite es un techo
-// y vendiendo, un suelo. Es la forma en que se lee un precio, y la misma que en el
-// escritorio. Lo pidio Antonio el 30/09/2026: «en dca poner limite de precio».
+// En pantalla se dice SIEMPRE como techo de lo que pagas: «como mucho P de lo que
+// entregas por cada unidad de lo que compras». Asi no hay que dar la vuelta a nada
+// segun se compre o se venda KDA (Antonio, 01/10/2026: «es mucho lio de palabras»).
+// Lo que firma el contrato (TOKEN por KDA) sale de `limiteDesdePago`.
 
-/** «1 KDA ≤ 0,5 kb-USDC», sin traducir: son simbolos y numeros. */
-function limiteEnClaro(precio, simboloEntra, simboloSale) {
-    return '1 KDA ' + (esVentaKda(simboloEntra) ? '≥' : '≤') + ' ' + numero(precio) + ' ' + tokenDelLimite(simboloEntra, simboloSale);
+/** P con cuatro cifras que se lean: en bro son millonesimas y `numero` las comeria. */
+const fmtPago = (v) => Number(v).toLocaleString(locale(), { maximumSignificantDigits: 4 });
+
+/** «Como mucho 117,6 KDA por cada kb-USDC», a partir de lo que guarda el contrato. */
+function limiteEnClaro(limite, simboloEntra, simboloSale) {
+    return t('Como mucho {0} {1} por cada {2}', fmtPago(pagoDesdeLimite(limite, simboloEntra === 'KDA')), simboloEntra, simboloSale);
 }
 
-/** Lo que hace el plan con ese limite, en una frase. */
-function queHaceElLimite(precio, simboloEntra, simboloSale) {
-    const tk = tokenDelLimite(simboloEntra, simboloSale);
-    return esVentaKda(simboloEntra)
-        ? t('Solo vende si 1 KDA ≥ {0} {1}. Si el precio está por debajo, esa cuota se salta y se prueba en la siguiente.', numero(precio), tk)
-        : t('Solo compra si 1 KDA ≤ {0} {1}. Si el precio está por encima, esa cuota se salta y se prueba en la siguiente.', numero(precio), tk);
+/** Lo que hace el plan con ese pago maximo, en una frase. */
+function queHaceElLimite(pago, simboloEntra, simboloSale) {
+    return t('Solo compra si cada {2} te cuesta {0} {1} o menos. Si sale más caro, esa cuota se salta y se prueba en la siguiente.',
+        fmtPago(pago), simboloEntra, simboloSale);
 }
 
-/** El precio limite tal y como lo escribe la gente, o null si no vale. */
-function limiteEscrito(texto) {
+/**
+ * Lo escrito en la casilla, pasado a lo que firma el contrato. 0 si esta vacia (sin
+ * limite) y null si no vale: negativo, no es un numero o se sale del tope del contrato.
+ */
+function limiteEscrito(texto, simboloEntra) {
     const s = String(texto || '').trim().replace(',', '.');
     if (s === '') return 0;
     const n = Number(s);
-    return Number.isFinite(n) && n >= 0 && n <= LIMITE_MAX ? n : null;
+    if (!Number.isFinite(n) || n < 0) return null;
+    const l = limiteDesdePago(n, simboloEntra === 'KDA');
+    return l <= LIMITE_MAX ? l : null;
 }
 
 /** «cada 7 días», «cada 12 horas»: en segundos no se entiende nada. */
@@ -239,20 +246,20 @@ function botonesPlan(p, raiz, ctx, kda) {
         const campo = elemento('div', null, 'campo');
         const l = document.createElement('label');
         l.setAttribute('for', 'limite-' + p.id);
-        l.textContent = t('Precio límite en {0} por KDA. 0 para quitarlo.', tokenDelLimite(p.simboloEntra, p.simboloSale));
+        l.textContent = t('Como mucho, ¿cuántos {0} pagas por cada {1}? 0 para quitar el límite.', p.simboloEntra, p.simboloSale);
         const i = document.createElement('input');
         i.id = 'limite-' + p.id;
         i.type = 'text';
         i.inputMode = 'decimal';
         i.placeholder = '0.0';
-        if (p.limite > 0) i.value = String(p.limite);
+        if (p.limite > 0) i.value = String(Number(pagoDesdeLimite(p.limite, p.simboloEntra === 'KDA').toPrecision(6)));
         campo.append(l, i);
         const seguir = document.createElement('button');
         seguir.textContent = t('Continuar');
         seguir.addEventListener('click', () => {
-            const precio = limiteEscrito(i.value);
+            const precio = limiteEscrito(i.value, p.simboloEntra);
             if (precio === null) {
-                salida.append(elemento('p', t('El precio límite va de 0 a 1000.'), 'malo'));
+                salida.append(elemento('p', t('Ese precio límite no vale: tiene que ser mayor que 0.'), 'malo'));
                 return;
             }
             confirmar('limite', precio);
@@ -298,7 +305,7 @@ function botonesPlan(p, raiz, ctx, kda) {
             aviso = t('Se ingresan {0} {1} más en el contrato ahora mismo.', numero(cantidad), p.simboloEntra);
         } else if (accion === 'limite') {
             aviso = cantidad > 0
-                ? queHaceElLimite(cantidad, p.simboloEntra, p.simboloSale)
+                ? queHaceElLimite(pagoDesdeLimite(cantidad, p.simboloEntra === 'KDA'), p.simboloEntra, p.simboloSale)
                 : t('Se quita el precio límite: el plan compra al precio que haya.');
         } else {
             aviso = t('Se cierra el plan y te devuelve {0} {1} a tu cuenta. Un plan cerrado no se reabre: para seguir comprando habría que crear otro.', numero(p.bote), p.simboloEntra);
@@ -548,14 +555,43 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
     limite.append(limiteEtiqueta, limiteEntrada);
     const limiteAyuda = elemento('p', null, 'nota');
     c.append(limite, limiteAyuda);
+    // La casilla se rellena sola con lo que pagarias ahora, mientras no se toque.
+    // Con lo que pagarias DE VERDAD con esa cuota (comisiones y empujon al pool),
+    // no con el precio de pizarra: con ese, el plan no compraria nunca al de ahora.
+    let limiteAuto = true;
+    let pagoAhora = 0;
+    let vueltaPago = 0;
+    let esperaPago = null;
     const pintaLimite = () => {
-        limiteEtiqueta.textContent = t('Precio límite en {0} por KDA (opcional)', tokenDelLimite(entra().simbolo, sale().simbolo));
-        const v = limiteEscrito(limiteEntrada.value);
-        limiteAyuda.textContent = v === null ? t('El precio límite va de 0 a 1000.')
-            : v > 0 ? queHaceElLimite(v, entra().simbolo, sale().simbolo)
-                : t('Sin límite: compra al precio que haya. Escribe un precio para que solo compre por debajo de él (o venda por encima).');
+        const de = entra().simbolo;
+        const a = sale().simbolo;
+        limiteEtiqueta.textContent = t('Pagas como mucho ({0} por cada {1})', de, a);
+        const v = limiteEscrito(limiteEntrada.value, de);
+        const pago = Number(String(limiteEntrada.value).replace(',', '.'));
+        const ahora = pagoAhora > 0 ? ' ' + t('Ahora, con esta cuota: {0} {1} por cada {2}.', fmtPago(pagoAhora), de, a) : '';
+        limiteAyuda.textContent = (v === null ? t('Ese precio límite no vale: tiene que ser mayor que 0.')
+            : v > 0 ? queHaceElLimite(pago, de, a)
+                : t('Sin límite: compra al precio que haya.')) + ahora;
     };
-    limiteEntrada.addEventListener('input', pintaLimite);
+    const precioDeAhora = () => {
+        clearTimeout(esperaPago);
+        esperaPago = setTimeout(async () => {
+            const vuelta = ++vueltaPago;
+            try {
+                const { rk, rt } = await reservasPar(ctx.red, TOKENS[otro].modulo);
+                if (vuelta !== vueltaPago) return;
+                pagoAhora = pagoActual({ rk, rt, entregaKda: haciaToken, cuota: Number(String(cuota.input.value).replace(',', '.')) || 0 });
+                if (limiteAuto && pagoAhora > 0) limiteEntrada.value = String(redondeoArriba(pagoAhora));
+            } catch (_) {
+                if (vuelta === vueltaPago) pagoAhora = 0;
+            }
+            pintaLimite();
+        }, 350);
+    };
+    limiteEntrada.addEventListener('input', () => {
+        limiteAuto = limiteEntrada.value === '';
+        pintaLimite();
+    });
 
     const resumen = elemento('p', null, 'nota');
     const salida = elemento('div');
@@ -595,10 +631,11 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
     const olvidarAviso = () => { if (!enMarcha) salida.innerHTML = ''; };
 
     bote.input.addEventListener('input', () => { olvidarAviso(); resumir(); });
-    cuota.input.addEventListener('input', () => { olvidarAviso(); resumir(); });
+    cuota.input.addEventListener('input', () => { olvidarAviso(); resumir(); precioDeAhora(); });
     cada.sel.addEventListener('change', olvidarAviso);
     resumir();
     pintaLimite();
+    precioDeAhora();
     pintaSaldo();
 
     girar.addEventListener('click', () => {
@@ -607,7 +644,10 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         pintaPar();
         olvidarAviso();
         resumir();
+        limiteAuto = true;
+        pagoAhora = 0;
         pintaLimite();
+        precioDeAhora();
         pintaSaldo();
     });
 
@@ -618,7 +658,10 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         otro = eligeToken.value;
         olvidarAviso();
         resumir();
+        limiteAuto = true;
+        pagoAhora = 0;
         pintaLimite();
+        precioDeAhora();
         pintaSaldo();
     });
 
@@ -636,8 +679,8 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         if (!(dep > 0) || !(cuo > 0)) return malo(t('Escribe el bote y la cuota.'));
         if (cuo > dep) return malo(t('La cuota no puede ser mayor que el bote.'));
         if (cuo < min) return malo(t('Cada compra tiene que ser de al menos {0} {1}.', min, entra().simbolo));
-        const lim = limiteEscrito(limiteEntrada.value);
-        if (lim === null) return malo(t('El precio límite va de 0 a 1000.'));
+        const lim = limiteEscrito(limiteEntrada.value, entra().simbolo);
+        if (lim === null) return malo(t('Ese precio límite no vale: tiene que ser mayor que 0.'));
 
         const cClave = elemento('div', null, 'campo');
         const l = document.createElement('label');
@@ -651,7 +694,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
         salida.append(
             elemento('p', t('Se ingresa el bote entero ({0} {1}) en el contrato ahora mismo. Lo que no se llegue a gastar se recupera al cerrar el plan.', numero(dep), entra().simbolo), 'nota'),
         );
-        if (lim > 0) salida.append(elemento('p', queHaceElLimite(lim, entra().simbolo, sale().simbolo), 'nota'));
+        if (lim > 0) salida.append(elemento('p', queHaceElLimite(pagoDesdeLimite(lim, entra().simbolo === 'KDA'), entra().simbolo, sale().simbolo), 'nota'));
         salida.append(cClave);
         const firmar = document.createElement('button');
         firmar.textContent = t('Firmar y crear');
@@ -676,7 +719,7 @@ function bloqueNuevoPlan(raiz, ctx, kda) {
      * serio. Si esto falla, el plan ya existe y el limite se pone desde el historial.
      */
     async function fijarLimiteDespues(comoFirmar, id, lim) {
-        salida.append(elemento('p', t('Ahora se fija el precio límite ({0} {1} por KDA).', numero(lim), tokenDelLimite(entra().simbolo, sale().simbolo)), 'nota'));
+        salida.append(elemento('p', t('Ahora se pone el límite: como mucho {0} {1} por cada {2}.', fmtPago(pagoDesdeLimite(lim, entra().simbolo === 'KDA')), entra().simbolo, sale().simbolo), 'nota'));
         const esc = pasos([
             t('Firmar en el móvil'),
             t('Mandar la transacción al nodo'),

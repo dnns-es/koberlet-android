@@ -20,7 +20,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TOKENS, OTROS, CONTRATOS, contratoDeToken, claveDeModulo, planesDe } from '../src/lib/dca.js';
+import { TOKENS, OTROS, CONTRATOS, contratoDeToken, claveDeModulo, planesDe, limiteDesdePago, pagoDesdeLimite, pagoActual, redondeoArriba } from '../src/lib/dca.js';
 import { saldosMercado } from '../src/lib/dex.js';
 import { valorPorPool } from '../src/valor.js';
 
@@ -229,4 +229,51 @@ test('la gasolinera solo se pide para planes de dca2, y con su tope de gas', asy
     assert.match(src, /gratis \? \{ gratis: true, gasLimit: GAS_GASOLINERA \}/);
     const { GAS_GASOLINERA } = await import('../src/lib/dca.js');
     assert.equal(GAS_GASOLINERA, 8000);   // MAX-GASLIMIT de free.ksw-gasolinera
+});
+
+// --- Precio limite dicho como «pagas como mucho» ---------------------------------
+// La cuenta del contrato (execute-dca + kda-price), escrita aparte para comparar.
+const precioContrato = (entregaKda, cuota, rk, rt) => {
+    const rin = entregaKda ? rk : rt;
+    const rout = entregaKda ? rt : rk;
+    const net = cuota * (1 - 0.005);
+    const inFee = net * (1 - 0.003);
+    const esperado = inFee * rout / (rin + inFee);
+    return entregaKda ? esperado / net : net / esperado;   // TOKEN por KDA, neto
+};
+const casi = (a, b) => Math.abs(a - b) / b < 1e-12;
+
+test('el pago maximo es siempre un techo y cuadra con lo que compara el contrato', () => {
+    const rk = 1000000;
+    const rt = 10000;   // 1 KDA = 0,01 kb-USDC
+    const pv = pagoActual({ rk, rt, entregaKda: true, cuota: 1000 });
+    assert.ok(pv > 100 && pv < 102, 'unos 100 KDA por kb-USDC: ' + pv);
+    assert.ok(casi(limiteDesdePago(pv, true), precioContrato(true, 1000, rk, rt)));
+    const pc = pagoActual({ rk, rt, entregaKda: false, cuota: 10 });
+    assert.ok(pc > 0.01 && pc < 0.0102, String(pc));
+    assert.ok(casi(limiteDesdePago(pc, false), precioContrato(false, 10, rk, rt)));
+    assert.ok(casi(pagoDesdeLimite(limiteDesdePago(117.6, true), true), 117.6));
+    assert.equal(limiteDesdePago(0, true), 0);
+});
+
+test('lo que se propone por defecto deja comprar al precio de ahora', () => {
+    const rk = 987654.321;
+    const rt = 9876.54321;
+    for (const entregaKda of [true, false]) {
+        const cuota = entregaKda ? 1000 : 10;
+        const pago = pagoActual({ rk, rt, entregaKda, cuota });
+        const defecto = redondeoArriba(pago);
+        assert.ok(defecto > pago && defecto < pago * 1.003, defecto + ' vs ' + pago);
+        const L = Number(limiteDesdePago(defecto, entregaKda).toFixed(12));
+        const precio = precioContrato(entregaKda, cuota, rk, rt);
+        assert.ok(entregaKda ? precio >= L : precio <= L, 'no pasaria: ' + precio + ' / ' + L);
+    }
+});
+
+test('escritorio y movil hacen la misma cuenta del limite', () => {
+    const esc = readFileSync(join(RAIZ, '..', 'koberlet', 'lib', 'dca.js'), 'utf8');
+    for (const trozo of ['const net = q * (1 - COMISION', 'const esperado = inFee * rout / (rin + inFee);', 'const v = Number(n) * 1.001;']) {
+        assert.ok(esc.includes(trozo), 'el escritorio no tiene: ' + trozo);
+        assert.ok(lee('src', 'lib', 'dca.js').includes(trozo), 'el movil no tiene: ' + trozo);
+    }
 });

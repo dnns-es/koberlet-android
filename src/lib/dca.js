@@ -167,11 +167,68 @@ function planEnClaro(p, contrato) {
 /** MAX-LIMIT-PRICE del contrato. */
 export const LIMITE_MAX = 1000;
 
-/** ¿Es una venta de KDA? Entonces el limite es un suelo; si no, un techo. */
-export const esVentaKda = (simboloEntra) => simboloEntra === 'KDA';
+// En pantalla el limite se dice SIEMPRE como techo de lo que pagas: «como mucho P de lo
+// que entregas por cada unidad de lo que compras» (Antonio, 01/10/2026: «es mucho lio
+// de palabras»). El contrato guarda L = TOKEN por KDA:
+//   entregas TOKEN, compras KDA:  P = TOKEN por KDA   -> L = P
+//   entregas KDA, compras TOKEN:  P = KDA por TOKEN   -> L = 1 / P
+// En los dos casos P = neto / esperado, que es justo lo que compara el contrato. Las
+// mismas funciones que el escritorio (lib/dca.js), con las mismas pruebas.
+const COMISION_POOL = 0.003;
 
-/** El token en que se expresa el limite: el lado del par que no es KDA. */
-export const tokenDelLimite = (simboloEntra, simboloSale) => (esVentaKda(simboloEntra) ? simboloSale : simboloEntra);
+/** L (lo que firma el contrato) a partir de P (lo que se escribe en pantalla). */
+export function limiteDesdePago(pago, entregaKda) {
+    const p = Number(pago);
+    if (!(p > 0)) return 0;
+    return entregaKda ? 1 / p : p;
+}
+
+/** P (lo que se enseña) a partir de L (lo que guarda el contrato). */
+export function pagoDesdeLimite(limite, entregaKda) {
+    const l = Number(limite);
+    if (!(l > 0)) return 0;
+    return entregaKda ? 1 / l : l;
+}
+
+/**
+ * Lo que pagarias AHORA por cada unidad de lo que compras, con esa cuota: comision
+ * del contrato, la del pool y el empujon de la propia compra. La cuenta de
+ * `execute-dca`. Sin cuota, la de una compra minima.
+ */
+export function pagoActual({ rk, rt, entregaKda, cuota }) {
+    const rin = entregaKda ? rk : rt;
+    const rout = entregaKda ? rt : rk;
+    if (!(rin > 0) || !(rout > 0)) return 0;
+    const q = Number(cuota) > 0 ? Number(cuota) : 0;
+    if (!q) return rin / (rout * (1 - COMISION_POOL));
+    const net = q * (1 - COMISION);
+    const inFee = net * (1 - COMISION_POOL);
+    const esperado = inFee * rout / (rin + inFee);
+    return esperado > 0 ? net / esperado : 0;
+}
+
+/**
+ * Hacia arriba a 4 cifras significativas, con un 0,1 % de holgura: lo que se propone
+ * tiene que dejar comprar al precio de ahora, no quedarse corto por un bloque.
+ */
+export function redondeoArriba(n, cifras = 4) {
+    const v = Number(n) * 1.001;
+    if (!(v > 0)) return 0;
+    const e = Math.pow(10, Math.floor(Math.log10(v)) - cifras + 1);
+    return Number((Math.ceil(v / e) * e).toPrecision(cifras));
+}
+
+/** Reservas del pool KDA/TOKEN del AMM que usa el contrato (kaddex.exchange). */
+export async function reservasPar(red, modToken) {
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{1,120}$/.test(String(modToken))) throw new Error('No pude leer la liquidez del pool.');
+    const r = await local(red.nodo, red.networkId, CHAIN, `(let ((p (kaddex.exchange.get-pair coin ${modToken}))) `
+        + `[(kaddex.exchange.reserve-for p coin) (kaddex.exchange.reserve-for p ${modToken})])`).catch(() => null);
+    const l = r && r.status === 'success' ? r.data : null;
+    const rk = num(l && l[0]);
+    const rt = num(l && l[1]);
+    if (!(rk > 0) || !(rt > 0)) throw new Error('No pude leer la liquidez del pool.');
+    return { rk, rt };
+}
 
 /**
  * Rellena `limite` en los planes vivos con UNA lectura para todos: una lista de

@@ -218,6 +218,19 @@ que cuestan dinero. El inventario y la norma de nivelarlas están en
 ahí con los otros dos marcados**, y no se cierra hasta estar en los tres o hasta
 que se escriba por qué no debe estarlo.
 
+## 0.63.1 (01/10/2026) — El precio límite, dicho sin líos y relleno con el de ahora
+
+- Antonio: «es mucho lío de palabras». Con «1 KDA ≥ 0,0085 kb-USDC» no se veía que su
+  plan de juntar kb-USDC ya hacía lo que quería. Ahora se escribe y se enseña SIEMPRE
+  como techo de lo que pagas: «como mucho 103 KDA por cada kb-USDC». El contrato sigue
+  guardando lo mismo (L = TOKEN por KDA); `limiteDesdePago`/`pagoDesdeLimite` traducen.
+- Por defecto, la casilla trae lo que pagarías ahora con esa cuota (`pagoActual`: la
+  cuenta de `execute-dca` con las dos comisiones y el empujón al pool), +0,1 % y hacia
+  arriba a 4 cifras (`redondeoArriba`). Con el precio de pizarra el plan no compraría
+  nunca al de ahora. Si el usuario la toca, se respeta; al girar o cambiar de token se
+  vuelve a proponer. Debajo se ve siempre el precio de ahora.
+- Probado contra los pools reales (kb-USDC, bro, FLUX, kb-ETH). JS 101/101.
+
 ## 0.63.0 (30/09/2026) — Precio límite en el DCA; el Mercado abre en kb-USDC → KDA
 
 - **Pedido por Antonio** («en dca poner limite de precio», «por defecto cuando se abre

@@ -1172,18 +1172,18 @@ const EN = {
     'Precio límite': 'Price limit',
     'sin leer': 'not read',
     'Sin límite': 'No limit',
-    'Solo vende si 1 KDA ≥ {0} {1}. Si el precio está por debajo, esa cuota se salta y se prueba en la siguiente.':
-        'Sells only if 1 KDA ≥ {0} {1}. If the price is below, that sale is skipped and tried again next time.',
-    'Solo compra si 1 KDA ≤ {0} {1}. Si el precio está por encima, esa cuota se salta y se prueba en la siguiente.':
-        'Buys only if 1 KDA ≤ {0} {1}. If the price is above, that buy is skipped and tried again next time.',
-    'Precio límite en {0} por KDA. 0 para quitarlo.': 'Price limit in {0} per KDA. 0 to remove it.',
+    'Como mucho {0} {1} por cada {2}': 'At most {0} {1} for each {2}',
+    'Solo compra si cada {2} te cuesta {0} {1} o menos. Si sale más caro, esa cuota se salta y se prueba en la siguiente.':
+        'Buys only if each {2} costs you {0} {1} or less. If it is more expensive, that buy is skipped and tried again next time.',
+    'Como mucho, ¿cuántos {0} pagas por cada {1}? 0 para quitar el límite.': 'At most, how many {0} do you pay for each {1}? 0 to remove the limit.',
+    'Ese precio límite no vale: tiene que ser mayor que 0.': 'That price limit is not valid: it must be greater than 0.',
     'El precio límite va de 0 a 1000.': 'The price limit goes from 0 to 1000.',
     'Se quita el precio límite: el plan compra al precio que haya.': 'The price limit is removed: the plan buys at whatever the price is.',
     '✓ Precio límite fijado.': '✓ Price limit set.',
-    'Precio límite en {0} por KDA (opcional)': 'Price limit in {0} per KDA (optional)',
-    'Sin límite: compra al precio que haya. Escribe un precio para que solo compre por debajo de él (o venda por encima).':
-        'No limit: buys at whatever the price is. Enter a price so it only buys below it (or sells above it).',
-    'Ahora se fija el precio límite ({0} {1} por KDA).': 'Now the price limit is being set ({0} {1} per KDA).',
+    'Pagas como mucho ({0} por cada {1})': 'You pay at most ({0} for each {1})',
+    'Ahora, con esta cuota: {0} {1} por cada {2}.': 'Right now, with this amount: {0} {1} for each {2}.',
+    'Sin límite: compra al precio que haya.': 'No limit: buys at whatever the price is.',
+    'Ahora se pone el límite: como mucho {0} {1} por cada {2}.': 'Now the limit is being set: at most {0} {1} for each {2}.',
     'El plan se creó, pero no se pudo fijar el precio límite: {0}. Ponlo desde el historial.':
         'The plan was created, but the price limit could not be set: {0}. Set it from the history.',
     'cada {0} días': 'every {0} days',
