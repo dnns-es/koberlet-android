@@ -28,7 +28,7 @@ Maqueta web (misma compilación, bóveda simulada): `https://descargas.dnns.es/k
 | 5 | Resto de funciones | Empezada: precio, historial, copias, navegación por secciones |
 | 6 | Distribución y actualización | **Adelantada y hecha** |
 | 7 | Auditoría | Empezada: repaso de la checklist propia; falta la externa |
-| 8 | Google Play | **La app está publicada en prueba cerrada.** Los 12 testers dentro desde el 18/09; se cumplen los 14 días el **2 de octubre** y ese día se pide producción — ver `play/PUBLICAR.md` |
+| 8 | Google Play | **Acceso a producción SOLICITADO el 03/10/2026 a las 11:43** (cumplidos los 14 días con 12 testers). Google tarda «7 días o menos» y avisa por correo al propietario. En prueba cerrada sigue la 0.56.1: al aprobarse, subir el paquete actual (pendiente decidir si sale como 3.0.0, ver «una sola numeración»). Ver `play/PUBLICAR.md` |
 
 ---
 
