@@ -28,7 +28,7 @@ Maqueta web (misma compilación, bóveda simulada): `https://descargas.dnns.es/k
 | 5 | Resto de funciones | Empezada: precio, historial, copias, navegación por secciones |
 | 6 | Distribución y actualización | **Adelantada y hecha** |
 | 7 | Auditoría | Empezada: repaso de la checklist propia; falta la externa |
-| 8 | Google Play | **Acceso a producción CONCEDIDO el 04/10/2026** (solicitado el 03/10/2026 a las 11:43) (cumplidos los 14 días con 12 testers). **0.63.1 (6301) enviada a revisión de producción el 04/10/2026**, lanzamiento completo y todos los países; la publicación gestionada está desactivada, así que sale sola al aprobarse. Ver `play/PUBLICAR.md` |
+| 8 | Google Play | **Acceso a producción CONCEDIDO el 04/10/2026** (solicitado el 03/10/2026 a las 11:43) (cumplidos los 14 días con 12 testers). 0.63.1 (6301) enviada a producción y **RECHAZADA el 04/10/2026**: «Infracción de los requisitos de Play Console», las carteras cripto (servicios financieros) solo pueden publicarlas cuentas de ORGANIZACIÓN, y la nuestra es personal. Camino: D-U-N-S, cuenta de organización y transferir la app. No reenviar los cambios mientras tanto. La prueba cerrada (0.56.1) y la descarga directa siguen. Ver `play/PUBLICAR.md` |
 
 ---
 
