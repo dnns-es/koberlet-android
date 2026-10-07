@@ -31,10 +31,40 @@ import { NODOS_KDA } from '../config.js';
 // `@capacitor/core`, que necesita un navegador de verdad, y con eso encima este
 // modulo no se podria probar con `node --test`. Lo que se prueba es lo que
 // decide -ordenar, apartar al atrasado, la lista- y eso no toca la red.
-let _getJson = null;
-async function traerGetJson() {
-    if (!_getJson) ({ getJson: _getJson } = await import('../red.js'));
-    return _getJson;
+let _red = null;
+async function traerRed() {
+    if (!_red) _red = await import('../red.js');
+    return _red;
+}
+
+// 07-10-2026: el nodo de la comunidad seguia contestando /cut perfectamente pero
+// devolvia 404 (una pagina de nginx) a TODO lo de Pact. La sonda solo miraba
+// /cut, asi que lo daba por sano; en el iPhone salia el mas rapido, se elegia, y
+// ni un saldo se leia. Por eso ahora la sonda es una lectura de Pact de verdad:
+// si un nodo no sabe leer, no sirve aunque vaya al dia.
+//
+// El comando es fijo, con su hash calculado una vez (blake2b-256): asi no hace
+// falta blake2b aqui. Una lectura /local sin preflight no mira la fecha, de modo
+// que el creationTime viejo no importa. Devuelve la altura de la cadena 2, que es
+// la misma frescura que antes se sacaba de /cut.
+export const SONDA_CMD = '{"networkId":"mainnet01","payload":{"exec":{"data":{},"code":"(at \'block-height (chain-data))"}},"signers":[],"meta":{"creationTime":1759000000,"ttl":600,"gasLimit":1000,"chainId":"2","gasPrice":1e-08,"sender":""},"nonce":"koberlet-sonda"}';
+export const SONDA_HASH = 'MpeIL3Bey7rMoA0VKcSBqa9zcnd1okMfKbiV57m4kQw';
+
+/** La altura que trae la respuesta de la sonda, o lanza si no es una respuesta de Pact. */
+export function alturaDeSonda(texto) {
+    let j;
+    try {
+        j = JSON.parse(texto);
+    } catch (_) {
+        throw new Error('no lee Pact: ' + String(texto).replace(/\s+/g, ' ').trim().slice(0, 50));
+    }
+    const d = j && j.result && j.result.status === 'success' ? j.result.data : null;
+    // Ojo: Number(null) es 0, y 0 pasaria por altura valida. Por eso se exige
+    // que haya dato antes de convertir.
+    const crudo = d !== null && typeof d === 'object' ? d.int : d;
+    const altura = (crudo === null || crudo === undefined || crudo === '') ? NaN : Number(crudo);
+    if (!Number.isFinite(altura) || altura <= 0) throw new Error('sin altura en la respuesta');
+    return altura;
 }
 
 // Cuantos bloques de retraso se le toleran a un nodo antes de apartarlo. La
@@ -102,8 +132,19 @@ export function urlValida(u) {
  */
 export async function medir(url, networkId) {
     try {
-        const getJson = await traerGetJson();
-        const { json, status, ms } = await getJson(
+        const red = await traerRed();
+        if (networkId === 'mainnet01') {
+            const { status, texto, ms } = await red.postJson(
+                `${url}/chainweb/0.0/${networkId}/chain/${CADENA_TESTIGO}/pact/api/v1/local?signatureVerification=false`,
+                { cmd: SONDA_CMD, hash: SONDA_HASH, sigs: [] },
+                { esperaMs: ESPERA_SONDA_MS },
+            );
+            if (status !== 200) throw new Error('HTTP ' + status + ' al leer Pact');
+            return { url, ms, altura: alturaDeSonda(texto), ok: true, error: null };
+        }
+        // Otra red (testnet): el comando fijo lleva mainnet01 dentro y su hash no
+        // valdria, asi que ahi se sigue midiendo por /cut.
+        const { json, status, ms } = await red.getJson(
             `${url}/chainweb/0.0/${networkId}/cut`,
             { esperaMs: ESPERA_SONDA_MS },
         );

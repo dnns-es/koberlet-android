@@ -25,7 +25,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ordenar, configurar, urlValida, leerGuardado, DE_FABRICA, TOLERANCIA_BLOQUES } from '../src/lib/nodo.js';
+import { ordenar, configurar, urlValida, leerGuardado, DE_FABRICA, TOLERANCIA_BLOQUES, alturaDeSonda, SONDA_CMD } from '../src/lib/nodo.js';
 
 test('un nodo atrasado no gana por ser el más rápido', () => {
     // El rapido va 19 bloques atrasado (justo lo que se midio en el nodo roto) y
@@ -129,4 +129,26 @@ test('sin almacenamiento, lo guardado se lee vacío en vez de reventar', () => {
     // igual con los nodos de fábrica.
     const g = leerGuardado();
     assert.deepEqual(g, { lista: [], fijo: null });
+});
+
+// 07-10-2026: el nodo de la comunidad contestaba /cut bien pero 404 a todo Pact,
+// y la sonda vieja (solo /cut) lo daba por sano. La sonda nueva es una lectura de
+// Pact: si lo que vuelve no es una respuesta de Pact con altura, el nodo esta caido.
+test('sonda: una respuesta de Pact da la altura', () => {
+    const ok = '{"gas":1,"result":{"status":"success","data":{"int":7294419}},"reqKey":"x"}';
+    assert.equal(alturaDeSonda(ok), 7294419);
+    assert.equal(alturaDeSonda('{"result":{"status":"success","data":7294419}}'), 7294419);
+});
+
+test('sonda: la pagina 404 de nginx cuenta como nodo que no lee', () => {
+    const html = '<html>\r\n<head><title>404 Not Found</title></head><body></body></html>';
+    assert.throws(() => alturaDeSonda(html), /no lee Pact/);
+    assert.throws(() => alturaDeSonda('{"result":{"status":"failure","error":{}}}'), /sin altura/);
+});
+
+test('sonda: el comando fijo es de mainnet y de la cadena 2', () => {
+    const c = JSON.parse(SONDA_CMD);
+    assert.equal(c.networkId, 'mainnet01');
+    assert.equal(c.meta.chainId, '2');
+    assert.deepEqual(c.signers, []);
 });
