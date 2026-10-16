@@ -283,7 +283,7 @@ object Derivacion {
     // asume: el escalar solo se usa en el propio aparato, para las carteras
     // Chainweaver, y el riesgo de medir tiempos desde fuera no existe en un
     // telefono que firma una vez cada mucho.
-    private val P_ED25519: BigInteger = BigInteger.TWO.pow(255) - BigInteger.valueOf(19)
+    private val P_ED25519: BigInteger = BigInteger.valueOf(2).pow(255) - BigInteger.valueOf(19)  // NO BigInteger.TWO: es de Android 13 y en 8-12 cerraba la app al crear la cartera (16/10/2026)
     private val D_ED25519: BigInteger =
         BigInteger.valueOf(-121665).multiply(BigInteger.valueOf(121666).modInverse(P_ED25519)).mod(P_ED25519)
     private val BASE_X = BigInteger("15112221349535400772501151409588531511454012693041857206046113283949847762202")

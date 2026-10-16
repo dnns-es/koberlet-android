@@ -29,6 +29,13 @@ if (hayFirma) {
 
 android {
     namespace "es.dnns.koberlet"
+    // Una llamada a algo que no existe en Android 8 (minSdk 26) NO se nota en un
+    // movil moderno: la app solo revienta en los viejos. Paso el 16/10/2026 con
+    // BigInteger.TWO (Android 13+): desde la 0.62.0, en Android 8-12 la app se
+    // cerraba al crear la cartera. Con esto, la compilacion de release se para.
+    lint {
+        fatal 'NewApi'
+    }
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "es.dnns.koberlet"

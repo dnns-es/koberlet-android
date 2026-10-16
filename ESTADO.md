@@ -1,6 +1,16 @@
 # Koberlet Android — estado
 
-Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.0** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.2** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
+
+## 0.63.2 — Android 8 a 12 se cerraba al crear la cartera (16/10/2026)
+
+Lo avisó Sergio por Telegram (Android 9): ponía la contraseña, la guardaba y la app se cerraba.
+Causa: `BigInteger.TWO` en `Derivacion.kt`, que es de Android 13 (API 33). Entró en la 0.62.0
+(29/09) con la derivación de Chainweaver; en un móvil moderno no se nota. Cambiado por
+`BigInteger.valueOf(2)` y `lint { fatal 'NewApi' }` en `android/app/build.gradle`, para que una
+llamada así pare la compilación de release. Publicada en descargas el 16/10 a las 14:30,
+SHA-256 `0f0a2fd9…ab0d89`, firmada con la clave de siempre (75:19:4F…).
+
 
 > **22-09-2026: la 0.58.0 va SOLO al canal directo.** Decisión de Antonio: los 12
 > testers están dentro desde el 18/09 y los 14 días se cumplen el 2 de octubre.
