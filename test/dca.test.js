@@ -18,7 +18,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { TOKENS, OTROS, CONTRATOS, contratoDeToken, claveDeModulo, planesDe, limiteDesdePago, pagoDesdeLimite, pagoActual, redondeoArriba } from '../src/lib/dca.js';
 import { saldosMercado } from '../src/lib/dex.js';
@@ -270,8 +270,12 @@ test('lo que se propone por defecto deja comprar al precio de ahora', () => {
     }
 });
 
-test('escritorio y movil hacen la misma cuenta del limite', () => {
-    const esc = readFileSync(join(RAIZ, '..', 'koberlet', 'lib', 'dca.js'), 'utf8');
+// Necesita el repo del escritorio al lado (F:\APP\koberlet). En GitHub Actions no
+// está, y sin este `skip` la prueba tumbaba la compilación de iPhone entera: pasó
+// desde la 0.63.1 hasta el 23/10/2026 sin que llegara ningún build a TestFlight.
+const ESCRITORIO = join(RAIZ, '..', 'koberlet', 'lib', 'dca.js');
+test('escritorio y movil hacen la misma cuenta del limite', { skip: !existsSync(ESCRITORIO) && 'sin el repo del escritorio al lado' }, () => {
+    const esc = readFileSync(ESCRITORIO, 'utf8');
     for (const trozo of ['const net = q * (1 - COMISION', 'const esperado = inFee * rout / (rin + inFee);', 'const v = Number(n) * 1.001;']) {
         assert.ok(esc.includes(trozo), 'el escritorio no tiene: ' + trozo);
         assert.ok(lee('src', 'lib', 'dca.js').includes(trozo), 'el movil no tiene: ' + trozo);
