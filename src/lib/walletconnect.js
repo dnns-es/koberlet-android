@@ -317,7 +317,11 @@ export function explicar(cmdStr) {
         for (const s of (j.signers || [])) {
             for (const c of (s.clist || [])) {
                 const args = (c.args || []).map((a) => (a && typeof a === 'object' && a.decimal !== undefined) ? a.decimal : a);
-                permisos.push({ nombre: String(c.name || ''), args, mueveDinero: /\.TRANSFER/i.test(String(c.name || '')) });
+                // Solo el TRANSFER de coin, exacto, mueve KDA: el de otro modulo lleva
+                // los argumentos en otro orden y pintarlo como «KDA» daba cifras falsas
+                // (aviso de Alex, hallazgo 3b).
+                const nombre = String(c.name || '');
+                permisos.push({ nombre, args, mueveDinero: nombre === 'coin.TRANSFER' || nombre === 'coin.TRANSFER_XCHAIN' });
             }
         }
         return {
@@ -330,6 +334,13 @@ export function explicar(cmdStr) {
             gasMax: Number(((j.meta && j.meta.gasLimit) || 0) * ((j.meta && j.meta.gasPrice) || 0)),
             codigo: String(exec.code || (cont ? 'continuación de un pacto (' + cont.pactId + ')' : '')),
             firmantes: (j.signers || []).map((s) => String(s.pubKey || '')),
+            // Las claves que firmarian SIN LIMITES (sin clist).
+            sinLimite: (j.signers || []).filter((s) => !Array.isArray(s.clist) || !s.clist.length)
+                .map((s) => String(s.pubKey || '').toLowerCase()),
+            ttl: Number((j.meta && j.meta.ttl) || 0),
+            creado: Number((j.meta && j.meta.creationTime) || 0),
+            nonce: String(j.nonce || ''),
+            datos: exec.data || (cont && cont.data) || {},
             permisos,
         };
     } catch (e) {

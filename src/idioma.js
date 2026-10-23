@@ -930,7 +930,6 @@ const EN = {
     'de': 'from',
     'a': 'to',
     'Lo que se ejecuta:': 'What it runs:',
-    'Otros permisos: {0}': 'Other permissions: {0}',
     'Firmando…': 'Signing…',
     'Firmado y devuelto a la web.': 'Signed and returned to the website.',
     'Falta el comando.': 'The command is missing.',
@@ -1089,6 +1088,13 @@ const EN = {
     'Crear un plan de compras solo funciona en la app instalada: aquí la bóveda es un doble de desarrollo y no firma.':
         'Creating a buying plan only works in the installed app: here the vault is a development stand-in and does not sign.',
     'Compras periódicas': 'Recurring buys',
+    // --- WalletConnect: firma sin límites (aviso de Alex, 23/10/2026)
+    '⚠ Esta web pide una firma sin límites': '⚠ This website asks for an unrestricted signature',
+    'Una firma sin permisos concretos no vale solo para lo que pone abajo: sirve para cualquier contrato que se fíe de tu clave. Una web honrada pide los permisos que necesita. Si no sabes por qué la pide sin límites, no firmes.': 'A signature without specific permissions is not limited to what is shown below: any contract that trusts your key accepts it. An honest website asks for the permissions it needs. If you do not know why it asks for an unrestricted one, do not sign.',
+    'Lo entiendo y quiero firmarla igualmente': 'I understand and want to sign it anyway',
+    'Paga el gas': 'Gas paid by',
+    'Creado': 'Created',
+    'Esta firma va sin límites: marca la casilla del aviso rojo si de verdad quieres firmarla.': 'This signature is unrestricted: tick the box in the red warning if you really want to sign it.',
     // --- Órdenes límite (free.ksw2)
     'Firma la orden': 'Sign the order',
     'Firma cancelar la orden': 'Sign the order cancellation',

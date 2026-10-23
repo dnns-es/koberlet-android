@@ -495,12 +495,19 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         }
         let pedidas = firmantes.compactMap { ($0["pubKey"] as? String)?.lowercased() }.filter { !$0.isEmpty }
         if pedidas.isEmpty { return call.reject("La web no dice con qué clave hay que firmar.") }
+        // Firmante sin clist = firma sin limites (aviso de Alex, GHSA-wj7g-5v28-pj92).
+        let sinLimite = Set(firmantes.filter { (($0["clist"] as? [Any]) ?? []).isEmpty }
+            .compactMap { ($0["pubKey"] as? String)?.lowercased() })
+        let aceptaSinLimite = call.getBool("aceptaSinLimite") ?? false
 
         // A partir de aqui es el camino de siempre: abrir, sacar la clave y borrarla
         // al terminar. Lo unico propio es negarse si la web pide otra cuenta.
         firmaKda(call, "Firma lo que te pide la web") { privada, publica, _, _ in
             guard pedidas.contains(publica.lowercased()) else {
                 throw FalloBoveda.argumento("La web pide firmar con otra cuenta distinta de la elegida.")
+            }
+            if sinLimite.contains(publica.lowercased()) && !aceptaSinLimite {
+                throw FalloBoveda.argumento("Esta firma va sin límites: marca la casilla del aviso rojo si de verdad quieres firmarla.")
             }
             let hash = FirmaKda.hashComando(cmd)
             return [

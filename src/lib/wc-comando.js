@@ -59,7 +59,12 @@ export function comandoDeFirma(peticion, red, clave) {
     // El firmante es el dueño; los `extraSigners` son otras claves que la web
     // espera que firmen en otra parte, y van SIN permisos porque no somos
     // nosotros quien decide que autorizan.
-    const signers = [clist.length ? { pubKey: clave, clist } : { pubKey: clave }];
+    // SIN `caps` NO SE MONTA UNA FIRMA SIN LIMITES: valdria para cualquier
+    // capability no gestionada o `enforce-guard` de cualquier modulo, no solo para
+    // lo que se enseña (aviso privado de Alex, GHSA-wj7g-5v28-pj92, hallazgo 1).
+    // Se acota a `coin.GAS`; la web que necesite mas lo tiene que pedir en `caps`.
+    if (!clist.length) clist.push({ name: 'coin.GAS', args: [] });
+    const signers = [{ pubKey: clave, clist }];
     for (const otro of (p.extraSigners || [])) {
         if (esClave(otro) && otro.toLowerCase() !== clave.toLowerCase()) signers.push({ pubKey: String(otro) });
     }

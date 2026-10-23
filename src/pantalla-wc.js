@@ -208,6 +208,24 @@ export function pintarWalletConnect(raiz, ctx) {
         k.append(elemento('h3', t('Te piden firmar')));
         k.append(elemento('b', f.nombre), elemento('p', f.url, 'nota'));
 
+        // Firmas sin limites con una clave de este aparato: aviso rojo y casilla.
+        const casillas = [];
+        const mias = new Set(cuentasKadena().map((x) => String(x.cuenta).slice(2).toLowerCase()));
+        for (const comando of f.comandos) {
+            const d = wc.explicar(comando.cmd);
+            if (d.legible && (d.sinLimite || []).some((p) => mias.has(p))) {
+                const rojo = caja();
+                rojo.append(elemento('b', t('⚠ Esta web pide una firma sin límites'), 'malo'));
+                rojo.append(elemento('p', t('Una firma sin permisos concretos no vale solo para lo que pone abajo: sirve para cualquier contrato que se fíe de tu clave. Una web honrada pide los permisos que necesita. Si no sabes por qué la pide sin límites, no firmes.'), 'nota'));
+                const l = document.createElement('label');
+                const c = document.createElement('input');
+                c.type = 'checkbox';
+                casillas.push(c);
+                l.append(c, document.createTextNode(' ' + t('Lo entiendo y quiero firmarla igualmente')));
+                rojo.append(l);
+                k.append(rojo);
+            }
+        }
         for (const comando of f.comandos) {
             const d = wc.explicar(comando.cmd);
             if (!d.legible) {
@@ -228,8 +246,15 @@ export function pintarWalletConnect(raiz, ctx) {
             k.append(elemento('pre', d.codigo, 'mono'));
             k.append(fila(t('Red'), d.red + ' · chain ' + d.chain));
             k.append(fila(t('Gas, como mucho'), String(d.gasMax) + ' KDA'));
-            const otros = d.permisos.filter((x) => !x.mueveDinero).map((x) => x.nombre);
-            if (otros.length) k.append(elemento('p', t('Otros permisos: {0}', otros.join(', ')), 'nota'));
+            k.append(fila(t('Paga el gas'), d.pagaGas));
+            // Cada permiso con TODOS sus argumentos: el nombre solo no dice cuánto.
+            for (const p of d.permisos.filter((x) => !x.mueveDinero)) {
+                k.append(elemento('div', p.nombre + ' ' + JSON.stringify(p.args), 'mono'));
+            }
+            k.append(fila(t('Creado'), d.creado ? new Date(d.creado * 1000).toLocaleString() : '?'));
+            k.append(fila('TTL', String(d.ttl) + ' s'));
+            k.append(fila('nonce', d.nonce));
+            k.append(elemento('pre', JSON.stringify(d.datos), 'mono'));
         }
 
         // La contraseña se pide aquí igual que en un envío: firmar para una web
@@ -276,7 +301,9 @@ export function pintarWalletConnect(raiz, ctx) {
                     const pedida = String((d.firmantes || [])[0] || '').toLowerCase();
                     const mia = cuentasKadena().find((x) => String(x.cuenta).slice(2).toLowerCase() === pedida);
                     if (!mia) throw new Error('La web pide firmar con una cuenta que no está en este aparato.');
-                    const r = await boveda.firmarComandoExterno({ carteraId: mia.carteraId, cmd: comando.cmd, ...comoFirmar });
+                    // El nativo no firma sin limites si no llega este `true`.
+                    const aceptaSinLimite = casillas.length > 0 && casillas.every((c) => c.checked);
+                    const r = await boveda.firmarComandoExterno({ carteraId: mia.carteraId, cmd: comando.cmd, aceptaSinLimite, ...comoFirmar });
                     firmados.push({ cmd: comando.cmd, pubKey: r.pubKey, sig: r.sig, hash: r.hash });
                 }
                 // Cada método contesta con su forma: la del otro deja a la web

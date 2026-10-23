@@ -1081,6 +1081,16 @@ class KoberletVault : Plugin() {
             if (p.isNotEmpty()) pedidas.add(p)
         }
         if (pedidas.isEmpty()) return call.reject("La web no dice con qué clave hay que firmar.")
+        // Las claves que la web quiere SIN LIMITES (firmante sin clist). Una firma asi
+        // vale para cualquier capability no gestionada o enforce-guard de cualquier
+        // modulo (aviso de Alex, GHSA-wj7g-5v28-pj92): solo con la casilla marcada.
+        val sinLimite = mutableSetOf<String>()
+        for (i in 0 until firmantes.length()) {
+            val f = firmantes.optJSONObject(i) ?: continue
+            val clist = f.optJSONArray("clist")
+            if (clist == null || clist.length() == 0) sinLimite.add(f.optString("pubKey").lowercase())
+        }
+        val aceptaSinLimite = call.getBoolean("aceptaSinLimite", false) ?: false
 
         conContrasena(call, "Firma lo que te pide la web") { contrasena ->
         hilo(call) {
@@ -1092,6 +1102,9 @@ class KoberletVault : Plugin() {
                 val publica = Derivacion.publicaKadena(privada)
                 if (!pedidas.contains(publica.lowercase())) {
                     throw IllegalArgumentException("La web pide firmar con otra cuenta distinta de la elegida.")
+                }
+                if (sinLimite.contains(publica.lowercase()) && !aceptaSinLimite) {
+                    throw IllegalArgumentException("Esta firma va sin límites: marca la casilla del aviso rojo si de verdad quieres firmarla.")
                 }
                 val hash = FirmaKda.hashComando(cmd)
                 JSObject().apply {
