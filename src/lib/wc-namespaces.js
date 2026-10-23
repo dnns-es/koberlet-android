@@ -82,9 +82,12 @@ export function namespacesParaAprobar(pedido, claves, base) {
     const feos = avisos.filter((e) => !/^[A-Za-z0-9_.:-]{1,64}$/.test(String(e)));
     if (feos.length) throw new Error('WC_AVISOS_RAROS: ' + feos.join(', '));
 
-    // Mainnet SIEMPRE la primera: es la red donde hay dinero de verdad y, como las
-    // webs se quedan con la primera cuenta que se les manda, tiene que ser la suya.
-    const cadenas = sinRepetir([base.cadena, ...obliga.cadenas, ...suelta.cadenas]);
+    // Solo las redes que PIDE la web (aviso de Alex, hallazgo 3d): antes se añadía
+    // mainnet01 siempre, también a una web que solo pedía testnet04. Si no pide ninguna,
+    // la nuestra. Mainnet, si está, la primera: las webs se quedan con la primera cuenta.
+    const pedidas = sinRepetir([...obliga.cadenas, ...suelta.cadenas]);
+    const cadenas = !pedidas.length ? [base.cadena]
+        : pedidas.includes(base.cadena) ? [base.cadena, ...pedidas.filter((c) => c !== base.cadena)] : pedidas;
     // Los métodos opcionales que no sabemos hacer NO se prometen; los que sí, sí.
     const metodos = sinRepetir([...base.metodos, ...obliga.metodos]);
 
@@ -98,6 +101,48 @@ export function namespacesParaAprobar(pedido, claves, base) {
 /** La clave pública de una cuenta CAIP-10, sea cual sea el largo de la red. */
 export const claveDeCuenta = (caip) => String(caip).slice(String(caip).lastIndexOf(':') + 1);
 
+// Copia de lo mismo en el escritorio (lib/wc-namespaces.js): PARIDAD.md.
+
+/** Las claves que se compartieron con esta sesión, en minúsculas y sin repetir. */
+export function clavesDeSesion(sesion) {
+    const lista = ((sesion && sesion.namespaces && sesion.namespaces.kadena) || {}).accounts || [];
+    return sinRepetir(lista.map((c) => claveDeCuenta(c).toLowerCase()).filter((k) => /^[0-9a-f]{64}$/.test(k)));
+}
+
+/** Las redes aprobadas en esta sesión, como `mainnet01`, sin el `kadena:`. */
+export function redesDeSesion(sesion) {
+    const ns = (sesion && sesion.namespaces && sesion.namespaces.kadena) || {};
+    const de = (ns.chains && ns.chains.length) ? ns.chains : (ns.accounts || []).map((c) => String(c).split(':').slice(0, 2).join(':'));
+    return sinRepetir(de.filter((c) => /^kadena:/.test(c)).map((c) => c.slice(7)));
+}
+
+/**
+ * ¿Puede esta sesión pedir firmar este comando? (aviso de Alex, hallazgos 3a y 3d).
+ * Devuelve el motivo si NO, o '' si sí: la red tiene que ser una de las aprobadas y
+ * ninguna clave de este aparato que firme puede quedar fuera de las compartidas.
+ */
+export function motivoFueraDeSesion(cmdStr, sesion, mias) {
+    let j;
+    try { j = JSON.parse(cmdStr); } catch (_) { return 'el comando no se entiende'; }
+    const redes = redesDeSesion(sesion);
+    if (!redes.includes(String(j.networkId || ''))) return 'la red ' + String(j.networkId || '?') + ' no se aprobó al conectar';
+    const compartidas = clavesDeSesion(sesion);
+    const nuestras = new Set((mias || []).map((k) => String(k).toLowerCase()));
+    const fuera = (j.signers || []).map((s) => String(s.pubKey || '').toLowerCase())
+        .filter((k) => nuestras.has(k) && !compartidas.includes(k));
+    if (fuera.length) return 'pide firmar con una cuenta que no se compartió con esta web';
+    return '';
+}
+
+/** Lo que dice Reown Verify del origen: 'ok', 'mal', 'estafa' o 'sin' (sin verificar). */
+export function verificacion(ctx) {
+    const v = (ctx && ctx.verified) || {};
+    if (v.isScam) return 'estafa';
+    if (v.validation === 'VALID') return 'ok';
+    if (v.validation === 'INVALID') return 'mal';
+    return 'sin';
+}
+
 // WEBS CON LAS QUE KOBERLET NO SE CONECTA (decisión de Antonio, 25/09/2026).
 //
 // mercatusdex.fun es un DEX sobre los MISMOS pools que el Mercado de Koberlet: un cambio
@@ -106,7 +151,7 @@ export const claveDeCuenta = (caip) => String(caip).slice(String(caip).lastIndex
 // lo puede inventar la web) y también el que declara la propia web; basta uno.
 const BLOQUEADAS = ['mercatusdex.fun'];
 
-function dominio(u) {
+export function dominio(u) {
     try { return new URL(String(u)).hostname.toLowerCase(); } catch (_) { return ''; }
 }
 

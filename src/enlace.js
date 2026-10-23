@@ -20,8 +20,11 @@
 
 import { cobroDeQr } from './qr.js';
 import { cuentaKdaValida } from './lib/kda.js';
+import { wcDeEnlace } from './lib/wc-enlace.js';
 
 let pendiente = null;
+// Enlace de conexion de una web (koberlet://wc?uri=...): solo RELLENA Conectar.
+let pendienteWc = null;
 
 /**
  * Guarda un enlace recibido, si es un cobro Kadena con una cuenta valida.
@@ -29,6 +32,8 @@ let pendiente = null;
  */
 export function anotarEnlace(url) {
     const crudo = String(url || '').trim();
+    const wc = wcDeEnlace(crudo);
+    if (wc) { pendienteWc = wc; return true; }
     if (!/^kadena:/i.test(crudo)) return false;
     const cobro = cobroDeQr(crudo);
     if (!cuentaKdaValida(cobro.cuenta)) return false;
@@ -45,13 +50,22 @@ export function recogerEnlace() {
 
 export function hayEnlace() { return pendiente !== null; }
 
+/** El enlace de conexion pendiente UNA vez: al leerlo se borra. */
+export function recogerEnlaceWc() {
+    const p = pendienteWc;
+    pendienteWc = null;
+    return p;
+}
+
+export function hayEnlaceWc() { return pendienteWc !== null; }
+
 /**
  * Se engancha a los avisos de Android (`appUrlOpen`) y mira con que enlace se
  * abrio la app. En el navegador no hay plugin: ahi vale `#kadena:...` en la
  * barra de direcciones, que es como se prueba la maqueta sin compilar nada.
  */
 export async function vigilarEnlaces(alLlegar) {
-    const avisa = () => { if (pendiente && alLlegar) alLlegar(); };
+    const avisa = () => { if ((pendiente || pendienteWc) && alLlegar) alLlegar(); };
 
     try {
         const hash = decodeURIComponent(String(location.hash || '').replace(/^#/, ''));

@@ -36,20 +36,43 @@ export function idValido(id) {
     return typeof id === 'string' && ID_OK.test(id);
 }
 
+/**
+ * ¿Es una IP de la red de casa? Copia de `ipPrivada` del escritorio (lib/nft.js):
+ * PARIDAD.md. Mira las formas raras que antes pasaban (aviso de Alex, hallazgo 5):
+ * `[::ffff:127.0.0.1]` (que la URL deja en `[::ffff:7f00:1]`), CGNAT `100.64/10`,
+ * multicast, `[::1]` con corchetes…
+ */
+export function ipPrivada(ip) {
+    let h = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
+    const v4en6 = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(h);
+    if (v4en6) h = v4en6[1];
+    const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(h);
+    if (hex) { const a = parseInt(hex[1], 16), b = parseInt(hex[2], 16); h = [a >> 8, a & 255, b >> 8, b & 255].join('.'); }
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) {
+        const [a, b] = h.split('.').map(Number);
+        return a === 0 || a === 10 || a === 127 || a >= 224
+            || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+            || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19));
+    }
+    if (h.includes(':')) {
+        return h === '::' || h === '::1' || /^(fc|fd)/.test(h) || /^fe[89ab]/.test(h) || /^ff/.test(h)
+            || /^::ffff:/.test(h) || /^64:ff9b:/.test(h) || /^::\d/.test(h);
+    }
+    return false;
+}
+
 /** Direcciones a las que NO se va, aunque lo diga la pieza (auditoria M-1). */
-function destinoPermitido(url) {
+export function destinoPermitido(url) {
     let u;
     try { u = new URL(url); } catch (_) { return false; }
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
-    const h = u.hostname.toLowerCase();
-    if (h === 'localhost' || h.endsWith('.localhost') || h === '::1') return false;
     // La uri la elige quien acuña la pieza. Sin esto, la app haria de sonda
     // contra la red de casa del dueño (su router, un panel interno) a peticion
-    // de un tercero.
-    const privadas = [/^127\./, /^10\./, /^192\.168\./, /^169\.254\./, /^0\./, /^172\.(1[6-9]|2\d|3[01])\./];
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(h) && privadas.some((re) => re.test(h))) return false;
-    if (/^(fc|fd)[0-9a-f]{2}:/i.test(h) || /^fe80:/i.test(h)) return false;
-    return true;
+    // de un tercero. LIMITE CONOCIDO: un NOMBRE que resuelva a una IP privada no se
+    // puede mirar desde aqui (el WebView no da el DNS). El escritorio si lo mira.
+    const h = u.hostname.toLowerCase();
+    if (h === 'localhost' || h.endsWith('.localhost')) return false;
+    return !ipPrivada(h);
 }
 
 /** `ipfs://algo` -> una direccion http que se pueda pedir. */

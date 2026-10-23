@@ -27,6 +27,8 @@ import { nombreBio } from './biometria.js';
 import { corta } from './direccion.js';
 import * as wc from './lib/walletconnect.js';
 import { respuestaFirmada } from './lib/wc-comando.js';
+import { motivoFueraDeSesion } from './lib/wc-namespaces.js';
+import { recogerEnlaceWc } from './enlace.js';
 
 function elemento(tag, texto, clase) {
     const e = document.createElement(tag);
@@ -89,6 +91,10 @@ export function pintarWalletConnect(raiz, ctx) {
     c.append(campo);
     c.append(boton(t('Pegar enlace'), () => conectar(campo.value), 'secundario'));
     c.append(estado, listaSesiones, zonaPeticion);
+    // Abierta desde un enlace koberlet://wc de una web (issue #7): se PEGA en la caja
+    // y se avisa. Conectar lo pulsa el dueño.
+    const delEnlace = recogerEnlaceWc();
+    if (delEnlace) campo.value = delEnlace;
 
     // Los fallos que se pueden explicar sin jerga. Los tres primeros son los que
     // antes salian todos como un «Conectando…» que no acababa nunca.
@@ -133,7 +139,7 @@ export function pintarWalletConnect(raiz, ctx) {
     let arrancado = false;
     async function arrancarSiHaceFalta() {
         if (arrancado) return;
-        await wc.arrancar({ alProponer: pintarPropuesta, alPedirFirma: pintarFirma, alCerrar: pintarSesiones });
+        await wc.arrancar({ alProponer: pintarPropuesta, alPedirFirma: pintarFirma, alCerrar: alCerrarSesion, alCaducar });
         arrancado = true;
     }
 
@@ -153,6 +159,31 @@ export function pintarWalletConnect(raiz, ctx) {
         }
     }
 
+    // La peticion en pantalla ya no la espera nadie: se dice y se quita (issue #7, 3f).
+    let actual = null;
+    function peticionMuerta(texto) {
+        actual = null;
+        zonaPeticion.innerHTML = '';
+        estado.className = 'avisa';
+        estado.textContent = texto;
+    }
+    function alCerrarSesion(topic) {
+        if (actual && actual.topic === topic) peticionMuerta(t('La web cerró la conexión. Esta petición ya no la espera nadie.'));
+        pintarSesiones();
+    }
+    function alCaducar(id) {
+        if (actual && String(actual.id) === String(id)) peticionMuerta(t('La web dejó caducar esta petición. Ya no se puede firmar.'));
+    }
+    // El motivo de un rechazo, en el idioma de la pantalla.
+    const motivoTexto = (m) => {
+        const red = /^la red (\S+) no se aprobó al conectar$/.exec(m);
+        if (red) return t('la red {0} no se aprobó al conectar', red[1]);
+        if (m === 'el comando no se entiende') return t('el comando no se entiende');
+        if (m === 'pide firmar con una cuenta que no se compartió con esta web') return t('pide firmar con una cuenta que no se compartió con esta web');
+        return m;
+    };
+    const misClaves = () => cuentasKadena().map((x) => String(x.cuenta).slice(2).toLowerCase());
+
     // --- Una web quiere conectarse -----------------------------------------
     function pintarPropuesta(p) {
         zonaPeticion.innerHTML = '';
@@ -160,6 +191,25 @@ export function pintarWalletConnect(raiz, ctx) {
         k.append(elemento('h3', t('Una web quiere conectarse')));
         k.append(elemento('b', p.nombre), elemento('p', p.url, 'nota'));
         k.append(elemento('p', t('El nombre y la dirección los dice la propia web: son una pista, no una prueba de quién es. Conecta solo si acabas de leer su código QR. Conectar no firma nada ni mueve dinero.'), 'avisa'));
+        // Lo que dice WalletConnect del dominio (aviso de Alex, 3e) y las redes (3d).
+        const ver = {
+            ok: [t('✔ WalletConnect confirma que la petición viene de {0}.', p.origen || p.url), 'bueno'],
+            mal: [t('⚠ La dirección de esta web no coincide con la que declara. Puede ser una copia falsa: no conectes si no estás seguro.'), 'malo'],
+            estafa: [t('⛔ WalletConnect marca esta web como ESTAFA conocida. No conectes.'), 'malo'],
+        }[p.verificacion] || [t('WalletConnect no ha podido confirmar de qué web viene esto.'), 'nota'];
+        k.append(elemento('p', ver[0], ver[1]));
+        k.append(fila(t('Redes que pide'), (p.redes || []).join(', ') || 'mainnet01'));
+        // Conexiones viejas de la misma web: si recargo la pagina se quedan con las
+        // peticiones de la nueva (issue #7). Marcado por defecto.
+        let casillaPrevias = null;
+        if ((p.previas || []).length) {
+            const l = document.createElement('label');
+            casillaPrevias = document.createElement('input');
+            casillaPrevias.type = 'checkbox';
+            casillaPrevias.checked = true;
+            l.append(casillaPrevias, document.createTextNode(' ' + t('Cerrar las {0} conexiones anteriores de esta web (si recargaste la página, ya no sirven y se quedan con tus peticiones)', String(p.previas.length))));
+            k.append(l);
+        }
 
         // Con que cuenta se conecta lo elige el dueño: las webs se quedan con la
         // PRIMERA que se les manda, asi que sin elegir te conectaban con la que
@@ -183,9 +233,13 @@ export function pintarWalletConnect(raiz, ctx) {
             try {
                 const elegida = sel.selectedOptions[0];
                 if (!elegida) throw new Error('No tienes ninguna cuenta de Kadena en este aparato.');
+                // Se comparte SOLO la elegida (aviso de Alex, 3c): la pantalla dice
+                // «Conectar con esta cuenta» y se mandaban todas.
                 const publica = String(elegida.dataset.cuenta).slice(2);
-                const otras = kadena.map((x) => String(x.cuenta).slice(2)).filter((x) => x !== publica);
-                await wc.aprobarSesion(p.id, [publica, ...otras]);
+                await wc.aprobarSesion(p.id, [publica]);
+                if (casillaPrevias && casillaPrevias.checked) {
+                    for (const topic of p.previas) await wc.desconectar(topic);
+                }
                 zonaPeticion.innerHTML = '';
                 pintarSesiones();
                 estado.className = 'bueno';
@@ -203,10 +257,26 @@ export function pintarWalletConnect(raiz, ctx) {
 
     // --- Una web pide una firma --------------------------------------------
     function pintarFirma(f) {
+        // Lo que no cabe en lo aprobado al conectar (otra red, una cuenta que no se
+        // compartio) ni se enseña: se contesta que no y se dice por que (3a, 3d).
+        for (const comando of f.comandos) {
+            const motivo = motivoFueraDeSesion(comando.cmd, wc.sesionViva(f.topic), misClaves());
+            if (motivo) {
+                wc.fallar(f.topic, f.id, 'Koberlet no firma: ' + motivo).catch(() => { /* la sesion pudo caerse */ });
+                estado.className = 'malo';
+                estado.textContent = t('Koberlet ha rechazado una petición de {0}: {1}.', f.nombre, motivoTexto(motivo));
+                return;
+            }
+        }
+        actual = f;
         zonaPeticion.innerHTML = '';
         const k = caja();
         k.append(elemento('h3', t('Te piden firmar')));
         k.append(elemento('b', f.nombre), elemento('p', f.url, 'nota'));
+        // Cuando llego: tras recargar la web, una peticion vieja se parece a la nueva.
+        k.append(elemento('p', t('La petición llegó a las {0}.', f.llegada ? new Date(f.llegada).toLocaleTimeString() : '?'), 'nota'));
+        if (f.verificacion === 'estafa') k.append(elemento('p', t('⛔ WalletConnect marca esta web como ESTAFA conocida. No conectes.'), 'malo'));
+        if (f.verificacion === 'mal') k.append(elemento('p', t('⚠ La dirección de esta web no coincide con la que declara. Puede ser una copia falsa: no conectes si no estás seguro.'), 'malo'));
 
         // Firmas sin limites con una clave de este aparato: aviso rojo y casilla.
         const casillas = [];
@@ -294,6 +364,13 @@ export function pintarWalletConnect(raiz, ctx) {
             aviso.textContent = t('Firmando…');
             try {
                 const firmados = [];
+                // La conexion tiene que seguir viva y lo firmado caber en lo aprobado.
+                const sesion = wc.sesionViva(f.topic);
+                if (!sesion) throw new Error('La web ya cerró esta conexión: esta petición ya no la espera nadie.');
+                for (const comando of f.comandos) {
+                    const motivo = motivoFueraDeSesion(comando.cmd, sesion, misClaves());
+                    if (motivo) throw new Error(t('Koberlet no firma esto: {0}.', motivoTexto(motivo)));
+                }
                 for (const comando of f.comandos) {
                     // La cuenta con la que se firma la dice el propio comando; aqui se
                     // busca cual de las carteras de este aparato tiene esa clave.
@@ -309,6 +386,7 @@ export function pintarWalletConnect(raiz, ctx) {
                 // Cada método contesta con su forma: la del otro deja a la web
                 // esperando algo que no llega.
                 await wc.responder(f.topic, f.id, respuestaFirmada(f.metodo, firmados));
+                actual = null;
                 zonaPeticion.innerHTML = '';
                 estado.className = 'bueno';
                 estado.textContent = t('Firmado y devuelto a la web.');
@@ -338,6 +416,7 @@ export function pintarWalletConnect(raiz, ctx) {
         }).catch(() => { /* sin identificación, todo sigue igual */ });
         k.append(boton(t('Rechazar'), async () => {
             try { await wc.fallar(f.topic, f.id, 'rechazado en el monedero'); } catch (_) { /* la sesion pudo caerse */ }
+            actual = null;
             zonaPeticion.innerHTML = '';
         }, 'secundario'));
         zonaPeticion.append(k);
@@ -351,6 +430,10 @@ export function pintarWalletConnect(raiz, ctx) {
         pintarSesiones();
         estado.className = 'nota';
         estado.textContent = wc.conectadoAlRele() ? t('Listo para leer el código.') : '';
+        if (delEnlace) {
+            estado.className = 'avisa';
+            estado.textContent = t('La web te ha pasado su enlace de conexión. Comprueba que lo has pedido tú y pulsa «Pegar enlace».');
+        }
     }).catch((e) => {
         estado.className = 'malo';
         estado.textContent = explica(e);

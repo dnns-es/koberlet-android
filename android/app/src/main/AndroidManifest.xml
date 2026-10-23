@@ -43,6 +43,16 @@
                 <data android:scheme="kadena" />
             </intent-filter>
 
+            <!-- Enlace `koberlet://wc?uri=<wc:...>`: el botón «Abrir en Koberlet» de
+                 una web abre Conectar con su enlace YA PEGADO. Tampoco conecta solo:
+                 la conexión se aprueba a mano y cada firma pide la contraseña. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="koberlet" android:host="wc" />
+            </intent-filter>
+
         </activity>
 
         <provider

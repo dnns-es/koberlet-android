@@ -22,6 +22,19 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Enlace koberlet://wc?uri=<wc:...>: el boton «Abrir en Koberlet» de una web abre
+	     Conectar con su enlace YA PEGADO. No conecta solo: se aprueba a mano. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>es.dnns.koberlet</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>koberlet</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSFaceIDUsageDescription</key>

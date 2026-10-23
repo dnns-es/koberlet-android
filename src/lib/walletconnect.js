@@ -27,7 +27,7 @@ import { Core } from '@walletconnect/core';
 import { WalletKit } from '@reown/walletkit';
 // Lo que se le ofrece a la web vive aparte, sin SDK, para poder probarlo sin
 // navegador: es justo la pieza que fallaba con mercatusdex.fun.
-import { loQuePide, namespacesParaAprobar, claveDeCuenta, webBloqueada } from './wc-namespaces.js';
+import { loQuePide, namespacesParaAprobar, claveDeCuenta, webBloqueada, clavesDeSesion, redesDeSesion, verificacion, dominio } from './wc-namespaces.js';
 import { comandoDeFirma } from './wc-comando.js';
 
 // El identificador del proyecto en el rele. No es un secreto -viaja dentro de todos
@@ -95,15 +95,15 @@ export function conectadoAlRele() {
  * Dos `init` en paralelo dejaban dos juegos de manejadores sobre el mismo
  * almacen y la pantalla podia quedarse esperando a la que no era.
  */
-export async function arrancar({ alProponer, alPedirFirma, alCerrar }) {
+export async function arrancar({ alProponer, alPedirFirma, alCerrar, alCaducar }) {
     if (kit) return kit;
     if (arrancando) return arrancando;
-    arrancando = arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar })
+    arrancando = arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar, alCaducar })
         .finally(() => { arrancando = null; });
     return arrancando;
 }
 
-async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
+async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar, alCaducar }) {
     const core = new Core({ projectId: PROJECT_ID });
     kit = await conLimite(WalletKit.init({ core, metadata: METADATOS }), 'WC_SIN_RELE');
 
@@ -117,6 +117,11 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
             // Webs con las que Koberlet no opera (wc-namespaces.js, decisión de Antonio).
             bloqueada: webBloqueada(verificado, m.url),
         });
+        const pedido = pendientes.get(p.id);
+        // Conexiones que ya tiene abiertas esta misma web: si recargo la pagina, la vieja
+        // sigue viva y se queda con las peticiones de la nueva (issue #7 del escritorio).
+        const host = dominio(m.url);
+        const previas = host ? sesiones().filter((x) => dominio(x.url) === host).map((x) => x.topic) : [];
         alProponer({
             id: p.id,
             // OJO: nombre y direccion los declara la propia web. Son una pista para
@@ -124,6 +129,12 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
             nombre: String(m.name || '?'),
             url: String(m.url || '?'),
             metodos: (ns.kadena || {}).methods || [],
+            // Las redes se enseñan al conectar (aviso de Alex, 3d) y lo que dice Reown
+            // Verify del dominio (3e).
+            redes: [...new Set([...pedido.obliga.cadenas, ...pedido.suelta.cadenas])].map((c) => c.replace(/^kadena:/, '')),
+            verificacion: verificacion(p.verifyContext),
+            origen: String(verificado || ''),
+            previas,
         });
     });
 
@@ -132,6 +143,17 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
         const metodo = params && params.request && params.request.method;
         const sesion = kit.getActiveSessions()[topic];
         const quien = (sesion && sesion.peer && sesion.peer.metadata) || {};
+        // Lo que acompaña a toda peticion de firma: cuando llego (issue #7), que dice
+        // Verify (3e) y que claves y redes se aprobaron (3a, 3d).
+        const comun = {
+            id, topic, metodo,
+            nombre: String(quien.name || '?'),
+            url: String(quien.url || '?'),
+            llegada: Date.now(),
+            verificacion: verificacion(ev.verifyContext),
+            claves: clavesDeSesion(sesion),
+            redes: redesDeSesion(sesion),
+        };
         // Una sesion con una web bloqueada abierta ANTES del bloqueo no firma nada mas.
         if (webBloqueada(quien.url)) {
             await fallar(topic, id, 'Koberlet no opera con esta web.');
@@ -146,12 +168,9 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
         }
         if (metodo === 'kadena_quicksign_v1') {
             const comandos = (params.request.params && params.request.params.commandSigDatas) || [];
-            alPedirFirma({
-                id, topic, metodo,
-                nombre: String(quien.name || '?'),
-                url: String(quien.url || '?'),
+            alPedirFirma(Object.assign({}, comun, {
                 comandos: comandos.map((c) => ({ cmd: String(c.cmd || '') })),
-            });
+            }));
             return;
         }
         if (metodo === 'kadena_sign_v1') {
@@ -162,16 +181,16 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
             try {
                 const pet = (params.request && params.request.params) || {};
                 const cuerpo = pet.body || pet;
-                // Con que clave se firma: la del `sender` si es una cuenta k:, y si
-                // no, la primera de la sesion. Si esa clave no esta en este aparato
-                // lo dice la pantalla, que es donde se busca la cartera.
+                // Con que clave se firma: la del `sender` si es k: Y se compartio con
+                // esta web; si no, la primera de la sesion. Antes el `sender` elegia
+                // cualquier clave del aparato (aviso de Alex, hallazgo 3a).
                 const sender = String(cuerpo.sender || '');
-                const clave = /^k:[0-9a-f]{64}$/i.test(sender)
-                    ? sender.slice(2).toLowerCase()
-                    : (cuentasDeSesion(sesion).accounts[0] || {}).publicKey;
-                // La red la manda la SESION, no el mensaje: se aprobo para unas
-                // redes concretas y la peticion dice en cual de ellas va.
+                const delSender = /^k:[0-9a-f]{64}$/i.test(sender) ? sender.slice(2).toLowerCase() : '';
+                const clave = comun.claves.includes(delSender) ? delSender : comun.claves[0];
+                if (!clave) throw new Error('la sesion no tiene ninguna cuenta');
+                // La red la manda la SESION, no el mensaje, y tiene que ser una de las aprobadas.
                 const red = String(params.chainId || CADENA).split(':')[1] || 'mainnet01';
+                if (!comun.redes.includes(red)) throw new Error('la red ' + red + ' no se aprobo al conectar');
                 cmd = comandoDeFirma(pet, red, clave);
             } catch (e) {
                 // Esto le llega a la WEB: que diga que metodo y que falto, para que
@@ -179,18 +198,15 @@ async function arrancarDeVerdad({ alProponer, alPedirFirma, alCerrar }) {
                 await fallar(topic, id, 'kadena_sign_v1 mal formado: ' + e.message);
                 return;
             }
-            alPedirFirma({
-                id, topic, metodo,
-                nombre: String(quien.name || '?'),
-                url: String(quien.url || '?'),
-                comandos: [{ cmd }],
-            });
+            alPedirFirma(Object.assign({}, comun, { comandos: [{ cmd }] }));
             return;
         }
         await fallar(topic, id, 'método no soportado: ' + metodo);
     });
 
     kit.on('session_delete', (ev) => { try { alCerrar && alCerrar(ev.topic); } catch (_) { /* pintar no puede romper esto */ } });
+    // La web dejo caducar la peticion: ya no espera respuesta (aviso de Alex, 3f).
+    kit.on('session_request_expire', (ev) => { try { alCaducar && alCaducar(ev && ev.id); } catch (_) { /* idem */ } });
     return kit;
 }
 
@@ -295,6 +311,12 @@ export function sesiones() {
             cuentas: ((s.namespaces && s.namespaces.kadena) || {}).accounts || [],
         };
     });
+}
+
+/** La sesion tal cual, o null si ya no existe. */
+export function sesionViva(topic) {
+    if (!kit) return null;
+    return kit.getActiveSessions()[topic] || null;
 }
 
 export async function desconectar(topic) {

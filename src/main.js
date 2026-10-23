@@ -35,7 +35,7 @@ import { formatea, recorta } from './cifras.js';
 import { nombreCartera } from './nombres.js';
 import { vigilarCerrojo, vigilarAtras, alFondo, TIEMPOS, minutosCerrojo, fijarMinutosCerrojo } from './salir.js';
 import { contactos, borrarContacto } from './agenda.js';
-import { vigilarEnlaces, recogerEnlace } from './enlace.js';
+import { vigilarEnlaces, recogerEnlace, hayEnlaceWc } from './enlace.js';
 import * as nodos from './lib/nodo.js';
 
 const $ = (id) => document.getElementById(id);
@@ -1002,6 +1002,8 @@ function tarjetaCartera(grupo) {
             // que chain puede salir el dinero.
             const cobro = recogerEnlace();
             if (cobro) abrirEnvio(cobro);
+            // Un enlace koberlet://wc de una web: a Conectar, que lo pega en la caja.
+            if (HAY_WALLETCONNECT && hayEnlaceWc()) ir('conectar');
 
             // EL TOTAL EN DINERO se arma por piezas y ninguna llega a la vez: el
             // KDA viene con el saldo, lo puenteado tarda otro viaje y el precio lo
@@ -2249,6 +2251,7 @@ async function arrancar() {
     // lo recoge el Panel en cuanto se desbloquea, con la contraseña de siempre.
     await vigilarEnlaces(async () => {
         if (!(await boveda.estado()).abierta) return;
+        if (HAY_WALLETCONNECT && hayEnlaceWc()) { ir('conectar'); return; }
         if (seccionActual() !== 'panel') ir('panel');
         else await pintarSeccion('panel');
     });
