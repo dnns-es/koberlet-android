@@ -2,6 +2,18 @@
 
 Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.2** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
+## 0.63.3 — WalletConnect: nada de firmas sin límites sin aviso (23/10/2026)
+
+Aviso privado de Alex (GHSA-wj7g-5v28-pj92, contra el escritorio 2.16.1; el móvil comparte
+`wc-comando.js`). `kadena_sign_v1` sin caps se acota a `coin.GAS` en vez de montar un firmante
+sin clist. Si la web manda un firmante sin clist para nuestra clave: aviso rojo con casilla, y
+Kotlin y Swift no firman sin `aceptaSinLimite`. La tarjeta de firma enseña quién paga el gas,
+permisos con argumentos, fecha, ttl, nonce y datos; solo `coin.TRANSFER` se pinta como KDA.
+El hallazgo del Mercado (nombre de token del nodo dentro del código) NO afectaba al móvil:
+Kotlin y Swift ya validaban cada módulo con `moduloValido`. Pruebas: `test/wc-firma-limite.test.js`.
+Arreglado también `test/dca.test.js`, que leía el repo del escritorio y tumbaba el iPhone en
+GitHub desde la 0.63.1.
+
 ## 0.63.2 — Android 8 a 12 se cerraba al crear la cartera (16/10/2026)
 
 Lo avisó Sergio por Telegram (Android 9): ponía la contraseña, la guardaba y la app se cerraba.
