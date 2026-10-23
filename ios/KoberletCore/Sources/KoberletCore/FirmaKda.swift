@@ -159,9 +159,8 @@ public enum FirmaKda {
     // cualquier otra clave se rechaza. El contrato de un plan nuevo lo decide el
     // token, no la pantalla.
     //
-    // La gasolinera todavia no esta en iPhone (ver PARIDAD.md), asi que aqui el gas
-    // lo paga siempre el dueño y la regla «dca3 no va por la gasolinera» se cumple
-    // sola.
+    // La gasolinera solo paga dca2 (y ksw2): una transaccion de dca3 por la
+    // gasolinera muere comprando el gas. Igual que `exigirGasolineraDca` de Kotlin.
 
     public static let dcaChain = "2"
     /// MAX-LIMIT-PRICE del contrato: tope del precio limite, en TOKEN por KDA.
@@ -169,15 +168,15 @@ public enum FirmaKda {
     private static let dcaKda = "coin"
 
     /// Un contrato de compras periodicas y la cuenta que custodia sus botes.
-    struct ContratoDca { let modulo: String; let custodia: String }
+    struct ContratoDca { let modulo: String; let custodia: String; let gasolinera: Bool }
 
     /// Un token del lado que no es KDA. `minimo` es el MIN-IN del contrato por
     /// compra, en texto para compararlo sin redondeos de `Double`.
     struct TokenDca { let modulo: String; let precision: Int; let minimo: String; let contrato: String }
 
     private static let dcaContratos: [String: ContratoDca] = [
-        "dca2": ContratoDca(modulo: "free.ksw-dca2", custodia: "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8"),
-        "dca3": ContratoDca(modulo: "free.ksw-dca3", custodia: "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8"),
+        "dca2": ContratoDca(modulo: "free.ksw-dca2", custodia: "c:QiDAEP0E7hUoDWWxntmLK5LKvAeJm1SHJMAWcBmOZM8", gasolinera: true),
+        "dca3": ContratoDca(modulo: "free.ksw-dca3", custodia: "c:egWEeU7rKLxU57GgY8Y1ZBWv0_GFQww0DOj9CBlYgr8", gasolinera: false),
     ]
 
     private static let dcaTokens: [String: TokenDca] = [
@@ -200,6 +199,43 @@ public enum FirmaKda {
         return c
     }
 
+    /// Solo dca2 va por la gasolinera. Se para aqui y no en la cadena, que cobra el intento.
+    private static func exigirGasolineraDca(_ gratis: Bool, _ contrato: ContratoDca) throws {
+        if gratis && !contrato.gasolinera {
+            throw FalloBoveda.argumento("La gasolinera solo paga los planes de kb-USDC: en este el gas lo pagas tú.")
+        }
+    }
+
+    // --- La gasolinera de KoberluSW (gemela de la de FirmaKda.kt) --------------
+    //
+    // `free.ksw-gasolinera` paga el gas: el `sender` pasa a ser su cuenta y el
+    // usuario firma `GAS_PAYER` en su clist. El contrato exige una o dos llamadas de
+    // primer nivel que EMPIECEN por un modulo permitido, gasPrice <= 1e-8 y
+    // gasLimit <= 8000. El umbral de 5 kb-USDC lo decide la pantalla, como en Kotlin.
+    public static let gasolinera = "free.ksw-gasolinera"
+    public static let gasolineraCuenta = "c:Mq0gKlGBdjKvkBJLr4ECCu3_OxQ4_GJOzlYS0Ems-CY"
+    public static let gasolineraGasLimit = 8000
+    public static let gasolineraGasPrice = "0.00000001"
+
+    /// El `sender` y la capability de gas van juntos: si se cambia uno sin el otro,
+    /// «Failed to buy gas».
+    static func remitente(_ gratis: Bool, _ cuenta: String) -> String { gratis ? gasolineraCuenta : cuenta }
+
+    static func capGas(_ gratis: Bool, _ cuenta: String, _ gasLimit: Int) -> String {
+        gratis
+            ? "{\"name\":\"\(gasolinera).GAS_PAYER\",\"args\":[\"\(cuenta)\",\(gasLimit),{\"decimal\":\"\(gasolineraGasPrice)\"}]}"
+            : "{\"name\":\"coin.GAS\",\"args\":[]}"
+    }
+
+    static func precioGas(_ gratis: Bool, _ gasPrice: String) -> String { gratis ? gasolineraGasPrice : gasPrice }
+
+    /// Pasarse del tope de la gasolinera es un fallo seguro: se para antes de firmar.
+    private static func exigirCabeEnGasolinera(_ gasLimit: Int) throws {
+        if gasLimit > gasolineraGasLimit {
+            throw FalloBoveda.argumento("Esta operación no cabe en el gas que paga la gasolinera.")
+        }
+    }
+
     /// Un importe del DCA con los decimales del token, 12 como mucho: el mismo
     /// texto en el codigo y en la capability. Igual que `decimalDca` de Kotlin.
     public static func decimalDca(_ cantidad: Double, _ precision: Int) throws -> String {
@@ -216,13 +252,15 @@ public enum FirmaKda {
     public static func crearPlanDca(
         networkId: String, owner: String, token: String, haciaToken: Bool, deposito: Double, cuota: Double,
         periodo: Int64, deslizamiento: Double, privada: [UInt8], publica: String, creationTime: Int64,
-        gasLimit: Int = 20000, gasPrice: String = "1e-8"
+        gasLimit: Int = 20000, gasPrice: String = "1e-8", gratis: Bool = false
     ) throws -> JSON {
         if owner != "k:\(publica)" {
             throw FalloBoveda.argumento("Un plan de compras solo se puede crear a nombre de la propia cartera.")
         }
         let otro = try tokenDca(token)
         let contrato = try contratoDca(otro.contrato)
+        try exigirGasolineraDca(gratis, contrato)
+        if gratis { try exigirCabeEnGasolinera(gasLimit) }
         if deposito <= 0 || cuota <= 0 { throw FalloBoveda.argumento("La cantidad tiene que ser mayor que cero.") }
         if cuota > deposito { throw FalloBoveda.argumento("La cuota no puede ser mayor que el bote.") }
         if periodo < 300 || periodo > 31_536_000 { throw FalloBoveda.argumento("Entre compra y compra tienen que pasar de 5 minutos a un año.") }
@@ -245,9 +283,9 @@ public enum FirmaKda {
         let datos = "{\"ks\":{\"keys\":[\"\(publica)\"],\"pred\":\"keys-all\"}}"
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
-            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
+            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[\(capGas(gratis, owner, gasLimit))," +
             "{\"name\":\"\(entra.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(contrato.custodia)\",{\"decimal\":\"\(dep)\"}]}]}]," +
-            "\"meta\":{\"chainId\":\"\(dcaChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"meta\":{\"chainId\":\"\(dcaChain)\",\"sender\":\"\(remitente(gratis, owner))\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(precioGas(gratis, gasPrice)),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce())\"}"
         return try resultado(cmd, privada, extra: ["id": id])
     }
@@ -266,10 +304,17 @@ public enum FirmaKda {
     public static func gestionarPlanDca(
         networkId: String, accion: String, id: String, owner: String, cantidad: Double,
         contrato: String, entra: String, privada: [UInt8], publica: String, creationTime: Int64,
-        gasLimit: Int = 20000, gasPrice: String = "1e-8"
+        gasLimit: Int = 20000, gasPrice: String = "1e-8", gratis: Bool = false
     ) throws -> JSON {
         if owner != "k:\(publica)" { throw FalloBoveda.argumento("Ese plan no es de esta cartera.") }
         let c = try contratoDca(contrato)
+        // SOLO `recargar` va por la gasolinera: pausar, reanudar y cerrar van sin
+        // clist (enforce-guard del dueño) y una capability de gas les rompe esa firma.
+        if gratis && accion != "recargar" {
+            throw FalloBoveda.argumento("Esa acción sobre el plan no va por la gasolinera.")
+        }
+        try exigirGasolineraDca(gratis, c)
+        if gratis { try exigirCabeEnGasolinera(gasLimit) }
         if !idPlanValido(id, owner) { throw FalloBoveda.argumento("El identificador del plan no vale.") }
 
         let codigo: String
@@ -296,7 +341,7 @@ public enum FirmaKda {
             }
             let monto = try decimalDca(cantidad, t.precision)
             codigo = "(\(c.modulo).topup \\\"\(id)\\\" \(monto))"
-            clist = ",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
+            clist = ",\"clist\":[\(capGas(gratis, owner, gasLimit))," +
                 "{\"name\":\"\(t.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(c.custodia)\",{\"decimal\":\"\(monto)\"}]}]"
         default:
             throw FalloBoveda.argumento("Esa acción sobre el plan no existe.")
@@ -304,7 +349,7 @@ public enum FirmaKda {
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":{}}}," +
             "\"signers\":[{\"pubKey\":\"\(publica)\"\(clist)}]," +
-            "\"meta\":{\"chainId\":\"\(dcaChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"meta\":{\"chainId\":\"\(dcaChain)\",\"sender\":\"\(remitente(gratis, owner))\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(precioGas(gratis, gasPrice)),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce())\"}"
         return try resultado(cmd, privada)
     }
@@ -313,7 +358,8 @@ public enum FirmaKda {
     //
     // Lo mismo que Kotlin (ver FirmaKda.kt): contrato, chain, custodia, tokens y
     // caducidad fijos aqui. De la pantalla llegan el sentido y tres numeros en
-    // texto. Sin gasolinera en iPhone todavia (PARIDAD.md): paga el dueño.
+    // texto. Crear una orden cabe por la gasolinera: una llamada que empieza por
+    // `free.ksw2.`. Cancelar no (va sin clist).
 
     public static let ordenesModulo = "free.ksw2"
     public static let ordenesChain = "2"
@@ -337,9 +383,10 @@ public enum FirmaKda {
     public static func crearOrden(
         networkId: String, owner: String, venta: Bool, cantidad: String, disparo: String, minimo: String,
         privada: [UInt8], publica: String, creationTime: Int64,
-        gasLimit: Int = 12000, gasPrice: String = "1e-8"
+        gasLimit: Int = 12000, gasPrice: String = "1e-8", gratis: Bool = false
     ) throws -> JSON {
         if owner != "k:\(publica)" { throw FalloBoveda.argumento("Una orden solo se puede crear a nombre de la propia cartera.") }
+        if gratis { try exigirCabeEnGasolinera(gasLimit) }
         let entra = venta ? ordenesKda : ordenesUsdc
         let sale = venta ? ordenesUsdc : ordenesKda
         let monto = try decimalOrden(cantidad, entra.precision)
@@ -354,9 +401,9 @@ public enum FirmaKda {
         let datos = "{\"ks\":{\"keys\":[\"\(publica)\"],\"pred\":\"keys-all\"}}"
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
-            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
+            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[\(capGas(gratis, owner, gasLimit))," +
             "{\"name\":\"\(entra.modulo).TRANSFER\",\"args\":[\"\(owner)\",\"\(ordenesCustodia)\",{\"decimal\":\"\(monto)\"}]}]}]," +
-            "\"meta\":{\"chainId\":\"\(ordenesChain)\",\"sender\":\"\(owner)\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"meta\":{\"chainId\":\"\(ordenesChain)\",\"sender\":\"\(remitente(gratis, owner))\",\"gasLimit\":\(gasLimit),\"gasPrice\":\(precioGas(gratis, gasPrice)),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce("koberlet-ios-orden"))\"}"
         return try resultado(cmd, privada, extra: ["id": id])
     }
@@ -427,7 +474,7 @@ public enum FirmaKda {
     public static func cambioAmm(
         networkId: String, camino: [String], cuenta: String, poolPrimerSalto: String,
         cantidad: String, minimo: String, privada: [UInt8], publica: String, creationTime: Int64,
-        comision: String = "0.0", gasLimit: Int = 14000, gasPrice: String = "1e-8"
+        comision: String = "0.0", gasLimit: Int = 14000, gasPrice: String = "1e-8", gratis: Bool = false
     ) throws -> JSON {
         if camino.count < 2 || camino.count > 3 { throw FalloBoveda.argumento("Ese camino de cambio no tiene sentido.") }
         for mod in camino where mod != "coin" && !moduloValido(mod) {
@@ -470,10 +517,14 @@ public enum FirmaKda {
             camino.joined(separator: " ") + "] \\\"\(cuenta)\\\" \\\"\(cuenta)\\\" (read-keyset \\\"ks\\\"))"
         // El cambio y el cobro atados: si el cambio revierte no se cobra nada, y si
         // la comision no se puede pagar no hay cambio.
-        let codigo = hayComision
-            ? "(let ((r \(cambio))) (\(camino[0]).transfer-create \\\"\(cuenta)\\\" \\\"\(comisionCuenta)\\\"" +
-              " (read-keyset \\\"ks-koberlet\\\") (read-decimal \\\"comision\\\")) r)"
-            : cambio
+        let cobro = "(\(camino[0]).transfer-create \\\"\(cuenta)\\\" \\\"\(comisionCuenta)\\\"" +
+            " (read-keyset \\\"ks-koberlet\\\") (read-decimal \\\"comision\\\"))"
+        // CON GASOLINERA VAN SUELTAS, no dentro de un `let`: la gasolinera mira que
+        // cada llamada de primer nivel EMPIECE por un modulo permitido, y `(let`
+        // no lo es. La garantia de «las dos o ninguna» es de la transaccion.
+        let codigo = !hayComision ? cambio
+            : gratis ? "\(cambio) \(cobro)"
+            : "(let ((r \(cambio))) \(cobro) r)"
         let extraDatos = hayComision
             ? ",\"comision\":{\"decimal\":\"\(cuota)\"},\"ks-koberlet\":{\"keys\":[\"\(comisionClave)\"],\"pred\":\"keys-all\"}"
             : ""
@@ -482,12 +533,19 @@ public enum FirmaKda {
         let extraClist = hayComision
             ? ",{\"name\":\"\(camino[0]).TRANSFER\",\"args\":[\"\(cuenta)\",\"\(comisionCuenta)\",{\"decimal\":\"\(cuota)\"}]}"
             : ""
-        let gas = hayComision ? gasLimit + 4000 : gasLimit   // una transferencia mas = mas gas
+        // Una transferencia mas = mas gas. Con gasolinera NO se suma: el `gasLimit`
+        // que llega es el total medido, y sumarle 4000 lo sacaria del tope de 8000.
+        let gas = (hayComision && !gratis) ? gasLimit + 4000 : gasLimit
+        if gratis {
+            // Un swap directo contra el AMM solo se subvenciona si paga la comision.
+            if !hayComision { throw FalloBoveda.argumento("La gasolinera solo paga un cambio si lleva la comisión del servicio.") }
+            try exigirCabeEnGasolinera(gas)
+        }
 
         let cmd = "{\"networkId\":\"\(networkId)\",\"payload\":{\"exec\":{\"code\":\"\(codigo)\",\"data\":\(datos)}}," +
-            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}," +
+            "\"signers\":[{\"pubKey\":\"\(publica)\",\"clist\":[\(capGas(gratis, cuenta, gas))," +
             "{\"name\":\"\(camino[0]).TRANSFER\",\"args\":[\"\(cuenta)\",\"\(poolPrimerSalto)\",{\"decimal\":\"\(entra)\"}]}\(extraClist)]}]," +
-            "\"meta\":{\"chainId\":\"\(ammChain)\",\"sender\":\"\(cuenta)\",\"gasLimit\":\(gas),\"gasPrice\":\(gasPrice),\"ttl\":600,\"creationTime\":\(creationTime)}," +
+            "\"meta\":{\"chainId\":\"\(ammChain)\",\"sender\":\"\(remitente(gratis, cuenta))\",\"gasLimit\":\(gas),\"gasPrice\":\(precioGas(gratis, gasPrice)),\"ttl\":600,\"creationTime\":\(creationTime)}," +
             "\"nonce\":\"\(nonce("koberlet-android-swap"))\"}"
         return try resultado(cmd, privada)
     }

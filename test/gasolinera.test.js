@@ -127,3 +127,27 @@ test('pausar, reanudar y cerrar no van por la gasolinera', () => {
         'falta el freno que deja fuera a pausar, reanudar y cerrar',
     );
 });
+
+// --- iPhone (0.63.4): la misma gasolinera que Android, gemela en Swift ----------
+test('Swift paga con la misma gasolinera, cuenta, tope y forma que Kotlin', () => {
+    const kt = readFileSync(new URL('../android/app/src/main/java/es/dnns/koberlet/FirmaKda.kt', import.meta.url), 'utf8');
+    const sw = readFileSync(new URL('../ios/KoberletCore/Sources/KoberletCore/FirmaKda.swift', import.meta.url), 'utf8');
+    const cuentaKt = /GASOLINERA_CUENTA = "(c:[A-Za-z0-9_-]{43})"/.exec(kt)[1];
+    assert.ok(sw.includes(`gasolineraCuenta = "${cuentaKt}"`), 'la misma cuenta');
+    assert.match(sw, /gasolineraGasLimit = 8000/);
+    assert.match(sw, /gasolineraGasPrice = "0\.00000001"/);
+    assert.match(sw, /gasolinera = "free\.ksw-gasolinera"/);
+    assert.ok(sw.includes('\\(gasolinera).GAS_PAYER'));
+    // Las cuatro firmas que pueden ir por la gasolinera, y el cambio sin `let`.
+    for (const f of ['cambioAmm', 'crearPlanDca', 'gestionarPlanDca', 'crearOrden']) {
+        const i = sw.indexOf(`public static func ${f}(`);
+        const cuerpo = sw.slice(i, sw.indexOf('\n    }\n', i));
+        assert.match(cuerpo, /gratis: Bool = false/, f + ' admite gratis');
+        assert.match(cuerpo, /capGas\(gratis, /, f + ' pone la capability de gas segun quien pague');
+        assert.match(cuerpo, /remitente\(gratis, /, f + ' cambia el sender');
+    }
+    assert.ok(sw.includes('gratis ? "\\(cambio) \\(cobro)"'), 'con gasolinera, el cambio y el cobro sueltos');
+    // Y la boveda de iPhone se lo pasa.
+    const vault = readFileSync(new URL('../ios/App/App/KoberletVault.swift', import.meta.url), 'utf8');
+    assert.equal((vault.match(/gratis: gratis\)/g) || []).length, 4);
+});

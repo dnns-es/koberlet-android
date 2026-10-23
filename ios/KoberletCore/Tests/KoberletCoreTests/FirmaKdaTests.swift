@@ -418,4 +418,79 @@ final class FirmaKdaTests: XCTestCase {
         XCTAssertNoThrow(try crearDca("FLUX", false, 150, 15))
         XCTAssertNoThrow(try crearDca("bro", false, 0.002, 0.0002))
     }
+
+    // --- Gasolinera (gemelo de los tests de FirmaKdaTest.kt) -----------------
+
+    private func pagaLaGasolinera(_ cmd: JSON, _ dueno: String, _ gas: Int) {
+        let meta = cmd["meta"] as! JSON
+        XCTAssertEqual(FirmaKda.gasolineraCuenta, meta["sender"] as? String)
+        XCTAssertEqual(gas, meta["gasLimit"] as? Int)
+        let cap = clist(cmd)[0]
+        XCTAssertEqual("free.ksw-gasolinera.GAS_PAYER", cap["name"] as? String)
+        let args = cap["args"] as! [Any]
+        XCTAssertEqual(dueno, args[0] as? String)
+        XCTAssertEqual(gas, args[1] as? Int)
+        XCTAssertEqual("0.00000001", (args[2] as! JSON)["decimal"] as? String)
+    }
+
+    func testUnCambioConComisionLoPagaLaGasolineraConLasLlamadasSueltas() throws {
+        let cuenta = "k:\(publica)"
+        let cmd = cmdDe(try FirmaKda.cambioAmm(networkId: "mainnet01", camino: ["coin", pco], cuenta: cuenta,
+                                               poolPrimerSalto: pool, cantidad: "9.95", minimo: "1", privada: privada, publica: publica,
+                                               creationTime: 1_700_000_000, comision: "0.05", gasLimit: 3000, gratis: true))
+        pagaLaGasolinera(cmd, cuenta, 3000)
+        XCTAssertTrue(code(cmd).hasPrefix("(kaddex.exchange.swap-exact-in"), "sin `let` delante")
+        XCTAssertFalse(code(cmd).contains("(let"))
+    }
+
+    func testSinComisionOFueraDelTopeLaGasolineraNoPagaUnCambio() {
+        let cuenta = "k:\(publica)"
+        XCTAssertThrowsError(try FirmaKda.cambioAmm(networkId: "mainnet01", camino: ["coin", pco], cuenta: cuenta,
+                                                    poolPrimerSalto: pool, cantidad: "10", minimo: "1", privada: privada, publica: publica,
+                                                    creationTime: 1_700_000_000, gasLimit: 3000, gratis: true))
+        XCTAssertThrowsError(try FirmaKda.cambioAmm(networkId: "mainnet01", camino: ["coin", pco], cuenta: cuenta,
+                                                    poolPrimerSalto: pool, cantidad: "9.95", minimo: "1", privada: privada, publica: publica,
+                                                    creationTime: 1_700_000_000, comision: "0.05", gasLimit: 9000, gratis: true))
+    }
+
+    func testSinGasolineraTodoSigueComoAntes() throws {
+        let cmd = cmdDe(try cambio(cantidad: "9.95", comision: "0.05"))
+        XCTAssertEqual("coin.GAS", clist(cmd)[0]["name"] as? String)
+        XCTAssertEqual("k:\(publica)", (cmd["meta"] as! JSON)["sender"] as? String)
+        XCTAssertTrue(code(cmd).hasPrefix("(let"))
+    }
+
+    func testPlanesYOrdenesPorLaGasolinera() throws {
+        let dueno = "k:\(publica)"
+        let plan = cmdDe(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: dueno, token: "kb-USDC", haciaToken: false,
+                                                   deposito: 10, cuota: 1, periodo: 3600, deslizamiento: 0.05,
+                                                   privada: privada, publica: publica, creationTime: 1_700_000_000, gasLimit: 8000, gratis: true))
+        pagaLaGasolinera(plan, dueno, 8000)
+        let orden = cmdDe(try FirmaKda.crearOrden(networkId: "mainnet01", owner: dueno, venta: false, cantidad: "10.0", disparo: "0.6",
+                                                  minimo: "100.5", privada: privada, publica: publica, creationTime: 1_700_000_000,
+                                                  gasLimit: 8000, gratis: true))
+        pagaLaGasolinera(orden, dueno, 8000)
+        let id = String(dueno.prefix(10)) + "-1"
+        let recarga = cmdDe(try FirmaKda.gestionarPlanDca(networkId: "mainnet01", accion: "recargar", id: id, owner: dueno, cantidad: 5,
+                                                          contrato: "dca2", entra: "kb-USDC", privada: privada, publica: publica,
+                                                          creationTime: 1_700_000_000, gasLimit: 8000, gratis: true))
+        pagaLaGasolinera(recarga, dueno, 8000)
+    }
+
+    func testLoQueNoCabeEnLaGasolineraNoSeFirma() {
+        let dueno = "k:\(publica)"
+        let id = String(dueno.prefix(10)) + "-1"
+        // dca3 no va por la gasolinera: la transaccion moriria comprando el gas.
+        XCTAssertThrowsError(try FirmaKda.crearPlanDca(networkId: "mainnet01", owner: dueno, token: "FLUX", haciaToken: false,
+                                                       deposito: 150, cuota: 15, periodo: 3600, deslizamiento: 0.05,
+                                                       privada: privada, publica: publica, creationTime: 1_700_000_000, gasLimit: 8000, gratis: true))
+        // Pausar va sin clist: no se le puede poner la capability de gas.
+        XCTAssertThrowsError(try FirmaKda.gestionarPlanDca(networkId: "mainnet01", accion: "pausar", id: id, owner: dueno, cantidad: 0,
+                                                           contrato: "dca2", entra: "", privada: privada, publica: publica,
+                                                           creationTime: 1_700_000_000, gasLimit: 8000, gratis: true))
+        // Mas de 8000 de gas no lo paga.
+        XCTAssertThrowsError(try FirmaKda.crearOrden(networkId: "mainnet01", owner: dueno, venta: false, cantidad: "10.0", disparo: "0.6",
+                                                     minimo: "100.5", privada: privada, publica: publica, creationTime: 1_700_000_000,
+                                                     gasLimit: 12000, gratis: true))
+    }
 }

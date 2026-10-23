@@ -13,7 +13,6 @@
 
 import { cotizar, reservas, ordenesAbiertas, enPausa, KDA, USDC, SLIPPAGE_DEFECTO } from './lib/ordenes.js';
 import { gasolineraLista, llegaAlUmbral, motivoGas, GAS_GASOLINERA, MARGEN_GAS } from './lib/dca.js';
-import { Capacitor } from '@capacitor/core';
 import { saldoEnMercado } from './lib/dex.js';
 import { enviarComando, esperarResultado } from './lib/kda.js';
 import { boveda } from './boveda/contrato.js';
@@ -433,11 +432,11 @@ function bloqueNuevaOrden(raiz, ctx, kda) {
         const soltar = () => { enMarcha = false; crear.disabled = false; girar.disabled = false; };
 
         // ¿Quien paga el gas? Si puede, la gasolinera de KoberluSW, como en el
-        // escritorio. Solo en Android: en iPhone todavia no firma con ella.
+        // escritorio, en Android y en iPhone.
         // Solo a partir de 5 kb-USDC (decisión de Antonio, 28/09/2026). Se valora como
         // en el Mercado: al comprar, lo que entra; al vender, el MÍNIMO que sale.
         const valorUsdc = q.venta ? Number(q.minimo) : Number(q.cantidad);
-        const gratis = llegaAlUmbral(valorUsdc) && Capacitor.getPlatform() === 'android' && await gasolineraLista(ctx.red);
+        const gratis = llegaAlUmbral(valorUsdc) && await gasolineraLista(ctx.red);
         if (!gratis) {
             const kdaSuelto = await saldoEnMercado(ctx.red, 'coin', kda.cuenta);
             const falta = (q.venta ? Number(q.cantidad) : 0) + MARGEN_GAS;

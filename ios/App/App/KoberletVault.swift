@@ -366,10 +366,15 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         // La comisión de servicio: la pantalla dice cuánto, `FirmaKda` dice a dónde
         // y comprueba que no pase del 0,5 %. Si no viene, no se cobra nada.
         let comision = call.getString("comision") ?? "0.0"
+        // Gasolinera (gemelo de Kotlin): si la pantalla la pide, manda tambien el gas
+        // que MIDIO; sin ese numero habria que inventar un techo y el contrato
+        // rechaza todo lo que pase de 8000.
+        let gratis = call.getBool("gratis") ?? false
+        let gasPedido = call.getInt("gasLimit")
         firmaKda(call, "Firma el cambio") { privada, publica, creation, _ in
             try FirmaKda.cambioAmm(networkId: networkId, camino: camino, cuenta: "k:\(publica)", poolPrimerSalto: pool,
                                    cantidad: cantidad, minimo: minimo, privada: privada, publica: publica, creationTime: creation,
-                                   comision: comision)
+                                   comision: comision, gasLimit: (gratis && gasPedido != nil) ? gasPedido! : 14000, gratis: gratis)
         }
     }
 
@@ -382,13 +387,19 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         guard let cuota = call.getDouble("cuota") else { return call.reject("Falta la cantidad.") }
         guard let periodo = call.getString("periodo").flatMap({ Int64($0) }) else { return call.reject("Falta cada cuánto se compra.") }
         guard let deslizamiento = call.getDouble("deslizamiento") else { return call.reject("Falta el deslizamiento.") }
+        // Gasolinera (gemelo de Kotlin): si la pantalla la pide, manda tambien el gas
+        // que MIDIO; sin ese numero habria que inventar un techo y el contrato
+        // rechaza todo lo que pase de 8000.
+        let gratis = call.getBool("gratis") ?? false
+        let gasPedido = call.getInt("gasLimit")
         firmaKda(call, "Firma el plan de compras") { privada, publica, creation, cartera in
             if Carteras.redDe(cartera) != "kda" {
                 throw FalloBoveda.argumento("Los planes de compra son de Kadena: elige una cartera de Kadena.")
             }
             return try FirmaKda.crearPlanDca(networkId: networkId, owner: "k:\(publica)", token: token, haciaToken: haciaToken, deposito: deposito,
                                              cuota: cuota, periodo: periodo, deslizamiento: deslizamiento,
-                                             privada: privada, publica: publica, creationTime: creation)
+                                             privada: privada, publica: publica, creationTime: creation,
+                                             gasLimit: (gratis && gasPedido != nil) ? gasPedido! : 20000, gratis: gratis)
         }
     }
 
@@ -400,13 +411,19 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         // Claves del contrato ("dca2"/"dca3") y del token del bote, nunca modulos.
         guard let contrato = call.getString("contrato") else { return call.reject("Falta el contrato del plan.") }
         let entra = call.getString("entra") ?? ""
+        // Gasolinera (gemelo de Kotlin): si la pantalla la pide, manda tambien el gas
+        // que MIDIO; sin ese numero habria que inventar un techo y el contrato
+        // rechaza todo lo que pase de 8000.
+        let gratis = call.getBool("gratis") ?? false
+        let gasPedido = call.getInt("gasLimit")
         firmaKda(call, "Firma el cambio en el plan") { privada, publica, creation, cartera in
             if Carteras.redDe(cartera) != "kda" {
                 throw FalloBoveda.argumento("Los planes de compra son de Kadena: elige una cartera de Kadena.")
             }
             return try FirmaKda.gestionarPlanDca(networkId: networkId, accion: accion, id: id, owner: "k:\(publica)",
                                                  cantidad: cantidad, contrato: contrato, entra: entra,
-                                                 privada: privada, publica: publica, creationTime: creation)
+                                                 privada: privada, publica: publica, creationTime: creation,
+                                                 gasLimit: (gratis && gasPedido != nil) ? gasPedido! : 20000, gratis: gratis)
         }
     }
 
@@ -416,13 +433,19 @@ public class KoberletVault: CAPPlugin, CAPBridgedPlugin {
         guard let cantidad = call.getString("cantidad") else { return call.reject("Falta la cantidad.") }
         guard let disparo = call.getString("disparo") else { return call.reject("Falta el precio.") }
         guard let minimo = call.getString("minimo") else { return call.reject("Falta el mínimo a recibir.") }
+        // Gasolinera (gemelo de Kotlin): si la pantalla la pide, manda tambien el gas
+        // que MIDIO; sin ese numero habria que inventar un techo y el contrato
+        // rechaza todo lo que pase de 8000.
+        let gratis = call.getBool("gratis") ?? false
+        let gasPedido = call.getInt("gasLimit")
         firmaKda(call, "Firma la orden") { privada, publica, creation, cartera in
             if Carteras.redDe(cartera) != "kda" {
                 throw FalloBoveda.argumento("Las órdenes son de Kadena: elige una cartera de Kadena.")
             }
             return try FirmaKda.crearOrden(networkId: networkId, owner: "k:\(publica)", venta: venta, cantidad: cantidad,
                                            disparo: disparo, minimo: minimo,
-                                           privada: privada, publica: publica, creationTime: creation)
+                                           privada: privada, publica: publica, creationTime: creation,
+                                           gasLimit: (gratis && gasPedido != nil) ? gasPedido! : 12000, gratis: gratis)
         }
     }
 

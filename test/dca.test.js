@@ -104,7 +104,8 @@ test('cada contrato lleva SU custodia, en Kotlin y en Swift', () => {
         assert.ok(m, 'Kotlin no casa ' + k + ' con su custodia');
         // La gasolinera solo paga el dca2.
         assert.equal(m[1], k === 'dca2' ? 'true' : 'false');
-        assert.ok(SWIFT.includes(`"${k}": ContratoDca(modulo: "${c.modulo}", custodia: "${CUSTODIA[k]}")`),
+        // Y en Swift igual, con la misma regla de gasolinera (desde la 0.63.4).
+        assert.ok(SWIFT.includes(`"${k}": ContratoDca(modulo: "${c.modulo}", custodia: "${CUSTODIA[k]}", gasolinera: ${k === 'dca2'})`),
             'Swift no casa ' + k + ' con su custodia');
     }
     // Y ninguna otra cuenta c: suelta por el DCA del codigo nativo.
@@ -224,8 +225,10 @@ test('el gas que no se pudo cobrar se explica en llano', async () => {
 
 test('la gasolinera solo se pide para planes de dca2, y con su tope de gas', async () => {
     const src = readFileSync(new URL('../src/pantalla-dca.js', import.meta.url), 'utf8');
-    // dca2, umbral de 5 kb-USDC (decisión de Antonio, 28/09/2026) y Android, en ese orden.
-    assert.match(src, /TOKENS\[otro\]\.contrato === 'dca2' && llegaAlUmbral\(valorUsdc\)\s*&& Capacitor\.getPlatform\(\) === 'android'/);
+    // dca2 y umbral de 5 kb-USDC (decisión de Antonio, 28/09/2026). Ya sin «solo
+    // Android»: desde la 0.63.4 el iPhone tambien firma con la gasolinera.
+    assert.match(src, /TOKENS\[otro\]\.contrato === 'dca2' && llegaAlUmbral\(valorUsdc\)\s*&& await gasolineraLista/);
+    assert.doesNotMatch(src, /getPlatform\(\) === 'android'/);
     assert.match(src, /gratis \? \{ gratis: true, gasLimit: GAS_GASOLINERA \}/);
     const { GAS_GASOLINERA } = await import('../src/lib/dca.js');
     assert.equal(GAS_GASOLINERA, 8000);   // MAX-GASLIMIT de free.ksw-gasolinera
