@@ -2,6 +2,20 @@
 
 Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.2** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
+## 0.63.4 — WalletConnect atado a la sesión, enlace koberlet:// y gasolinera en iPhone (23/10/2026)
+
+Resto del aviso privado de Alex (GHSA-wj7g-5v28-pj92) y su issue #7:
+- **Sesión:** se comparte solo la cuenta elegida (3c) y se aprueban solo las redes que pide la web (3d).
+- **Firma:** solo se firma lo que cabe en lo aprobado, al llegar y otra vez al firmar (3a, 3d).
+- **Verify:** se enseña lo que dice Reown Verify (3e).
+- **Peticiones muertas:** las caducadas (3f) y las de una sesión que la web cerró se quitan de la pantalla. La petición dice a qué hora llegó.
+- **Reconexión:** una casilla cierra las conexiones viejas de la misma web.
+- **Enlace `koberlet://wc?uri=`:** Android `intent-filter`, iOS `CFBundleURLTypes`. Solo rellena Conectar.
+- **NFT:** `ipPrivada` como en el escritorio; antes `[::1]` pasaba.
+- **iPhone:** la gasolinera paga el gas desde 5 kb-USDC, como en Android (Mercado, crear plan DCA, crear orden). Va con `capGas` y `remitente` en `FirmaKda.swift`, y con pruebas en Swift.
+
+Probado contra el relé real de WalletConnect con una web de prueba: 16 de 16. Las pruebas en JS, 114 de 114.
+
 ## 0.63.3 — WalletConnect: nada de firmas sin límites sin aviso (23/10/2026)
 
 Aviso privado de Alex (GHSA-wj7g-5v28-pj92, contra el escritorio 2.16.1; el móvil comparte
