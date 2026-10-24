@@ -15,7 +15,7 @@
 
 import { boveda, contrasenaDebil, MIN_CONTRASENA } from './boveda/contrato.js';
 import { nombreBio } from './biometria.js';
-import { t, locale, idiomaActual, fijarIdioma } from './idioma.js';
+import { t, locale, idiomaActual, fijarIdioma, IDIOMAS } from './idioma.js';
 import { selectorRed, selectorDerivacion } from './cartera-activa.js';
 import { REDES_KDA, CHAINS } from './config.js';
 import { saldoKda, cuentaKdaValida } from './lib/kda.js';
@@ -106,7 +106,13 @@ export function pintarBienvenida(raiz, { motor, alTerminar }) {
     // El mismo interruptor de idioma que en la portada, y por el mismo motivo:
     // esta es la primera pantalla que ve alguien que estrena la app.
     const c = caja('portada');
-    c.append(botonIdioma(() => pintarBienvenida(raiz, { motor, alTerminar })));
+    c.append(botonIdioma(() => {
+        // La cabecera la pinta main.js y no se entera de que se repinta esta
+        // caja: sin esto, el «Primer uso» de arriba se queda en el idioma viejo.
+        const sub = document.getElementById('sub');
+        if (sub) sub.textContent = t('Primer uso');
+        pintarBienvenida(raiz, { motor, alTerminar });
+    }));
     c.append(
         titulo(t('Todavía no hay ninguna cartera')),
         parrafo(t('Koberlet no trae ningún monedero dentro: la cartera la creas tú, y las claves se quedan en este aparato. Nadie más las tiene, así que nadie más puede recuperarlas por ti.'), 'nota'),
@@ -336,20 +342,31 @@ function logoKoberlet() {
     return svg;
 }
 
+// Como se llama cada idioma EN SU PROPIO idioma, y la etiqueta del boton. Van
+// sin `t()` a proposito: quien pulsa esto no entiende el idioma que hay puesto.
+const SALTO = {
+    es: 'Cambiar a español',
+    en: 'Switch to English',
+    ru: 'Переключить на русский',
+};
+
 /**
- * El interruptor ES/EN, arriba a la derecha.
+ * El interruptor de idioma, arriba a la derecha.
  *
  * Va AQUI y no solo en Ajustes porque Ajustes esta dentro de la cartera: quien
  * abre la app en un idioma que no entiende no puede llegar hasta alli para
- * cambiarlo. Ensena el idioma al que va a saltar, no el que hay puesto.
+ * cambiarlo. Ensena el idioma al que va a saltar, no el que hay puesto; con
+ * tres idiomas da la vuelta en circulo (es -> en -> ru -> es).
  */
 function botonIdioma(alCambiar) {
-    const otro = idiomaActual() === 'en' ? 'es' : 'en';
+    const hoy = idiomaActual();
+    const i = IDIOMAS.indexOf(hoy);
+    const otro = IDIOMAS[(i < 0 ? 0 : i + 1) % IDIOMAS.length];
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'idioma-portada';
     b.textContent = otro.toUpperCase();
-    b.setAttribute('aria-label', otro === 'en' ? 'Switch to English' : 'Cambiar a español');
+    b.setAttribute('aria-label', SALTO[otro] || otro.toUpperCase());
     b.addEventListener('click', () => {
         fijarIdioma(otro);
         alCambiar();

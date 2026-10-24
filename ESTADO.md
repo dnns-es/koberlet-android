@@ -2,6 +2,36 @@
 
 Actualizado: 2026-09-30 · En `descargas.dnns.es`: **0.63.2** · En TestFlight: **0.62.x** (la 0.63.0 se compila sola al hacer push) · En Google Play: **0.56.1**, canal de prueba cerrada · Plan: `PLAN.md` · Fase 1: `FASE1.md`
 
+## 0.63.5 — Ruso (24/10/2026)
+
+Pedido por un usuario en Telegram el mismo día. Es la primera vez que la app lleva
+un idioma que no es ni español ni inglés, así que lo que había que cambiar no era
+solo traducir:
+
+- **El motor deja de ser binario.** `src/idioma.js` tenía dos idiomas metidos en
+  la forma de cada función (`=== 'en' ? … : …`). Ahora hay una lista (`IDIOMAS`),
+  un mapa de diccionarios y otro de `locale`s. Añadir un cuarto idioma es ya solo
+  escribir su fichero.
+- **Lo que falte en un idioma cae al INGLÉS, no al español.** Quien usa la app en
+  ruso es mucho más probable que lea inglés que castellano.
+- **El ruso:** `src/idioma-ru.js`, 989 frases, exactamente las mismas claves que
+  el inglés. Dos pruebas nuevas en `test/estatica.test.js` no dejan que se quede
+  ninguna atrás, que sobre ninguna, ni que se pierda un hueco `{0}`.
+- **El interruptor de la portada** ya no es un ES↔EN: da la vuelta en círculo
+  (es → en → ru → es). Su etiqueta va en el idioma al que salta, no en el que
+  hay puesto: quien abre la app en un idioma que no entiende tiene que poder
+  salir de ahí.
+- **Ajustes** escribe cada idioma en su propio idioma: Español / English / Русский.
+- **Las políticas de uso siguen solo en español e inglés**, a propósito: es texto
+  legal y solo respondemos por lo que podemos leer. En ruso se enseña la inglesa.
+- De paso, un fallo viejo: al cambiar de idioma en la portada, el «Primer uso» de
+  la cabecera se quedaba en el idioma anterior.
+
+Probado en el navegador en los tres idiomas, de la portada al panel pasando por
+crear cartera, semilla, comprobación y ajustes. Pruebas: 116 de 116.
+
+**Sin revisar por nadie que hable ruso** (ver el aviso al final de `PARIDAD.md`).
+
 ## 0.63.4 — WalletConnect atado a la sesión, enlace koberlet:// y gasolinera en iPhone (23/10/2026)
 
 Resto del aviso privado de Alex (GHSA-wj7g-5v28-pj92) y su issue #7:

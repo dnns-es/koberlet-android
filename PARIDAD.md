@@ -38,6 +38,7 @@ cambio**, no después.
 
 | Cambio | Escritorio | Android | iOS | Notas |
 |---|---|---|---|---|
+| **Ruso** (tercer idioma) | **Falta** | **Sí** (0.63.5) | **Sí** (0.63.5: comparte el JS; nada que tocar en Swift) | Pedido por un usuario en Telegram el 24/10/2026. El móvil deja de ser binario: `VALIDOS = ['es','en','ru','sistema']`, `IDIOMAS` exportado, `DICCIONARIOS = { en, ru }`, `LOCALES`, y `t()` **cae al inglés** antes que al español cuando a un idioma le falta una frase (quien usa la app en ruso es más probable que lea inglés). El ruso vive aparte, en `src/idioma-ru.js`: 989 frases, las MISMAS claves que el inglés, vigilado por dos pruebas nuevas en `test/estatica.test.js` (ni una menos, ni una huérfana, mismos `{0}`). El interruptor de la portada ya no es ES↔EN: da la vuelta en círculo (`es → en → ru → es`) y su `aria-label` va en el idioma de destino, sin `t()`. En Ajustes cada idioma se escribe en su propio idioma (Español / English / Русский), también sin `t()`. **Las políticas de uso NO se traducen**: son texto legal, solo hay española e inglesa, y el ruso lee la inglesa (`politicas.js`). **Para nivelar el escritorio** hay más trabajo que aquí: `renderer/app.js` usa diccionarios `es:{}`/`en:{}` (484 claves) en vez de la frase española como clave, tiene 9 `LNG === 'en'` a pelo, y los errores del proceso principal van por una tabla de expresiones regulares en `renderer/errores-en.js` (210). **Sin revisar por un hablante de ruso**: ver el aviso del final. |
 | WalletConnect: lo firmado cabe en lo aprobado al conectar (aviso privado de Alex GHSA-wj7g-5v28-pj92, 3a, 3c, 3d, 3e y 3f) | Sí (commit 5ee68c3, **sin publicar**, irá en la 2.16.3) | Sí (**sin publicar**) | Sí (**sin publicar**) | Se comparte **solo la cuenta elegida**. Firman solo las claves de la sesión, y solo en las redes que pidió la web (ya no se añade mainnet01 siempre). Lo que no cabe se rechaza al llegar y otra vez al firmar (`motivoFueraDeSesion`, gemelo en `lib/` y `src/lib/wc-namespaces.js`). Se enseña lo que dice Reown Verify (verificada, no coincide, estafa) y las redes al conectar. `session_request_expire` tira la petición. Pruebas: `test/wc-sesion.test.js` en los dos repos. El repo es público: **no subir hasta publicar.** |
 | WalletConnect: enlace `koberlet://wc?uri=` y páginas recargadas (issue #7 de Alex, público) | Sí (5ee68c3, sin publicar): `setAsDefaultProtocolClient` + `open-url` (Mac, `CFBundleURLTypes` en `build-mac.sh`) | Sí (sin publicar): `intent-filter` `koberlet://wc` | Sí (sin publicar): `CFBundleURLTypes` en `Info.plist` | El enlace **solo rellena** la caja de conexión (`lib/wc-enlace.js` = `src/lib/wc-enlace.js`). `session_delete` cierra la petición en pantalla; la ventana de firma dice a qué hora llegó; al volver a conectarse la misma web, una casilla marcada cierra sus conexiones viejas. A Alex se le contestó en el issue el 23/10/2026: avisarle allí al publicar. |
 | Auto-update que no vuelve atrás, `npm ci` y Electron 43.8.3 (aviso de Alex, 4) | Sí (5ee68c3, sin publicar) | No aplica | No aplica | `sigVer` firma `koberlet-app\|versión\|sha256`; se exige versión mayor que la instalada y el `package.json` de dentro igual a la anunciada. Electron nuevo **solo llega con el instalador completo** (el auto-update cambia `resources/app`). Móvil: Android ya compara `versionCode` y el certificado; iPhone va por TestFlight. |
@@ -228,3 +229,17 @@ revisión en Apple.
 
 No se toca todavía porque el mismo fichero sirve al escritorio, donde la frase sí
 es cierta: el arreglo es condicionar, no borrar.
+
+## Aviso: el ruso no lo ha revisado nadie que hable ruso
+
+24/10/2026. `src/idioma-ru.js` son 989 frases traducidas por Claude. Las pruebas
+garantizan que no falta ninguna y que los huecos `{0}` cuadran, pero **no** que
+cada frase diga lo que debe.
+
+En un monedero eso no es un detalle de estilo: una palabra mal puesta en la
+pantalla de enviar, en la de firmar o en el aviso de la semilla le puede costar
+dinero a alguien, y nadie del equipo sabe leerlo para darse cuenta.
+
+Mientras no lo repase un hablante de ruso, al menos las pantallas que mueven
+dinero (enviar, firmar, WalletConnect, semilla, quitar cartera), el ruso se
+ofrece pero no se anuncia como terminado.

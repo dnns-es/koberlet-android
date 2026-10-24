@@ -57,7 +57,10 @@ function elemento(tag, texto, clase) {
  */
 export function textoPoliticas() {
     const c = elemento('div', null, 'politicas');
-    const bloques = POLITICAS[idiomaActual() === 'en' ? 'en' : 'es'] || POLITICAS.es;
+    // Texto legal: solo hay español e inglés, y a propósito. Lo que se acepta
+    // tiene que estar en un idioma que podamos responder por él; los demás
+    // idiomas leen el inglés, que es la versión de referencia.
+    const bloques = POLITICAS[idiomaActual() === 'es' ? 'es' : 'en'] || POLITICAS.es;
     let lista = null;
     for (const b of bloques) {
         if (b.t === 'li') {

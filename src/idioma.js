@@ -1,7 +1,7 @@
 // Koberlet Android - Copyright 2026 DNNS.es (Oberluss)
 // SPDX-License-Identifier: Apache-2.0
 
-// IDIOMA: español e inglés.
+// IDIOMA: español, inglés y ruso.
 //
 // La clave del diccionario es el texto EN ESPAÑOL, no un código tipo
 // `panel.boton.copiar`. Dos motivos, los dos prácticos:
@@ -13,9 +13,18 @@
 // Para frases con datos dentro se usa `{0}`, `{1}`…: `t('Chain {0}', ch)`. Se
 // numeran porque en inglés el orden de la frase cambia y las piezas tienen que
 // poder moverse con ella.
+//
+// El español es la clave, y de ahí sale cada idioma. Cuando a un idioma le falta
+// una frase se cae al INGLÉS antes que al español: quien usa la app en ruso es
+// mucho más probable que lea inglés que castellano.
+
+import { RU } from './idioma-ru.js';
 
 const LLAVE = 'koberlet.idioma';
-const VALIDOS = ['es', 'en', 'sistema'];
+const VALIDOS = ['es', 'en', 'ru', 'sistema'];
+
+// El orden del interruptor de la portada y del desplegable de Ajustes.
+export const IDIOMAS = ['es', 'en', 'ru'];
 
 // Inglés. Lo que no esté aquí se queda en español, a la vista, y se traduce
 // cuando toque; eso es preferible a inventarse una traducción a medias.
@@ -576,8 +585,6 @@ const EN = {
     'Oscuro': 'Dark',
     'El del sistema': 'Same as the system',
     'Idioma': 'Language',
-    'Español': 'Spanish',
-    'Inglés': 'English',
     'Privacidad': 'Privacy',
     'Ocultar los saldos': 'Hide the balances',
     'Volver a mostrar los saldos': 'Show the balances again',
@@ -1441,7 +1448,10 @@ const EN = {
 
 let actual = null;              // se calcula la primera vez que se pide
 
-/** Lo elegido: 'es' | 'en' | 'sistema'. */
+// Cada idioma, con su diccionario. El español no tiene: es la clave.
+const DICCIONARIOS = { en: EN, ru: RU };
+
+/** Lo elegido: 'es' | 'en' | 'ru' | 'sistema'. */
 export function idiomaElegido() {
     try {
         const v = localStorage.getItem(LLAVE);
@@ -1451,15 +1461,15 @@ export function idiomaElegido() {
     }
 }
 
-/** El que se está usando de verdad: 'es' | 'en'. */
+/** El que se está usando de verdad: 'es' | 'en' | 'ru'. */
 export function idiomaActual() {
     if (actual) return actual;
     const e = idiomaElegido();
     if (e !== 'sistema') { actual = e; return actual; }
-    // Del móvil. Cualquier cosa que no sea inglés cae en español, que es el
-    // idioma en el que está escrita la app.
+    // Del móvil. Lo que no reconozcamos cae en español, que es el idioma en el
+    // que está escrita la app.
     const del = (navigator.language || 'es').toLowerCase();
-    actual = del.startsWith('en') ? 'en' : 'es';
+    actual = IDIOMAS.find((l) => del.startsWith(l)) || 'es';
     return actual;
 }
 
@@ -1475,7 +1485,9 @@ export function fijarIdioma(v) {
  * Lo que no esté traducido sale tal cual, en español.
  */
 export function t(texto, ...datos) {
-    const base = idiomaActual() === 'en' ? (EN[texto] ?? texto) : texto;
+    const dic = DICCIONARIOS[idiomaActual()];
+    // Lo que falte en un idioma se busca en inglés antes de caer al español.
+    const base = !dic ? texto : (dic[texto] ?? EN[texto] ?? texto);
     if (!datos.length) return base;
     return base.replace(/\{(\d+)\}/g, (crudo, i) => (datos[i] !== undefined ? String(datos[i]) : crudo));
 }
@@ -1492,5 +1504,7 @@ export function arrancarIdioma() {
  * monedero es un saldo malentendido.
  */
 export function locale() {
-    return idiomaActual() === 'en' ? 'en-GB' : 'es-ES';
+    return LOCALES[idiomaActual()] || 'es-ES';
 }
+
+const LOCALES = { es: 'es-ES', en: 'en-GB', ru: 'ru-RU' };

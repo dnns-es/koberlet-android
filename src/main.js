@@ -2006,7 +2006,9 @@ function pintarAjustes() {
     // Idioma. Por defecto se sigue al móvil; quien lo tenga en inglés no tiene
     // por que encontrarse una app en español sin poder cambiarla.
     cTema.append(desplegable('idioma', t('Idioma'), [
-        ['es', t('Español')], ['en', t('Inglés')], ['sistema', t('El del sistema')],
+        // Cada idioma, escrito en su propio idioma: es como se reconoce sin
+        // saber leer el que hay puesto ahora.
+        ['es', 'Español'], ['en', 'English'], ['ru', 'Русский'], ['sistema', t('El del sistema')],
     ], idiomaElegido(), (v) => {
         fijarIdioma(v);
         // Se repinta entero, barra incluida: media app en un idioma y media en

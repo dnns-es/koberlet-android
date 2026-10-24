@@ -65,6 +65,7 @@ function ficherosKotlin() {
     return textos;
 }
 const IDIOMA = readFileSync(join(SRC, 'idioma.js'), 'utf8');
+const IDIOMA_RU = readFileSync(join(SRC, 'idioma-ru.js'), 'utf8');
 const INDEX = readFileSync(join(RAIZ, 'index.html'), 'utf8');
 
 // Una cadena entre comillas simples, con sus escapes.
@@ -140,13 +141,23 @@ function cadenasTraducidas() {
     return vistas;
 }
 
-/** Las claves del diccionario inglés. */
-function clavesDiccionario() {
+/** Las claves de un diccionario: español -> traducción. */
+function clavesDe(fuente) {
     const claves = new Map();
-    for (const m of IDIOMA.matchAll(new RegExp('^\\s*' + CADENA + ':\\s*\\n?\\s*' + CADENA + ',', 'gm'))) {
+    for (const m of fuente.matchAll(new RegExp('^\\s*' + CADENA + ':\\s*\\n?\\s*' + CADENA + ',', 'gm'))) {
         claves.set(m[1], m[2]);
     }
     return claves;
+}
+
+/** Las claves del diccionario inglés. */
+function clavesDiccionario() {
+    return clavesDe(IDIOMA);
+}
+
+/** Los huecos {0}, {1}… de una frase, ordenados. */
+function huecosDe(s) {
+    return [...s.matchAll(/\{(\d+)\}/g)].map((m) => m[1]).sort().join(',');
 }
 
 // --- 1. Idioma ---------------------------------------------------------------
@@ -164,10 +175,30 @@ test('los huecos {0} son los mismos en español y en inglés', () => {
     // un usuario.
     const malas = [];
     for (const [es, en] of clavesDiccionario()) {
-        const huecos = (s) => [...s.matchAll(/\{(\d+)\}/g)].map((m) => m[1]).sort().join(',');
-        if (huecos(es) !== huecos(en)) malas.push(`${es}  ->  ${en}`);
+        if (huecosDe(es) !== huecosDe(en)) malas.push(`${es}  ->  ${en}`);
     }
     assert.deepEqual(malas, [], 'Traducciones con huecos distintos:\n  ' + malas.join('\n  '));
+});
+
+test('el ruso traduce las mismas frases que el inglés', () => {
+    // Lo que falte en ruso sale en inglés, así que no rompe nada; pero un idioma
+    // a medias se nota a la legua, y lo que se cuela suele ser justo la pantalla
+    // que se añadió ayer. Mejor que salte aquí.
+    const en = clavesDiccionario();
+    const ru = clavesDe(IDIOMA_RU);
+    const faltan = [...en.keys()].filter((c) => !ru.has(c));
+    assert.deepEqual(faltan, [],
+        'Estas frases saldrían en inglés con la app en ruso:\n  ' + faltan.join('\n  '));
+    const sobran = [...ru.keys()].filter((c) => !en.has(c));
+    assert.deepEqual(sobran, [], 'Sobran en idioma-ru.js:\n  ' + sobran.join('\n  '));
+});
+
+test('los huecos {0} son los mismos en español y en ruso', () => {
+    const malas = [];
+    for (const [es, ru] of clavesDe(IDIOMA_RU)) {
+        if (huecosDe(es) !== huecosDe(ru)) malas.push(`${es}  ->  ${ru}`);
+    }
+    assert.deepEqual(malas, [], 'Traducciones rusas con huecos distintos:\n  ' + malas.join('\n  '));
 });
 
 test('el diccionario no arrastra frases que ya no usa nadie', () => {
