@@ -25,6 +25,12 @@ on:
     paths-ignore: ['play/**', '*.md']
   pull_request:
   workflow_dispatch:
+    inputs:
+      destino:
+        description: 'Que hacer con la compilacion firmada'
+        type: choice
+        default: testflight
+        options: [testflight, adhoc]
 
 jobs:
   simulador:
@@ -94,7 +100,9 @@ jobs:
   testflight:
     name: Firmar y subir a TestFlight
     needs: simulador
-    if: github.event_name != 'pull_request'
+    # Un push a main sigue subiendo a TestFlight como siempre. Lanzado a mano,
+    # solo si se pide ese destino: con 'adhoc' corre el otro job y no se sube nada.
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.destino == 'testflight')
     runs-on: macos-26
     timeout-minutes: 45
     env:
@@ -216,3 +224,128 @@ jobs:
             -authenticationKeyIssuerID "$APPLE_ASC_ISSUER_ID" \
             -allowProvisioningUpdates
           rm -rf "$RUNNER_TEMP/asc"
+
+  # ---------------------------------------------------------------------------
+  # Ad Hoc: el mismo archivo firmado, pero exportado como .ipa suelto para
+  # instalar en los iPhones que esten dentro del perfil «Koberlet Ad Hoc».
+  # No pasa por la App Store ni por TestFlight, y caduca cuando caduque el
+  # perfil (12 meses). Cada iPhone nuevo exige rehacer el perfil y volver aqui.
+  # ---------------------------------------------------------------------------
+  adhoc:
+    name: Firmar en Ad Hoc
+    needs: simulador
+    if: github.event_name == 'workflow_dispatch' && inputs.destino == 'adhoc'
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_PROFILE: ${{ secrets.APPLE_PROFILE }}
+      APPLE_PROFILE_ADHOC: ${{ secrets.APPLE_PROFILE_ADHOC }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - name: Comprobar secretos
+        id: secretos
+        run: |
+          if [ -n "$APPLE_CERT_P12" ] && [ -n "$APPLE_PROFILE_ADHOC" ]; then
+            echo "hay=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay=false" >> "$GITHUB_OUTPUT"
+            echo "Falta APPLE_CERT_P12 o APPLE_PROFILE_ADHOC: no se firma."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secretos.outputs.hay == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secretos.outputs.hay == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependencias y web
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          npm ci
+          npm run build:ios
+
+      # Se instalan los DOS perfiles: el de App Store porque es el que nombra el
+      # target al archivar, y el Ad Hoc porque es con el que se reexporta despues.
+      - name: Certificado y perfiles
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -e
+          LLAVERO="$RUNNER_TEMP/firma.keychain-db"
+          CLAVE_LLAVERO="$(uuidgen)"
+          security create-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          security set-keychain-settings -lut 21600 "$LLAVERO"
+          security unlock-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          echo "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$LLAVERO"
+          curl -sSfo "$RUNNER_TEMP/wwdr.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import "$RUNNER_TEMP/wwdr.cer" -k "$LLAVERO" -A || echo "El intermedio WWDR ya estaba en el llavero."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CLAVE_LLAVERO" "$LLAVERO" > /dev/null
+          security list-keychains -d user -s "$LLAVERO" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$LLAVERO"
+          rm -f "$RUNNER_TEMP/distribution.p12"
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"
+            [ -n "$APPLE_PROFILE" ] && echo "$APPLE_PROFILE" | base64 --decode > "$d/koberlet-app-store.mobileprovision"
+            echo "$APPLE_PROFILE_ADHOC" | base64 --decode > "$d/koberlet-ad-hoc.mobileprovision"
+          done
+
+      - name: Archivar (firmado)
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -o pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "Koberlet $VERSION ($GITHUB_RUN_NUMBER) — Ad Hoc"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Koberlet.xcarchive" \
+            -derivedDataPath ios/DerivedData \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            -quiet \
+            archive
+
+      # Aqui esta la diferencia con TestFlight: method 'ad-hoc' y destino
+      # 'export'. exportArchive vuelve a firmar con el perfil Ad Hoc, que lleva
+      # dentro la lista de UDIDs, y deja el .ipa en disco en vez de subirlo.
+      - name: Exportar .ipa
+        if: steps.secretos.outputs.hay == 'true'
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>ad-hoc</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>es.dnns.koberlet</key><string>Koberlet Ad Hoc</string></dict>
+            <key>compileBitcode</key><false/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Koberlet.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
+          ls -lh "$RUNNER_TEMP/export"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.secretos.outputs.hay == 'true'
+        with:
+          name: koberlet-ios-adhoc
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 14
