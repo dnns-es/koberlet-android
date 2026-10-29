@@ -29,7 +29,7 @@ on:
       destino:
         description: 'Que hacer con la compilacion firmada'
         type: choice
-        default: testflight
+        default: simulador
         options: [testflight, adhoc]
 
 jobs:
